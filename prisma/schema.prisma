@@ -1,0 +1,1138 @@
+// Prisma Schema for Hotel PMFS - Indira Lodge Core, Phase 2, Phase 3, Phase 4 & Phase 5 Business Intelligence
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==================== PHASE 1 CORE MODELS ====================
+
+model Organization {
+  id          String       @id @default(uuid())
+  name        String
+  code        String       @unique
+  properties  Property[]
+  users       User[]
+  roles       Role[]
+  auditLogs   AuditLog[]
+  guests      Guest[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Property {
+  id                String                     @id @default(uuid())
+  organizationId    String
+  organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name              String
+  code              String                     @unique
+  address           String
+  city              String
+  state             String
+  country           String
+  zipCode           String
+  phone             String
+  email             String
+  gstin             String?
+  currency          String                     @default("INR")
+  timezone          String                     @default("Asia/Kolkata")
+  status            String                     @default("ACTIVE")
+  settings          PropertySettings?
+  userRoles         UserRole[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  activityLogs      ActivityLog[]
+  refCounters       ReferenceCounter[]
+  roomTypes         RoomType[]
+  rooms             Room[]
+  bookingSources    BookingSource[]
+  reservations      Reservation[]
+  folios            Folio[]
+  payments          Payment[]
+  housekeepingTasks HousekeepingTask[]
+  checklists        HousekeepingChecklist[]
+  hkNotes           HousekeepingNote[]
+  lostAndFound      LostAndFoundItem[]
+  linenLedgers      LinenLedger[]
+  amenitiesLogs     AmenitiesConsumption[]
+  maintTickets      MaintenanceTicket[]
+  maintAssets       MaintenanceAsset[]
+  preventivePlans   PreventiveMaintenancePlan[]
+
+  // Phase 4 Finance Relations
+  chartOfAccounts   ChartOfAccount[]
+  accountingPeriods AccountingPeriod[]
+  journalEntries    JournalEntry[]
+  taxRates          TaxRate[]
+  taxInvoices       TaxInvoice[]
+  creditNotes       CreditNote[]
+  debitNotes        DebitNote[]
+  vendors           Vendor[]
+  expenses          Expense[]
+  bankAccounts      BankAccount[]
+  cashierShifts     CashierShift[]
+  bankRecons        BankReconciliation[]
+
+  // Phase 5 BI Relations
+  kpiTargets        KpiTarget[]
+  savedReports      SavedReport[]
+  reportSchedules   ReportSchedule[]
+
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+}
+
+model PropertySettings {
+  id             String   @id @default(uuid())
+  propertyId     String   @unique
+  property       Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  dateFormat     String   @default("DD/MM/YYYY")
+  timeFormat     String   @default("12H")
+  currencySymbol String   @default("₹")
+  taxInclusive   Boolean  @default(false)
+  defaultTaxRate Float    @default(18.0)
+  logoUrl        String?
+  primaryColor   String   @default("#0c8de9")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model User {
+  id                  String                      @id @default(uuid())
+  organizationId      String
+  organization        Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email               String                      @unique
+  passwordHash        String
+  fullName            String
+  phone               String?
+  status              String                      @default("ACTIVE")
+  lastLoginAt         DateTime?
+  userRoles           UserRole[]
+  userSessions        UserSession[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  activityLogs        ActivityLog[]
+  notifPref           NotificationPreference?
+  createdRes          Reservation[]               @relation("CreatedBy")
+  postedTrx           FolioTransaction[]          @relation("PostedBy")
+  receivedPayments    Payment[]                   @relation("ReceivedBy")
+  roomBlocks          RoomBlock[]                 @relation("BlockedBy")
+  stayHistories       StayHistory[]               @relation("PerformedBy")
+
+  // Phase 3 Housekeeping & Maintenance Relations
+  assignedHkTasks     HousekeepingTask[]          @relation("HousekeepingStaff")
+  supervisedHkTasks   HousekeepingTask[]          @relation("HousekeepingSupervisor")
+  createdHkTasks      HousekeepingTask[]          @relation("TaskCreatedBy")
+  inspectedHkTasks    HousekeepingInspection[]    @relation("InspectedBy")
+  createdHkNotes      HousekeepingNote[]          @relation("NoteCreatedBy")
+  foundLostItems      LostAndFoundItem[]          @relation("FoundBy")
+  handedLostItems     LostAndFoundItem[]          @relation("HandedOverBy")
+  recordedLinens      LinenLedger[]               @relation("LinenRecordedBy")
+  recordedAmenities   AmenitiesConsumption[]      @relation("AmenitiesRecordedBy")
+  reportedTickets     MaintenanceTicket[]         @relation("TicketReportedBy")
+  techTickets         MaintenanceTicket[]         @relation("TicketTechnician")
+  maintComments       MaintenanceComment[]        @relation("CommentUser")
+  techPreventivePlans PreventiveMaintenancePlan[] @relation("PlanTechnician")
+
+  // Phase 4 Finance Relations
+  closedPeriods       AccountingPeriod[]          @relation("ClosedBy")
+  createdJournals     JournalEntry[]              @relation("JournalCreatedBy")
+  postedJournals      JournalEntry[]              @relation("JournalPostedBy")
+  issuedInvoices      TaxInvoice[]                @relation("InvoiceIssuedBy")
+  createdCreditNotes  CreditNote[]                @relation("CNCreatedBy")
+  createdDebitNotes   DebitNote[]                 @relation("DNCreatedBy")
+  createdExpenses     Expense[]                   @relation("ExpenseCreatedBy")
+  approvedExpenses    Expense[]                   @relation("ExpenseApprovedBy")
+  cashierShifts       CashierShift[]              @relation("CashierUser")
+  reconciledBanks     BankReconciliation[]        @relation("ReconciledBy")
+
+  // Phase 5 BI Relations
+  savedReports        SavedReport[]               @relation("ReportOwner")
+
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+}
+
+model Role {
+  id             String           @id @default(uuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  isSystem       Boolean          @default(false)
+  rolePerms      RolePermission[]
+  userRoles      UserRole[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([organizationId, name])
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  name        String
+  module      String
+  description String?
+  rolePerms   RolePermission[]
+  createdAt   DateTime         @default(now())
+}
+
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId     String
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([userId, roleId, propertyId])
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  propertyId     String?
+  property       Property?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action         String
+  module         String
+  entityId       String?
+  beforeData     String?
+  afterData      String?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  message    String
+  type       String   @default("INFO")
+  priority   String   @default("NORMAL")
+  isRead     Boolean  @default(false)
+  module     String?
+  entityId   String?
+  createdAt  DateTime @default(now())
+}
+
+model NotificationPreference {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailAlerts Boolean  @default(true)
+  inAppAlerts Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+}
+
+model SystemSettings {
+  id         String   @id @default(uuid())
+  key        String   @unique
+  value      String
+  category   String   @default("GENERAL")
+  isEditable Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+}
+
+model ActivityLog {
+  id         String    @id @default(uuid())
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  activity   String
+  details    String?
+  createdAt  DateTime  @default(now())
+}
+
+model ReferenceCounter {
+  id           String   @id @default(uuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  prefix       String
+  year         Int
+  lastSequence Int      @default(0)
+
+  @@unique([propertyId, prefix, year])
+}
+
+// ==================== PHASE 2 FRONT OFFICE MODELS ====================
+
+model Guest {
+  id                String                 @id @default(uuid())
+  organizationId    String
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  guestRef          String                 @unique
+  firstName         String
+  middleName        String?
+  lastName          String
+  displayName       String
+  gender            String?
+  dateOfBirth       DateTime?
+  nationality       String                 @default("Indian")
+  phone             String
+  alternatePhone    String?
+  email             String?
+  address           String?
+  city              String?
+  state             String?
+  country           String                 @default("India")
+  postalCode        String?
+  company           String?
+  gstin             String?
+  guestType         String                 @default("INDIVIDUAL")
+  notes             String?
+  vipStatus         Boolean                @default(false)
+  blacklistedStatus Boolean                @default(false)
+  documents         GuestDocument[]
+  reservations      Reservation[]
+  resGuests         ReservationGuest[]
+  folios            Folio[]
+  payments          Payment[]
+  housekeepingTasks HousekeepingTask[]
+  lostItems         LostAndFoundItem[]
+  taxInvoices       TaxInvoice[]
+  creditNotes       CreditNote[]
+  debitNotes        DebitNote[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+}
+
+model GuestDocument {
+  id                 String    @id @default(uuid())
+  guestId            String
+  guest              Guest     @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  documentType       String
+  documentNumber     String
+  issuingCountry     String    @default("India")
+  expiryDate         DateTime?
+  fileReference      String?
+  verificationStatus String    @default("VERIFIED")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model RoomType {
+  id               String        @id @default(uuid())
+  propertyId       String
+  property         Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  code             String
+  name             String
+  description      String?
+  maxOccupancy     Int           @default(2)
+  adultsCapacity   Int           @default(2)
+  childrenCapacity Int           @default(1)
+  baseRate         Float         @default(3500.0)
+  extraAdultRate   Float         @default(1000.0)
+  extraChildRate   Float         @default(500.0)
+  numberOfBeds     Int           @default(1)
+  bedType          String        @default("King")
+  amenities        String?
+  isActive         Boolean       @default(true)
+  rooms            Room[]
+  reservations     Reservation[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([propertyId, code])
+}
+
+model Room {
+  id                 String                  @id @default(uuid())
+  propertyId         String
+  property           Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomTypeId         String
+  roomType           RoomType                @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  roomNumber         String
+  floor              String                  @default("1")
+  buildingBlock      String                  @default("Main")
+  maxOccupancy       Int                     @default(2)
+  description        String?
+  amenities          String?
+  availabilityStatus String                  @default("AVAILABLE")
+  housekeepingStatus String                  @default("CLEAN")
+  maintenanceStatus  String                  @default("OPERATIONAL")
+  isDnd              Boolean                 @default(false)
+  isActive           Boolean                 @default(true)
+  reservations       Reservation[]           @relation("AssignedRoom")
+  roomBlocks         RoomBlock[]
+  prevRoomHistories  StayHistory[]           @relation("PreviousRoom")
+  newRoomHistories   StayHistory[]           @relation("NewRoom")
+  housekeepingTasks  HousekeepingTask[]
+  inspections        HousekeepingInspection[]
+  hkNotes            HousekeepingNote[]
+  lostItems          LostAndFoundItem[]
+  amenitiesLogs      AmenitiesConsumption[]
+  maintTickets       MaintenanceTicket[]
+  maintAssets        MaintenanceAsset[]
+  preventivePlans    PreventiveMaintenancePlan[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  @@unique([propertyId, roomNumber])
+}
+
+model RoomBlock {
+  id          String   @id @default(uuid())
+  propertyId  String
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  notes       String?
+  createdById String?
+  createdBy   User?    @relation("BlockedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+}
+
+model BookingSource {
+  id           String        @id @default(uuid())
+  propertyId   String
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  isActive     Boolean       @default(true)
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([propertyId, code])
+}
+
+model Reservation {
+  id                String             @id @default(uuid())
+  propertyId        String
+  property         Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservationRef    String             @unique
+  guestId           String
+  guest             Guest              @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  bookingSourceId   String
+  bookingSource     BookingSource      @relation(fields: [bookingSourceId], references: [id], onDelete: Cascade)
+  status            String             @default("CONFIRMED")
+  arrivalDate       DateTime
+  departureDate     DateTime
+  actualCheckInAt   DateTime?
+  actualCheckOutAt  DateTime?
+  nights            Int                @default(1)
+  adults            Int                @default(1)
+  children          Int                @default(0)
+  roomTypeId        String
+  roomType          RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  assignedRoomId    String?
+  assignedRoom      Room?              @relation("AssignedRoom", fields: [assignedRoomId], references: [id], onDelete: SetNull)
+  ratePlan          String             @default("Standard Rate")
+  roomRate          Float              @default(3500.0)
+  discountAmount    Float              @default(0.0)
+  discountReason    String?
+  taxAmount         Float              @default(0.0)
+  totalAmount       Float              @default(3500.0)
+  depositAmount     Float              @default(0.0)
+  paidAmount        Float              @default(0.0)
+  balanceAmount     Float              @default(3500.0)
+  specialRequests   String?
+  internalNotes     String?
+  guestNotes        String?
+  cancelledReason   String?
+  cancelledAt       DateTime?
+  noShowAt          DateTime?
+  createdById       String?
+  createdBy         User?              @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  resGuests         ReservationGuest[]
+  folios            Folio[]
+  payments          Payment[]
+  stayHistories     StayHistory[]
+  housekeepingTasks HousekeepingTask[]
+  taxInvoices       TaxInvoice[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model ReservationGuest {
+  id            String      @id @default(uuid())
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  guestId       String
+  guest         Guest       @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@unique([reservationId, guestId])
+}
+
+model StayHistory {
+  id               String      @id @default(uuid())
+  reservationId   String
+  reservation     Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  previousRoomId  String?
+  previousRoom    Room?       @relation("PreviousRoom", fields: [previousRoomId], references: [id], onDelete: SetNull)
+  newRoomId       String?
+  newRoom         Room?       @relation("NewRoom", fields: [newRoomId], references: [id], onDelete: SetNull)
+  previousCheckOut DateTime?
+  newCheckOut      DateTime?
+  type             String
+  reason           String?
+  performedById    String?
+  performedBy      User?       @relation("PerformedBy", fields: [performedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime    @default(now())
+}
+
+model Folio {
+  id            String             @id @default(uuid())
+  propertyId    String
+  property      Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservationId String
+  reservation   Reservation        @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  guestId       String
+  guest         Guest              @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  folioNumber   String             @unique
+  status        String             @default("ACTIVE")
+  totalCharges  Float              @default(0.0)
+  totalPayments Float              @default(0.0)
+  balanceAmount Float              @default(0.0)
+  transactions  FolioTransaction[]
+  payments      Payment[]
+  taxInvoices   TaxInvoice[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+model FolioTransaction {
+  id             String   @id @default(uuid())
+  folioId        String
+  folio          Folio    @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  transactionRef String   @unique
+  date           DateTime @default(now())
+  type           String
+  category       String
+  description    String
+  quantity       Int      @default(1)
+  unitPrice      Float    @default(0.0)
+  discount       Float    @default(0.0)
+  tax            Float    @default(0.0)
+  amount         Float    @default(0.0)
+  status         String   @default("POSTED")
+  postedById     String?
+  postedBy       User?    @relation("PostedBy", fields: [postedById], references: [id], onDelete: SetNull)
+  reference      String?
+  createdAt      DateTime @default(now())
+}
+
+model Payment {
+  id             String      @id @default(uuid())
+  propertyId     String
+  property       Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  folioId        String?
+  folio          Folio?      @relation(fields: [folioId], references: [id], onDelete: SetNull)
+  reservationId  String
+  reservation    Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  guestId        String
+  guest          Guest       @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  paymentRef     String      @unique
+  amount         Float
+  method         String      @default("CASH")
+  date           DateTime    @default(now())
+  transactionRef String?
+  notes          String?
+  receivedById   String?
+  receivedBy     User?       @relation("ReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime    @default(now())
+}
+
+// ==================== PHASE 3 HOUSEKEEPING & MAINTENANCE MODELS ====================
+
+model HousekeepingTask {
+  id                   String                   @id @default(uuid())
+  taskRef              String                   @unique
+  propertyId           String
+  property             Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId               String
+  room                 Room                     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  taskType             String
+  priority             String                   @default("NORMAL")
+  status               String                   @default("PENDING")
+  assignedStaffId      String?
+  assignedStaff        User?                    @relation("HousekeepingStaff", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  assignedSupervisorId String?
+  assignedSupervisor   User?                    @relation("HousekeepingSupervisor", fields: [assignedSupervisorId], references: [id], onDelete: SetNull)
+  createdById          String?
+  createdBy            User?                    @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  reservationId        String?
+  reservation          Reservation?             @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  guestId              String?
+  guest                Guest?                   @relation(fields: [guestId], references: [id], onDelete: SetNull)
+  estimatedDuration    Int                      @default(30)
+  actualDuration       Int?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  inspectedAt          DateTime?
+  notes                String?
+  inspectionNotes      String?
+  failedReason         String?
+  isVip                Boolean                  @default(false)
+  isDndOverride        Boolean                  @default(false)
+  inspections          HousekeepingInspection[]
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+}
+
+model HousekeepingInspection {
+  id            String           @id @default(uuid())
+  taskId        String
+  task          HousekeepingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  roomId        String
+  room          Room             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  inspectorId   String?
+  inspector     User?            @relation("InspectedBy", fields: [inspectorId], references: [id], onDelete: SetNull)
+  result        String
+  checklistData String?
+  failedItems   String?
+  reason        String?
+  createdAt     DateTime         @default(now())
+}
+
+model HousekeepingChecklist {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  category   String
+  itemText   String
+  isRequired Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model HousekeepingNote {
+  id          String   @id @default(uuid())
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId      String?
+  room        Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  createdById String
+  createdBy   User     @relation("NoteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  noteType    String   @default("INTERNAL")
+  content     String
+  createdAt   DateTime @default(now())
+}
+
+model LostAndFoundItem {
+  id              String    @id @default(uuid())
+  itemRef         String    @unique
+  propertyId      String
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId          String?
+  room            Room?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  foundById       String
+  foundBy         User      @relation("FoundBy", fields: [foundById], references: [id], onDelete: Cascade)
+  foundDate       DateTime  @default(now())
+  guestId         String?
+  guest           Guest?    @relation(fields: [guestId], references: [id], onDelete: SetNull)
+  category        String
+  description     String
+  storageLocation String
+  status          String    @default("FOUND")
+  notes           String?
+  handedOverAt    DateTime?
+  handedOverTo    String?
+  handedOverById  String?
+  handedOverBy    User?     @relation("HandedOverBy", fields: [handedOverById], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model LinenLedger {
+  id           String   @id @default(uuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  itemType     String
+  action       String
+  quantity     Int
+  notes        String?
+  recordedById String
+  recordedBy   User     @relation("LinenRecordedBy", fields: [recordedById], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+}
+
+model AmenitiesConsumption {
+  id           String   @id @default(uuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId       String
+  room         Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  item         String
+  quantity     Int      @default(1)
+  date         DateTime @default(now())
+  recordedById String
+  recordedBy   User     @relation("AmenitiesRecordedBy", fields: [recordedById], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+}
+
+model MaintenanceTicket {
+  id                   String               @id @default(uuid())
+  ticketRef            String               @unique
+  propertyId           String
+  property             Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId               String?
+  room                 Room?                @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  assetId              String?
+  asset                MaintenanceAsset?    @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  category             String
+  title                String
+  description          String
+  priority             String               @default("NORMAL")
+  status               String               @default("REPORTED")
+  reportedById         String?
+  reportedBy           User?                @relation("TicketReportedBy", fields: [reportedById], references: [id], onDelete: SetNull)
+  assignedTechnicianId String?
+  assignedTechnician   User?                @relation("TicketTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
+  startedAt            DateTime?
+  resolvedAt           DateTime?
+  verifiedAt           DateTime?
+  resolutionSummary    String?
+  estimatedCost        Float                @default(0.0)
+  actualCost           Float                @default(0.0)
+  labourCost           Float                @default(0.0)
+  partsCost            Float                @default(0.0)
+  comments             MaintenanceComment[]
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+}
+
+model MaintenanceComment {
+  id            String            @id @default(uuid())
+  ticketId      String
+  ticket        MaintenanceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User              @relation("CommentUser", fields: [userId], references: [id], onDelete: Cascade)
+  comment       String
+  attachmentUrl String?
+  createdAt     DateTime          @default(now())
+}
+
+model MaintenanceAsset {
+  id              String                      @id @default(uuid())
+  assetRef        String                      @unique
+  propertyId      String
+  property        Property                    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId          String?
+  room            Room?                       @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  name            String
+  category        String
+  brand           String?
+  model           String?
+  serialNumber    String?
+  location        String?
+  purchaseDate    DateTime?
+  warrantyStart   DateTime?
+  warrantyExpiry  DateTime?
+  vendorInfo      String?
+  status          String                      @default("OPERATIONAL")
+  notes           String?
+  tickets         MaintenanceTicket[]
+  preventivePlans PreventiveMaintenancePlan[]
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+}
+
+model PreventiveMaintenancePlan {
+  id                   String            @id @default(uuid())
+  propertyId           String
+  property             Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  assetId              String?
+  asset                MaintenanceAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  roomId               String?
+  room                 Room?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  taskTitle            String
+  frequencyDays        Int               @default(30)
+  lastCompleted        DateTime?
+  nextDue              DateTime
+  assignedTechnicianId String?
+  assignedTechnician   User?             @relation("PlanTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
+  isActive             Boolean           @default(true)
+  createdAt            DateTime          @default(now())
+}
+
+// ==================== PHASE 4 FINANCE & ACCOUNTING MODELS ====================
+
+model AccountGroup {
+  id            String           @id @default(uuid())
+  code          String           @unique
+  name          String
+  normalBalance String
+  accounts      ChartOfAccount[]
+  createdAt     DateTime         @default(now())
+}
+
+model ChartOfAccount {
+  id              String          @id @default(uuid())
+  propertyId      String
+  property        Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  code            String
+  name            String
+  type            String
+  accountGroupId  String
+  accountGroup    AccountGroup    @relation(fields: [accountGroupId], references: [id], onDelete: Cascade)
+  parentAccountId String?
+  parentAccount   ChartOfAccount? @relation("AccountHierarchy", fields: [parentAccountId], references: [id], onDelete: SetNull)
+  subAccounts     ChartOfAccount[]@relation("AccountHierarchy")
+  normalBalance   String          @default("DEBIT")
+  isSystemAccount Boolean         @default(false)
+  systemType      String?
+  isActive        Boolean         @default(true)
+  description     String?
+  journalLines    JournalLine[]
+  expenses        Expense[]
+  bankAccounts    BankAccount[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([propertyId, code])
+}
+
+model AccountingPeriod {
+  id             String         @id @default(uuid())
+  propertyId     String
+  property       Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name           String
+  startDate      DateTime
+  endDate        DateTime
+  status         String         @default("OPEN")
+  closedAt       DateTime?
+  closedById     String?
+  closedBy       User?          @relation("ClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+  journalEntries JournalEntry[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([propertyId, name])
+}
+
+model JournalEntry {
+  id              String           @id @default(uuid())
+  entryRef        String           @unique
+  propertyId      String
+  property        Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  periodId        String
+  period          AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  date            DateTime         @default(now())
+  sourceModule    String           @default("MANUAL")
+  sourceReference String?
+  description     String
+  status          String           @default("POSTED")
+  totalDebit      Float            @default(0.0)
+  totalCredit     Float            @default(0.0)
+  isReversal      Boolean          @default(false)
+  reversedRef     String?
+  createdById     String?
+  createdBy       User?            @relation("JournalCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  postedById      String?
+  postedBy        User?            @relation("JournalPostedBy", fields: [postedById], references: [id], onDelete: SetNull)
+  postedAt        DateTime?        @default(now())
+  lines           JournalLine[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model JournalLine {
+  id             String         @id @default(uuid())
+  journalEntryId String
+  journalEntry   JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        ChartOfAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  debit          Float          @default(0.0)
+  credit         Float          @default(0.0)
+  description    String?
+  costCenter     String         @default("GENERAL")
+  createdAt      DateTime       @default(now())
+}
+
+model TaxRate {
+  id           String           @id @default(uuid())
+  propertyId   String
+  property     Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  rate         Float            @default(18.0)
+  cgstRate     Float            @default(9.0)
+  sgstRate     Float            @default(9.0)
+  igstRate     Float            @default(18.0)
+  isInclusive  Boolean          @default(false)
+  isActive     Boolean          @default(true)
+  invoiceLines TaxInvoiceLine[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([propertyId, code])
+}
+
+model TaxInvoice {
+  id            String           @id @default(uuid())
+  invoiceRef    String           @unique
+  propertyId    String
+  property      Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservationId String?
+  reservation   Reservation?     @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  folioId       String?
+  folio         Folio?           @relation(fields: [folioId], references: [id], onDelete: SetNull)
+  guestId       String
+  guest         Guest            @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  invoiceDate   DateTime         @default(now())
+  customerGstin String?
+  placeOfSupply String           @default("State")
+  subtotal      Float            @default(0.0)
+  discount      Float            @default(0.0)
+  cgstAmount    Float            @default(0.0)
+  sgstAmount    Float            @default(0.0)
+  igstAmount    Float            @default(0.0)
+  totalAmount   Float            @default(0.0)
+  status        String           @default("ISSUED")
+  issuedById    String?
+  issuedBy      User?            @relation("InvoiceIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+  issuedAt      DateTime?        @default(now())
+  lines         TaxInvoiceLine[]
+  creditNotes   CreditNote[]
+  debitNotes    DebitNote[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model TaxInvoiceLine {
+  id            String     @id @default(uuid())
+  invoiceId     String
+  invoice       TaxInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description   String
+  hsnSacCode    String     @default("996311")
+  quantity      Int        @default(1)
+  unitPrice     Float      @default(0.0)
+  taxRateId     String?
+  taxRate       TaxRate?   @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
+  taxableAmount Float      @default(0.0)
+  cgstAmount    Float      @default(0.0)
+  sgstAmount    Float      @default(0.0)
+  igstAmount    Float      @default(0.0)
+  totalAmount   Float      @default(0.0)
+  createdAt     DateTime   @default(now())
+}
+
+model CreditNote {
+  id          String     @id @default(uuid())
+  noteRef     String     @unique
+  propertyId  String
+  property    Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  invoiceId   String?
+  invoice     TaxInvoice?@relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  guestId     String
+  guest       Guest      @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  date        DateTime   @default(now())
+  reason      String
+  subtotal    Float      @default(0.0)
+  taxAmount   Float      @default(0.0)
+  totalAmount Float      @default(0.0)
+  status      String     @default("ISSUED")
+  createdById String?
+  createdBy   User?      @relation("CNCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
+}
+
+model DebitNote {
+  id          String     @id @default(uuid())
+  noteRef     String     @unique
+  propertyId  String
+  property    Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  invoiceId   String?
+  invoice     TaxInvoice?@relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  guestId     String
+  guest       Guest      @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  date        DateTime   @default(now())
+  reason      String
+  subtotal    Float      @default(0.0)
+  taxAmount   Float      @default(0.0)
+  totalAmount Float      @default(0.0)
+  status      String     @default("ISSUED")
+  createdById String?
+  createdBy   User?      @relation("DNCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
+}
+
+model Vendor {
+  id            String    @id @default(uuid())
+  vendorRef     String    @unique
+  propertyId    String
+  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String
+  gstin         String?
+  pan           String?
+  address       String?
+  paymentTerms  String    @default("NET_30")
+  bankName      String?
+  bankAccountNo String?
+  ifscCode      String?
+  isActive      Boolean   @default(true)
+  expenses      Expense[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Expense {
+  id            String         @id @default(uuid())
+  expenseRef    String         @unique
+  propertyId    String
+  property      Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  date          DateTime       @default(now())
+  category      String
+  accountId     String
+  account       ChartOfAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  vendorId      String?
+  vendor        Vendor?        @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  amount        Float          @default(0.0)
+  taxAmount     Float          @default(0.0)
+  totalAmount   Float          @default(0.0)
+  paymentMethod String         @default("CASH")
+  description   String
+  attachmentUrl String?
+  status        String         @default("SUBMITTED")
+  createdById   String
+  createdBy     User           @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  approvedById  String?
+  approvedBy    User?          @relation("ExpenseApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model BankAccount {
+  id                 String               @id @default(uuid())
+  propertyId         String
+  property           Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  accountName        String
+  bankName           String
+  accountNumberMasked String
+  accountType        String               @default("CURRENT")
+  currency           String               @default("INR")
+  openingBalance     Float                @default(0.0)
+  currentBalance     Float                @default(0.0)
+  accountId          String?
+  account            ChartOfAccount?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  isActive           Boolean              @default(true)
+  reconciliations    BankReconciliation[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+}
+
+model CashierShift {
+  id                String    @id @default(uuid())
+  propertyId        String
+  property          Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User      @relation("CashierUser", fields: [userId], references: [id], onDelete: Cascade)
+  openedAt          DateTime  @default(now())
+  closedAt          DateTime?
+  openingCash       Float     @default(0.0)
+  expectedCash      Float     @default(0.0)
+  actualCash        Float     @default(0.0)
+  discrepancy       Float     @default(0.0)
+  discrepancyReason String?
+  status            String    @default("OPEN")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model BankReconciliation {
+  id                       String      @id @default(uuid())
+  propertyId               String
+  property                 Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  bankAccountId            String
+  bankAccount              BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  periodStart              DateTime
+  periodEnd                DateTime
+  statementClosingBalance  Float
+  bookBalance              Float
+  reconciledBalance        Float
+  discrepancy              Float       @default(0.0)
+  status                   String      @default("COMPLETED")
+  reconciledById           String
+  reconciledBy             User        @relation("ReconciledBy", fields: [reconciledById], references: [id], onDelete: Cascade)
+  createdAt                DateTime    @default(now())
+}
+
+// ==================== PHASE 5 BUSINESS INTELLIGENCE MODELS ====================
+
+// 1. Configurable KPI Targets
+model KpiTarget {
+  id          String   @id @default(uuid())
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  kpiCode     String   // OCCUPANCY, ADR, REVPAR, REVENUE, PROFIT_MARGIN, HK_TURNAROUND, MAINT_RESOLUTION, CANCELLATION_RATE
+  kpiName     String
+  targetValue Float
+  unit        String   @default("%") // %, INR, MINS, HOURS
+  period      String   @default("MONTHLY")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([propertyId, kpiCode])
+}
+
+// 2. Custom Saved Reports
+model SavedReport {
+  id          String   @id @default(uuid())
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  ownerId     String
+  owner       User     @relation("ReportOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  reportName  String
+  dataset     String   // RESERVATIONS, ROOMS, GUESTS, HOUSEKEEPING, MAINTENANCE, REVENUE, EXPENSES, ACCOUNTING
+  dimensions  String   // JSON string of dimensions (e.g. ["date", "roomType"])
+  metrics     String   // JSON string of metrics (e.g. ["count", "sum_totalAmount"])
+  filters     String?  // JSON string of active filter parameters
+  isFavorite  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 3. Scheduled Management Reports
+model ReportSchedule {
+  id            String   @id @default(uuid())
+  propertyId    String
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reportType    String   // DAILY_OPERATING, MONTHLY_MANAGEMENT, REVENUE_SUMMARY
+  frequency     String   @default("DAILY") // DAILY, WEEKLY, MONTHLY
+  recipientRole String   @default("General Manager")
+  format        String   @default("PDF") // PDF, CSV
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
