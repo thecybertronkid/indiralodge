@@ -321,7 +321,7 @@ export default function SetupPage() {
                     required
                     value={form.adminFullName}
                     onChange={handleChange}
-                    placeholder="e.g. Indira Sharma"
+                    placeholder="e.g. Indira Baruah"
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
                   />
                 </div>
