@@ -1,6 +1,6 @@
 // Prisma Schema for Hotel PMFS - Indira Lodge Core, Phase 2, Phase 3, Phase 4 & Phase 5 Business Intelligence
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
