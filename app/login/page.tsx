@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Building2, Eye, EyeOff, Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Building2, Eye, EyeOff, Lock, Mail, AlertCircle, Loader2, UserPlus } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 
 export default function LoginPage() {
@@ -182,6 +183,17 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* First Time Registration / Setup Banner */}
+          <div className="mt-6 pt-4 border-t border-slate-100 text-center">
+            <Link
+              href="/setup"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700 transition-colors"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-brand-600" />
+              <span>First-time setup? Register & Configure Initial Hotel Property</span>
+            </Link>
+          </div>
         </div>
 
         {/* Footer */}

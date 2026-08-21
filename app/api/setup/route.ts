@@ -22,16 +22,6 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const orgCount = await db.organization.count();
-    const userCount = await db.user.count();
-
-    if (orgCount > 0 && userCount > 0) {
-      return NextResponse.json(
-        { error: 'Initial setup has already been completed. System is locked.' },
-        { status: 400 }
-      );
-    }
-
     const body = await req.json();
     const {
       hotelName,
@@ -78,7 +68,7 @@ export async function POST(req: Request) {
         city,
         state,
         country,
-        zipCode: zipCode || '000000',
+        zipCode: zipCode || '781005',
         phone,
         email,
         gstin: gstin || null,
