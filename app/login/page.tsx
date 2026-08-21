@@ -3,15 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, Eye, EyeOff, Lock, Mail, AlertCircle, Loader2, UserPlus } from 'lucide-react';
+import { Building2, Eye, EyeOff, Lock, Mail, AlertCircle, Loader2, UserPlus, KeyRound } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 
 export default function LoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@indiralodge');
+  const [password, setPassword] = useState('12345678');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -25,9 +25,7 @@ export default function LoginPage() {
         const res = await fetch('/api/setup');
         if (res.ok) {
           const data = await res.json();
-          if (!data.isConfigured) {
-            router.push('/setup');
-          } else if (data.propertyName) {
+          if (data.propertyName) {
             setPropertyName(data.propertyName);
           }
         }
@@ -65,6 +63,12 @@ export default function LoginPage() {
     }
   };
 
+  const handleFillDefaults = () => {
+    setEmail('admin@indiralodge');
+    setPassword('12345678');
+    showToast('Default login credentials pre-filled!', 'info');
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4 relative overflow-hidden">
       {/* Background Decor */}
@@ -87,11 +91,32 @@ export default function LoginPage() {
 
         {/* Login Form Card */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl p-6 md:p-8 shadow-2xl border border-slate-100">
-          <div className="mb-6">
-            <h2 className="text-lg font-bold text-slate-900">Sign in to your account</h2>
-            <p className="text-slate-500 text-xs mt-0.5">
-              Enter your property credentials to access the PMFS shell
-            </p>
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Sign in to your account</h2>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Enter your property credentials to access the PMFS shell
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Default Credentials Preset Box */}
+          <div className="mb-5 p-3 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-slate-700">
+              <KeyRound className="w-4 h-4 text-brand-600 flex-shrink-0" />
+              <div>
+                <span className="font-bold block text-slate-900">Default Admin Credentials</span>
+                <span className="text-[11px] text-slate-500">Email: <strong>admin@indiralodge</strong> • Pass: <strong>12345678</strong></span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleFillDefaults}
+              className="px-2.5 py-1 bg-brand-600 hover:bg-brand-700 text-white font-bold text-[11px] rounded-lg transition-colors flex-shrink-0"
+            >
+              Fill
+            </button>
           </div>
 
           {/* Error Alert Box */}
@@ -111,11 +136,11 @@ export default function LoginPage() {
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@hotel.com"
+                  placeholder="admin@indiralodge"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all"
                 />
               </div>
@@ -160,7 +185,7 @@ export default function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => showToast('Please contact your Hotel Super Admin to reset your password.', 'info')}
+                onClick={() => showToast('Default admin password is set to 12345678.', 'info')}
                 className="text-brand-600 hover:text-brand-700 font-semibold hover:underline"
               >
                 Forgot password?

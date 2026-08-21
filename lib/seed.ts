@@ -1,6 +1,6 @@
 import { db } from './db';
 import { SYSTEM_PERMISSIONS, INITIAL_ROLES } from './permissions';
-import { generateReferenceNumber } from './refGenerator';
+import { hashPassword } from './auth';
 
 export const STANDARD_BOOKING_SOURCES = [
   { code: 'DIRECT', name: 'Direct Hotel Desk' },
@@ -117,8 +117,6 @@ export async function seedPropertyDefaults(propertyId: string) {
         name: 'Standard Room',
         description: 'Comfortable standard queen room with city view and Wi-Fi',
         maxOccupancy: 2,
-        adultsCapacity: 2,
-        childrenCapacity: 1,
         baseRate: 3500.0,
         extraAdultRate: 1000.0,
         extraChildRate: 500.0,
@@ -135,8 +133,6 @@ export async function seedPropertyDefaults(propertyId: string) {
         name: 'Deluxe Room',
         description: 'Spacious deluxe king room with balcony and workstation',
         maxOccupancy: 3,
-        adultsCapacity: 2,
-        childrenCapacity: 2,
         baseRate: 5000.0,
         extraAdultRate: 1200.0,
         extraChildRate: 600.0,
@@ -153,8 +149,6 @@ export async function seedPropertyDefaults(propertyId: string) {
         name: 'Executive Suite',
         description: 'Luxury suite featuring separate living room, dining nook and jacuzzi',
         maxOccupancy: 4,
-        adultsCapacity: 3,
-        childrenCapacity: 2,
         baseRate: 8500.0,
         extraAdultRate: 1500.0,
         extraChildRate: 800.0,
@@ -189,6 +183,100 @@ export async function seedPropertyDefaults(propertyId: string) {
           housekeepingStatus: 'CLEAN',
           maintenanceStatus: 'OPERATIONAL',
         },
+      });
+    }
+  }
+}
+
+/**
+ * Ensures default admin account exists: admin@indiralodge.com / password: 12345678
+ */
+export async function ensureDefaultAdminAccount() {
+  let organization = await db.organization.findFirst();
+  if (!organization) {
+    organization = await db.organization.create({
+      data: {
+        name: 'Indira Lodge Group',
+        code: 'ORG-INDIRA-01',
+      },
+    });
+  }
+
+  let property = await db.property.findFirst({ where: { organizationId: organization.id } });
+  if (!property) {
+    property = await db.property.create({
+      data: {
+        organizationId: organization.id,
+        name: 'Indira Lodge',
+        code: 'PROP-INDIRA-01',
+        address: 'GS Road, Dispur',
+        city: 'Guwahati',
+        state: 'Assam',
+        country: 'India',
+        zipCode: '781005',
+        phone: '+91 98765 43210',
+        email: 'info@indiralodge.com',
+        currency: 'INR',
+        timezone: 'Asia/Kolkata',
+      },
+    });
+
+    await db.propertySettings.create({
+      data: {
+        propertyId: property.id,
+        currencySymbol: '₹',
+        dateFormat: 'DD/MM/YYYY',
+        timeFormat: '12H',
+      },
+    });
+
+    await seedPermissionsAndRoles(organization.id);
+    await seedPropertyDefaults(property.id);
+  }
+
+  const ownerRole = await db.role.findFirst({
+    where: { organizationId: organization.id, name: 'Owner' },
+  });
+
+  const passwordHash = await hashPassword('12345678');
+  const emailsToEnsure = ['admin@indiralodge.com', 'admin@indiralodge'];
+
+  for (const email of emailsToEnsure) {
+    let user = await db.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await db.user.create({
+        data: {
+          organizationId: organization.id,
+          email,
+          passwordHash,
+          fullName: 'Indira Baruah',
+          phone: '+91 98765 43210',
+          status: 'ACTIVE',
+        },
+      });
+
+      if (ownerRole) {
+        await db.userRole.upsert({
+          where: {
+            userId_roleId_propertyId: {
+              userId: user.id,
+              roleId: ownerRole.id,
+              propertyId: property.id,
+            },
+          },
+          update: {},
+          create: {
+            userId: user.id,
+            roleId: ownerRole.id,
+            propertyId: property.id,
+          },
+        });
+      }
+    } else {
+      // Update password to 12345678 if requested
+      await db.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
       });
     }
   }

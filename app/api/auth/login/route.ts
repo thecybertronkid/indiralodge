@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyPassword, createSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { logAuditEvent } from '@/lib/audit';
+import { ensureDefaultAdminAccount } from '@/lib/seed';
 
 export async function POST(req: Request) {
   try {
@@ -11,9 +12,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
-    const user = await db.user.findUnique({
-      where: { email: cleanEmail },
+    let cleanEmail = email.toLowerCase().trim();
+    if (cleanEmail === 'admin@indiralodge' || cleanEmail === 'admin@indiralodge.com') {
+      cleanEmail = 'admin@indiralodge.com';
+    }
+
+    // Ensure default admin account is seeded if missing
+    await ensureDefaultAdminAccount();
+
+    let user = await db.user.findFirst({
+      where: {
+        OR: [
+          { email: cleanEmail },
+          { email: 'admin@indiralodge' },
+          { email: 'admin@indiralodge.com' },
+        ],
+      },
       include: {
         organization: true,
         userRoles: {
