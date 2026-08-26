@@ -13,6 +13,7 @@ export type RefPrefix =
   | 'ACC'
   | 'JE'
   | 'INV'
+  | 'BIL'
   | 'CN'
   | 'DN'
   | 'EXP'

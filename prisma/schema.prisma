@@ -314,6 +314,10 @@ model Guest {
   gstin             String?
   guestType         String                 @default("INDIVIDUAL")
   notes             String?
+  age               Int?
+  occupation        String?
+  idType            String?
+  idNumber          String?
   vipStatus         Boolean                @default(false)
   blacklistedStatus Boolean                @default(false)
   documents         GuestDocument[]
@@ -465,9 +469,17 @@ model Reservation {
   specialRequests   String?
   internalNotes     String?
   guestNotes        String?
+  arrivalTime       String?            @default("14:00")
+  departureTime     String?            @default("11:00")
+  comingFrom        String?
+  purposeOfVisit    String?
   cancelledReason   String?
   cancelledAt       DateTime?
   noShowAt          DateTime?
+  isBilled          Boolean            @default(false)
+  billType          String?
+  billedAt          DateTime?
+  billedInvoiceId   String?
   createdById       String?
   createdBy         User?              @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   resGuests         ReservationGuest[]
@@ -909,6 +921,8 @@ model TaxInvoice {
   invoiceDate   DateTime         @default(now())
   customerGstin String?
   placeOfSupply String           @default("State")
+  invoiceType   String           @default("GST")
+  isGstBill     Boolean          @default(true)
   subtotal      Float            @default(0.0)
   discount      Float            @default(0.0)
   cgstAmount    Float            @default(0.0)

@@ -15,6 +15,7 @@ export async function GET(req: Request) {
     const arrivalStr = searchParams.get('arrivalDate');
     const departureStr = searchParams.get('departureDate');
     const roomTypeId = searchParams.get('roomTypeId');
+    const requireClean = searchParams.get('requireClean') === 'true';
 
     if (!arrivalStr || !departureStr) {
       return NextResponse.json({ error: 'Arrival and departure dates are required.' }, { status: 400 });
@@ -35,7 +36,14 @@ export async function GET(req: Request) {
 
     let availablePhysicalRooms: any[] = [];
     if (roomTypeId) {
-      availablePhysicalRooms = await getAvailablePhysicalRooms(propertyId, roomTypeId, arrivalDate, departureDate);
+      availablePhysicalRooms = await getAvailablePhysicalRooms(
+        propertyId,
+        roomTypeId,
+        arrivalDate,
+        departureDate,
+        undefined,
+        requireClean
+      );
     }
 
     return NextResponse.json({

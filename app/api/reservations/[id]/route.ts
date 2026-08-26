@@ -81,6 +81,50 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: 'Reservation not found' }, { status: 404 });
     }
 
+    // STRICT BILLING LOCK: If already billed, no modifications allowed
+    if (reservation.isBilled) {
+      return NextResponse.json(
+        { error: 'This booking has already been billed. Reservation and billing records are locked and cannot be modified.' },
+        { status: 400 }
+      );
+    }
+
+    // Action: Update Guest Details Before Billing
+    if (action === 'update_guest') {
+      const { firstName, lastName, displayName, phone, email, gstin, address, city, state } = body;
+      await db.guest.update({
+        where: { id: reservation.guestId },
+        data: {
+          ...(firstName ? { firstName: firstName.trim() } : {}),
+          ...(lastName ? { lastName: lastName.trim() } : {}),
+          ...(displayName ? { displayName: displayName.trim() } : {}),
+          ...(phone ? { phone: phone.trim() } : {}),
+          ...(email ? { email: email.trim().toLowerCase() } : {}),
+          ...(gstin !== undefined ? { gstin: gstin ? gstin.trim() : null } : {}),
+          ...(address !== undefined ? { address: address ? address.trim() : null } : {}),
+          ...(city !== undefined ? { city: city ? city.trim() : null } : {}),
+          ...(state !== undefined ? { state: state ? state.trim() : null } : {}),
+        },
+      });
+
+      return NextResponse.json({ success: true, message: 'Guest details updated successfully.' });
+    }
+
+    // Action: Update Booking Details Before Billing
+    if (action === 'update_booking') {
+      const { discountAmount, specialRequests, roomRate } = body;
+      const updated = await db.reservation.update({
+        where: { id: reservationId },
+        data: {
+          ...(discountAmount !== undefined ? { discountAmount: parseFloat(discountAmount || '0') } : {}),
+          ...(specialRequests !== undefined ? { specialRequests: specialRequests ? specialRequests.trim() : null } : {}),
+          ...(roomRate !== undefined ? { roomRate: parseFloat(roomRate || '0') } : {}),
+        },
+      });
+
+      return NextResponse.json({ success: true, reservation: updated });
+    }
+
     // Action 1: Assign Room Number
     if (action === 'assign_room') {
       if (!hasPermission(session.permissions, 'reservation.assign_room')) {

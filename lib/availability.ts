@@ -129,22 +129,27 @@ export async function isRoomAvailable(
  */
 export async function getAvailablePhysicalRooms(
   propertyId: string,
-  roomTypeId: string,
-  arrivalDate: Date,
-  departureDate: Date,
-  excludeReservationId?: string
+  roomTypeId?: string,
+  arrivalDate?: Date,
+  departureDate?: Date,
+  excludeReservationId?: string,
+  requireCleanForCheckin: boolean = false
 ) {
   const rooms = await db.room.findMany({
     where: {
       propertyId,
-      roomTypeId,
+      ...(roomTypeId ? { roomTypeId } : {}),
       isActive: true,
       maintenanceStatus: 'OPERATIONAL',
+      ...(requireCleanForCheckin ? { housekeepingStatus: { in: ['CLEAN', 'INSPECTED'] } } : {}),
     },
     include: {
-      roomType: { select: { name: true, code: true } },
+      roomType: { select: { name: true, code: true, adultsCapacity: true, maxOccupancy: true, bedType: true } },
     },
+    orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }],
   });
+
+  if (!arrivalDate || !departureDate) return rooms;
 
   const availableRooms = [];
   for (const r of rooms) {

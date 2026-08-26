@@ -16,6 +16,11 @@ import {
   AlertTriangle,
   Loader2,
   CheckCircle2,
+  Lock,
+  Printer,
+  Edit3,
+  FileText,
+  Building,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -36,12 +41,53 @@ export default function ReservationDetailPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Edit Guest & Charges Modal State (Pre-billing edit)
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    displayName: '',
+    phone: '',
+    email: '',
+    gstin: '',
+    address: '',
+    city: '',
+    state: '',
+    discountAmount: '0',
+    specialRequests: '',
+  });
+
+  // Bill Generation & Print State
+  const [isBillModalOpen, setIsBillModalOpen] = useState(false);
+  const [activeInvoice, setActiveInvoice] = useState<any>(null);
+  const [billingType, setBillingType] = useState<'GST' | 'NON_GST'>('GST');
+  const [customerGstinInput, setCustomerGstinInput] = useState('');
+  const [generatingBill, setGeneratingBill] = useState(false);
+
   const fetchDetails = async () => {
     try {
       const res = await fetch(`/api/reservations/${reservationId}`);
       if (res.ok) {
         const result = await res.json();
         setData(result);
+        if (result.reservation?.guest) {
+          const g = result.reservation.guest;
+          const names = (g.displayName || '').split(' ');
+          setEditForm({
+            firstName: g.firstName || names[0] || '',
+            lastName: g.lastName || names.slice(1).join(' ') || '',
+            displayName: g.displayName || '',
+            phone: g.phone || '',
+            email: g.email || '',
+            gstin: g.gstin || '',
+            address: g.address || '',
+            city: g.city || '',
+            state: g.state || '',
+            discountAmount: String(result.reservation.discountAmount || 0),
+            specialRequests: result.reservation.specialRequests || '',
+          });
+          setCustomerGstinInput(g.gstin || '');
+        }
       } else {
         showToast('Failed to fetch reservation details', 'error');
       }
@@ -72,13 +118,105 @@ export default function ReservationDetailPage() {
         setIsCancelOpen(false);
         fetchDetails();
       } else {
-        showToast('Failed to cancel reservation', 'error');
+        const err = await res.json();
+        showToast(err.error || 'Failed to cancel reservation', 'error');
       }
     } catch (e) {
       showToast('Error cancelling reservation', 'error');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleUpdateGuestAndBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      // 1. Update Guest Info
+      const resGuest = await fetch(`/api/reservations/${reservationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_guest',
+          ...editForm,
+        }),
+      });
+
+      if (!resGuest.ok) {
+        const err = await resGuest.json();
+        showToast(err.error || 'Failed to update guest info', 'error');
+        setSubmitting(false);
+        return;
+      }
+
+      // 2. Update Booking Info (Discount, Special Requests)
+      const resBooking = await fetch(`/api/reservations/${reservationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_booking',
+          discountAmount: editForm.discountAmount,
+          specialRequests: editForm.specialRequests,
+        }),
+      });
+
+      if (!resBooking.ok) {
+        const err = await resBooking.json();
+        showToast(err.error || 'Failed to update booking info', 'error');
+        setSubmitting(false);
+        return;
+      }
+
+      showToast('Guest and reservation details updated successfully!', 'success');
+      setIsEditOpen(false);
+      fetchDetails();
+    } catch (e) {
+      showToast('Error saving updates', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGenerateBill = async (type: 'GST' | 'NON_GST') => {
+    setGeneratingBill(true);
+    setBillingType(type);
+
+    try {
+      const res = await fetch('/api/finance/invoices/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reservationId,
+          invoiceType: type,
+          customerGstin: customerGstinInput,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok) {
+        showToast(resData.error || 'Failed to generate bill', 'error');
+        setGeneratingBill(false);
+        return;
+      }
+
+      setActiveInvoice(resData.invoice);
+      setIsBillModalOpen(true);
+      if (resData.alreadyBilled) {
+        showToast(`Loaded existing ${type} bill for re-printing`, 'info');
+      } else {
+        showToast(`${type} Bill generated successfully! Reservation is now locked.`, 'success');
+        fetchDetails();
+      }
+    } catch (e) {
+      showToast('Error processing bill generation', 'error');
+    } finally {
+      setGeneratingBill(false);
+    }
+  };
+
+  const handlePrintWindow = () => {
+    window.print();
   };
 
   if (loading) {
@@ -103,6 +241,7 @@ export default function ReservationDetailPage() {
   const transactions = folio?.transactions || [];
   const payments = res.payments || [];
   const timeline = data.auditEvents || [];
+  const isBilled = res.isBilled;
 
   const getBadgeVariant = (status: string) => {
     if (status === 'CHECKED_IN') return 'success';
@@ -130,16 +269,32 @@ export default function ReservationDetailPage() {
               <Badge variant={getBadgeVariant(res.status)}>
                 {res.status}
               </Badge>
+              {isBilled && (
+                <Badge variant="success" className="flex items-center gap-1 bg-emerald-600 text-white">
+                  <Lock className="w-3 h-3" />
+                  Billed ({res.billType})
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Guest: {res.guest?.displayName} • Source: {res.bookingSource?.name}
+              Guest: <strong>{res.guest?.displayName}</strong> ({res.guest?.phone}) • Source: {res.bookingSource?.name}
             </p>
           </div>
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-2">
-          {res.status === 'CONFIRMED' && (
+        <div className="flex flex-wrap items-center gap-2">
+          {!isBilled && (
+            <button
+              onClick={() => setIsEditOpen(true)}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              Edit Details
+            </button>
+          )}
+
+          {!isBilled && res.status === 'CONFIRMED' && (
             <button
               onClick={() => setIsCancelOpen(true)}
               className="px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded-lg text-xs font-bold transition-all"
@@ -148,14 +303,61 @@ export default function ReservationDetailPage() {
             </button>
           )}
 
+          {/* Bill Generation Actions */}
+          {!isBilled ? (
+            <>
+              <button
+                onClick={() => handleGenerateBill('GST')}
+                disabled={generatingBill}
+                className="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                Generate GST Bill
+              </button>
+
+              <button
+                onClick={() => handleGenerateBill('NON_GST')}
+                disabled={generatingBill}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Generate Non-GST Bill
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => handleGenerateBill(res.billType === 'NON_GST' ? 'NON_GST' : 'GST')}
+              disabled={generatingBill}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-1.5 transition-all"
+            >
+              <Printer className="w-4 h-4" />
+              Print Billed Invoice ({res.billType})
+            </button>
+          )}
+
           <Link
             href="/front-office"
-            className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-md transition-all"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-all"
           >
             Front Desk Hub
           </Link>
         </div>
       </div>
+
+      {/* Strict Billing Lock Banner */}
+      {isBilled && (
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-start gap-3 shadow-xs">
+          <Lock className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <h4 className="font-extrabold text-emerald-950 text-sm">
+              BOOKING BILLED & LOCKED ({res.billType === 'GST' ? 'GST Tax Invoice' : 'Non-GST Bill'})
+            </h4>
+            <p className="text-emerald-800">
+              This reservation was officially billed on {res.billedAt ? new Date(res.billedAt).toLocaleString() : 'N/A'}. All guest information, room charges, and rates are strictly locked to prevent unauthorized alterations.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
@@ -203,11 +405,22 @@ export default function ReservationDetailPage() {
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Stay & Room Info */}
+          {/* Stay & Guest Info */}
           <div className="pmfs-card p-6 space-y-4 lg:col-span-2">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
-              Stay Details
-            </h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                Guest & Stay Details
+              </h3>
+              {!isBilled && (
+                <button
+                  onClick={() => setIsEditOpen(true)}
+                  className="text-xs text-brand-600 hover:underline font-bold flex items-center gap-1"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Edit Guest/Charges
+                </button>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
               <div>
@@ -232,17 +445,19 @@ export default function ReservationDetailPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-slate-500">Room Category:</span>
-                <div className="font-bold text-slate-900 text-sm mt-0.5">{res.roomType?.name}</div>
-                <div className="text-[11px] text-slate-500">Base Rate: ₹{res.roomRate}/night</div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <span className="text-slate-500 font-bold uppercase text-[10px]">Guest Information</span>
+                <div className="font-bold text-slate-900 text-sm">{res.guest?.displayName}</div>
+                <div className="text-slate-600">Phone: {res.guest?.phone}</div>
+                <div className="text-slate-600">Email: {res.guest?.email || 'N/A'}</div>
+                <div className="text-slate-600 font-mono">GSTIN: {res.guest?.gstin || 'Unregistered / General Guest'}</div>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-slate-500">Assigned Physical Room:</span>
-                <div className="font-bold text-slate-900 text-sm mt-0.5">
-                  {res.assignedRoom?.roomNumber ? `Room ${res.assignedRoom.roomNumber}` : 'Unassigned'}
-                </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <span className="text-slate-500 font-bold uppercase text-[10px]">Room & Rate Category</span>
+                <div className="font-bold text-slate-900 text-sm">{res.roomType?.name}</div>
+                <div className="text-slate-600">Assigned Room: {res.assignedRoom?.roomNumber ? `Room ${res.assignedRoom.roomNumber}` : 'Unassigned'}</div>
+                <div className="text-slate-600">Base Room Rate: ₹{res.roomRate}/night</div>
               </div>
             </div>
 
@@ -256,7 +471,7 @@ export default function ReservationDetailPage() {
           {/* Financial Summary */}
           <div className="pmfs-card p-6 space-y-4">
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
-              Financial Summary
+              Financial & Billing Summary
             </h3>
 
             <div className="space-y-2.5 text-xs">
@@ -266,17 +481,17 @@ export default function ReservationDetailPage() {
               </div>
 
               <div className="flex justify-between">
-                <span className="text-slate-600">Discount:</span>
+                <span className="text-slate-600">Discount Applied:</span>
                 <span className="font-semibold text-rose-600">- ₹{res.discountAmount.toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between">
-                <span className="text-slate-600">GST Tax:</span>
+                <span className="text-slate-600">GST Tax (18% if GST bill):</span>
                 <span className="font-semibold text-slate-900">₹{res.taxAmount.toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-sm">
-                <span>Total Amount:</span>
+                <span>Total Payable:</span>
                 <span className="text-slate-900">₹{res.totalAmount.toFixed(2)}</span>
               </div>
 
@@ -292,6 +507,27 @@ export default function ReservationDetailPage() {
                 </span>
               </div>
             </div>
+
+            {/* Quick Bill Trigger Buttons */}
+            {!isBilled && (
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <button
+                  onClick={() => handleGenerateBill('GST')}
+                  className="w-full py-2.5 px-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  Generate & Print GST Bill
+                </button>
+
+                <button
+                  onClick={() => handleGenerateBill('NON_GST')}
+                  className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  Generate & Print Non-GST Bill
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -437,6 +673,102 @@ export default function ReservationDetailPage() {
         </div>
       )}
 
+      {/* Pre-Billing Edit Guest & Charges Modal */}
+      <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Guest & Booking Information (Pre-Billing)" maxWidth="lg">
+        <form onSubmit={handleUpdateGuestAndBooking} className="space-y-4">
+          <div className="p-3 rounded-lg bg-amber-50 text-amber-800 text-xs">
+            Notice: All information can be edited now. Once a GST or Non-GST Bill is generated, this booking will be permanently locked.
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">First Name *</label>
+              <input
+                type="text"
+                required
+                value={editForm.firstName}
+                onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Last Name *</label>
+              <input
+                type="text"
+                required
+                value={editForm.lastName}
+                onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Phone Number *</label>
+              <input
+                type="text"
+                required
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Email Address</label>
+              <input
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Guest GSTIN (If corporate / tax billing)</label>
+              <input
+                type="text"
+                value={editForm.gstin}
+                onChange={(e) => setEditForm({ ...editForm, gstin: e.target.value })}
+                placeholder="e.g. 18AABCU9603R1ZM"
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Discount Amount (₹)</label>
+              <input
+                type="number"
+                value={editForm.discountAmount}
+                onChange={(e) => setEditForm({ ...editForm, discountAmount: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Special Requests / Notes</label>
+              <input
+                type="text"
+                value={editForm.specialRequests}
+                onChange={(e) => setEditForm({ ...editForm, specialRequests: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+              />
+            </div>
+          </div>
+
+          <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsEditOpen(false)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded text-xs font-bold shadow-md disabled:opacity-50"
+            >
+              {submitting ? 'Saving Changes...' : 'Save Updates'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Cancel Modal */}
       <Modal isOpen={isCancelOpen} onClose={() => setIsCancelOpen(false)} title="Cancel Booking" maxWidth="md">
         <form onSubmit={handleCancelSubmit} className="space-y-4">
@@ -471,6 +803,140 @@ export default function ReservationDetailPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Printable Invoice / Bill Preview Modal */}
+      <Modal isOpen={isBillModalOpen} onClose={() => setIsBillModalOpen(false)} title={`Invoice Preview: ${activeInvoice?.invoiceRef || ''}`} maxWidth="xl">
+        <div className="space-y-6">
+          <div className="flex justify-end gap-2 print:hidden">
+            <button
+              onClick={handlePrintWindow}
+              className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-1.5"
+            >
+              <Printer className="w-4 h-4" />
+              Print / Save PDF
+            </button>
+          </div>
+
+          {/* Printable Invoice Container */}
+          {activeInvoice && (
+            <div id="printable-bill" className="p-8 bg-white border border-slate-300 rounded-xl space-y-6 text-slate-900 font-sans text-xs">
+              {/* Invoice Header */}
+              <div className="flex items-start justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">INDIRA LODGE</h2>
+                  <p className="text-xs text-slate-500">Luxury Hospitality & Property Services</p>
+                  <p className="text-[11px] text-slate-500">Assam, India • Contact: +91 98765 43210</p>
+                  <p className="text-[11px] font-mono text-slate-700 font-bold mt-1">Property GSTIN: 18AABCU9603R1ZM</p>
+                </div>
+                <div className="text-right space-y-1">
+                  <div className="inline-block px-3 py-1 bg-slate-900 text-white font-extrabold text-xs uppercase rounded">
+                    {activeInvoice.invoiceType === 'GST' ? 'TAX INVOICE (GST)' : 'HOTEL RECEIPT (NON-GST)'}
+                  </div>
+                  <div className="font-mono font-bold text-sm text-slate-900 mt-1">{activeInvoice.invoiceRef}</div>
+                  <div className="text-[11px] text-slate-500">
+                    Date: {new Date(activeInvoice.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Guest & Stay Info Table */}
+              <div className="grid grid-cols-2 gap-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <h4 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500">Billed To (Guest)</h4>
+                  <div className="font-bold text-slate-900 text-sm mt-0.5">{activeInvoice.guest?.displayName}</div>
+                  <div>Phone: {activeInvoice.guest?.phone}</div>
+                  <div>Email: {activeInvoice.guest?.email || 'N/A'}</div>
+                  {activeInvoice.customerGstin && (
+                    <div className="font-mono font-bold text-slate-900 mt-0.5">Guest GSTIN: {activeInvoice.customerGstin}</div>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500">Stay Particulars</h4>
+                  <div>Booking Ref: <strong>{res.reservationRef}</strong></div>
+                  <div>Room Category: <strong>{res.roomType?.name}</strong></div>
+                  <div>Assigned Room: <strong>Room {res.assignedRoom?.roomNumber || 'N/A'}</strong></div>
+                  <div>Stay Period: {new Date(res.arrivalDate).toLocaleDateString()} to {new Date(res.departureDate).toLocaleDateString()} ({res.nights} Nights)</div>
+                </div>
+              </div>
+
+              {/* Line Items Table */}
+              <table className="w-full text-left border-collapse border border-slate-200">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 uppercase text-[10px] font-bold">
+                    <th className="p-2 border border-slate-200">Description</th>
+                    <th className="p-2 border border-slate-200 text-center">HSN/SAC</th>
+                    <th className="p-2 border border-slate-200 text-center">Qty</th>
+                    <th className="p-2 border border-slate-200 text-right">Rate</th>
+                    <th className="p-2 border border-slate-200 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeInvoice.lines?.map((line: any) => (
+                    <tr key={line.id}>
+                      <td className="p-2 border border-slate-200 font-medium">{line.description}</td>
+                      <td className="p-2 border border-slate-200 text-center font-mono">{line.hsnSacCode}</td>
+                      <td className="p-2 border border-slate-200 text-center">{line.quantity}</td>
+                      <td className="p-2 border border-slate-200 text-right">₹{line.unitPrice.toFixed(2)}</td>
+                      <td className="p-2 border border-slate-200 text-right font-semibold">₹{(line.quantity * line.unitPrice).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Financial Totals */}
+              <div className="flex justify-end pt-2">
+                <div className="w-64 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Subtotal:</span>
+                    <span>₹{activeInvoice.subtotal.toFixed(2)}</span>
+                  </div>
+                  {activeInvoice.discount > 0 && (
+                    <div className="flex justify-between text-rose-600">
+                      <span>Discount:</span>
+                      <span>- ₹{activeInvoice.discount.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {activeInvoice.isGstBill ? (
+                    <>
+                      <div className="flex justify-between text-slate-600">
+                        <span>CGST (9%):</span>
+                        <span>₹{activeInvoice.cgstAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600">
+                        <span>SGST (9%):</span>
+                        <span>₹{activeInvoice.sgstAmount.toFixed(2)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-[10px] text-slate-500 italic text-right py-0.5">
+                      (Non-GST Bill / Tax Exempt Receipt)
+                    </div>
+                  )}
+
+                  <div className="flex justify-between border-t border-slate-900 pt-2 font-extrabold text-sm text-slate-900">
+                    <span>Grand Total:</span>
+                    <span>₹{activeInvoice.totalAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Signatures & Footer */}
+              <div className="pt-8 border-t border-slate-200 flex items-end justify-between text-[11px] text-slate-500">
+                <div>
+                  <p>Thank you for staying at Indira Lodge!</p>
+                  <p className="text-[10px] italic">Computer generated invoice. System lock active.</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-36 border-b border-slate-400 mb-1"></div>
+                  <p className="font-semibold text-slate-700">Authorized Signatory</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );

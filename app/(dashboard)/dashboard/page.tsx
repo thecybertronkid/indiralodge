@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   BedDouble,
   Users,
@@ -15,6 +16,8 @@ import {
   Sparkles,
   ShieldAlert,
   Clock,
+  ArrowRight,
+  Download,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
@@ -56,72 +59,100 @@ export default function DashboardPage() {
     {
       title: 'Occupancy Rate',
       value: data?.stats?.occupancyRate != null ? `${data.stats.occupancyRate}%` : '—',
-      subtext: 'No reservation data',
+      subtext: 'Live occupancy percentage',
       icon: BedDouble,
-      color: 'bg-blue-50 text-blue-600',
+      gradient: 'from-blue-500/10 to-blue-600/5 border-blue-200/80',
+      iconBg: 'bg-blue-600 text-white shadow-md shadow-blue-500/30',
     },
     {
       title: 'Available Rooms',
       value: data?.stats?.availableRooms != null ? data.stats.availableRooms : '—',
-      subtext: 'No inventory configured',
+      subtext: 'Ready for check-in',
       icon: Sparkles,
-      color: 'bg-emerald-50 text-emerald-600',
+      gradient: 'from-emerald-500/10 to-emerald-600/5 border-emerald-200/80',
+      iconBg: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30',
     },
     {
       title: "Today's Arrivals",
       value: data?.stats?.todayArrivals != null ? data.stats.todayArrivals : '—',
-      subtext: 'No pending check-ins',
+      subtext: 'Scheduled check-ins',
       icon: CalendarCheck,
-      color: 'bg-purple-50 text-purple-600',
+      gradient: 'from-purple-500/10 to-purple-600/5 border-purple-200/80',
+      iconBg: 'bg-purple-600 text-white shadow-md shadow-purple-500/30',
     },
     {
       title: "Today's Departures",
       value: data?.stats?.todayDepartures != null ? data.stats.todayDepartures : '—',
-      subtext: 'No pending check-outs',
+      subtext: 'Scheduled check-outs',
       icon: LogOut,
-      color: 'bg-amber-50 text-amber-600',
+      gradient: 'from-amber-500/10 to-amber-600/5 border-amber-200/80',
+      iconBg: 'bg-amber-600 text-white shadow-md shadow-amber-500/30',
     },
     {
       title: "Today's Revenue",
-      value: data?.stats?.todayRevenue != null ? `₹${data.stats.todayRevenue}` : '—',
-      subtext: 'No transactions today',
+      value: data?.stats?.todayRevenue != null ? `₹${data.stats.todayRevenue.toLocaleString('en-IN')}` : '₹0',
+      subtext: 'Payments collected today',
       icon: TrendingUp,
-      color: 'bg-indigo-50 text-indigo-600',
+      gradient: 'from-indigo-500/10 to-indigo-600/5 border-indigo-200/80',
+      iconBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30',
     },
     {
       title: 'Active Staff Members',
       value: data?.stats?.activeUsers ?? 0,
       subtext: `Out of ${data?.stats?.totalUsers ?? 0} total users`,
       icon: Users,
-      color: 'bg-teal-50 text-teal-600',
+      gradient: 'from-teal-500/10 to-teal-600/5 border-teal-200/80',
+      iconBg: 'bg-teal-600 text-white shadow-md shadow-teal-500/30',
     },
   ];
 
+  const roomBreakdown = data?.stats?.roomBreakdown || {
+    available: 0,
+    occupied: 0,
+    dirty: 0,
+    cleaning: 0,
+    maintenance: 0,
+    outOfOrder: 0,
+  };
+
   const roomStatuses = [
-    { label: 'Available', count: '—', color: 'bg-emerald-500' },
-    { label: 'Occupied', count: '—', color: 'bg-blue-500' },
-    { label: 'Dirty', count: '—', color: 'bg-amber-500' },
-    { label: 'Cleaning', count: '—', color: 'bg-purple-500' },
-    { label: 'Maintenance', count: '—', color: 'bg-rose-500' },
-    { label: 'Out of Order', count: '—', color: 'bg-slate-500' },
+    { label: 'Available', count: roomBreakdown.available, color: 'bg-emerald-500', glow: 'shadow-emerald-500/30' },
+    { label: 'Occupied', count: roomBreakdown.occupied, color: 'bg-blue-500', glow: 'shadow-blue-500/30' },
+    { label: 'Dirty', count: roomBreakdown.dirty, color: 'bg-amber-500', glow: 'shadow-amber-500/30' },
+    { label: 'Cleaning', count: roomBreakdown.cleaning, color: 'bg-purple-500', glow: 'shadow-purple-500/30' },
+    { label: 'Maintenance', count: roomBreakdown.maintenance, color: 'bg-rose-500', glow: 'shadow-rose-500/30' },
+    { label: 'Out of Order', count: roomBreakdown.outOfOrder, color: 'bg-slate-500', glow: 'shadow-slate-500/30' },
   ];
 
+  const roomsList = data?.stats?.roomsList || [];
+
   return (
-    <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 rounded-2xl shadow-lg border border-slate-700">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-            {greeting}, Administrator
+    <div className="space-y-6 animate-fade-in">
+      {/* Welcome Header Banner */}
+      <div className="relative overflow-hidden flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gradient-to-r from-slate-950 via-slate-900 to-brand-950 text-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-800">
+        <div className="relative z-10">
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight flex items-center gap-2">
+            <span>{greeting}, Administrator</span>
+            <Sparkles className="w-6 h-6 text-amber-400 animate-float-slow" />
           </h1>
-          <p className="text-slate-400 text-xs md:text-sm mt-1">
-            Indira Lodge Property Management & Financial System Core Dashboard
+          <p className="text-slate-300 text-xs md:text-sm mt-1.5 font-medium">
+            Indira Lodge Enterprise PMS & Financial Command Center
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="info" className="bg-brand-900/60 text-brand-200 border-brand-700 px-3 py-1 text-xs">
-            System Status: Operational
-          </Badge>
+        <div className="relative z-10 flex flex-wrap items-center gap-3">
+          <a
+            href="/api/reports/export-all"
+            download
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-500 hover:to-teal-600 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all duration-200"
+          >
+            <Download className="w-4 h-4 text-slate-950" />
+            <span>Extract Full Audit Package (.ZIP)</span>
+          </a>
+
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold shadow-lg">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Core System Operational</span>
+          </div>
         </div>
       </div>
 
@@ -130,18 +161,21 @@ export default function DashboardPage() {
         {kpiCards.map((card, idx) => {
           const Icon = card.icon;
           return (
-            <div key={idx} className="pmfs-card p-4 flex flex-col justify-between">
+            <div
+              key={idx}
+              className={`pmfs-card p-4 flex flex-col justify-between bg-gradient-to-br ${card.gradient}`}
+            >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
                   {card.title}
                 </span>
-                <div className={`p-2 rounded-lg ${card.color}`}>
+                <div className={`p-2 rounded-xl ${card.iconBg}`}>
                   <Icon className="w-4 h-4" />
                 </div>
               </div>
               <div className="mt-3">
-                <div className="text-2xl font-extrabold text-slate-900">{card.value}</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">{card.subtext}</div>
+                <div className="text-2xl font-black text-slate-900 tracking-tight">{card.value}</div>
+                <div className="text-[11px] font-medium text-slate-500 mt-0.5">{card.subtext}</div>
               </div>
             </div>
           );
@@ -151,59 +185,128 @@ export default function DashboardPage() {
       {/* Operations & Room Status Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Room Operational Breakdown */}
-        <div className="pmfs-card p-6 lg:col-span-2 space-y-4">
+        <div className="pmfs-card p-6 lg:col-span-2 space-y-5">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-                Room Inventory & Live Status
+              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                Room Inventory & Live House Matrix
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Current house status breakdown across property rooms
+                Real-time house status breakdown ({data?.stats?.totalRooms || 0} Total Rooms)
               </p>
             </div>
-            <Badge variant="coming-soon">Rooms Module Coming Soon</Badge>
+            <Link
+              href="/rooms"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold text-xs transition-all hover:scale-105"
+            >
+              <span>Manage Rooms</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
+          {/* Status Counter Badges */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {roomStatuses.map((st, i) => (
-              <div key={i} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+              <div
+                key={i}
+                className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 flex items-center justify-between hover:bg-white hover:shadow-md transition-all"
+              >
                 <div className="flex items-center gap-2.5">
-                  <span className={`w-3 h-3 rounded-full ${st.color}`} />
-                  <span className="text-xs font-semibold text-slate-700">{st.label}</span>
+                  <span className={`w-3 h-3 rounded-full ${st.color} shadow-sm ${st.glow}`} />
+                  <span className="text-xs font-bold text-slate-700">{st.label}</span>
                 </div>
-                <span className="text-sm font-extrabold text-slate-900">{st.count}</span>
+                <span className="text-sm font-black text-slate-900 font-mono">{st.count}</span>
               </div>
             ))}
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-50/70 border border-dashed border-slate-300 text-center py-6">
-            <BedDouble className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-            <p className="text-xs font-medium text-slate-600">No rooms added to inventory yet</p>
-            <p className="text-[11px] text-slate-400 mt-1 max-w-md mx-auto">
-              Room management and house status tracking will be configured when the Rooms module is enabled in Stage 2.
-            </p>
-          </div>
+          {/* Live Room Map Quick Matrix */}
+          {roomsList.length > 0 ? (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                <span>Live Matrix View</span>
+                <span className="text-slate-400 font-normal">Click any room card for inventory control</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+                {roomsList.map((r: any) => {
+                  const isOccupied = r.availabilityStatus === 'OCCUPIED';
+                  const isDirty = r.housekeepingStatus === 'DIRTY';
+                  const isBlocked = r.availabilityStatus === 'BLOCKED' || r.maintenanceStatus !== 'OPERATIONAL';
+
+                  return (
+                    <Link
+                      key={r.id}
+                      href="/rooms"
+                      className={`p-3 rounded-2xl border transition-all duration-300 hover:scale-105 hover:shadow-lg block ${
+                        isOccupied
+                          ? 'bg-blue-50/90 border-blue-200/90 hover:border-blue-400'
+                          : isBlocked
+                          ? 'bg-rose-50/90 border-rose-200/90 hover:border-rose-400'
+                          : isDirty
+                          ? 'bg-amber-50/90 border-amber-200/90 hover:border-amber-400'
+                          : 'bg-emerald-50/90 border-emerald-200/90 hover:border-emerald-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-slate-900 text-xs">Room {r.roomNumber}</span>
+                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-white text-slate-700 shadow-2xs">
+                          {r.roomType?.code}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 space-y-0.5 text-[10px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Status:</span>
+                          <span className={`font-bold ${isOccupied ? 'text-blue-700' : 'text-emerald-700'}`}>
+                            {r.availabilityStatus}
+                          </span>
+                        </div>
+
+                        {isOccupied && r.reservations?.[0]?.guest?.displayName && (
+                          <div className="text-[10px] font-bold text-blue-900 truncate pt-1 border-t border-blue-200/60">
+                            {r.reservations[0].guest.displayName}
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="p-8 rounded-2xl bg-slate-50 border border-dashed border-slate-300 text-center">
+              <BedDouble className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-xs font-medium text-slate-600">No rooms added to inventory yet</p>
+              <Link
+                href="/rooms"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700 mt-2"
+              >
+                <span>Add physical rooms in Rooms Management →</span>
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Database Alerts & System Notices */}
         <div className="pmfs-card p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-              Database Alerts
+            <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+              System Alerts & Monitoring
             </h3>
-            <Badge variant="neutral">{data?.systemAlerts?.length ?? 0} active</Badge>
+            <Badge variant="info">{data?.systemAlerts?.length ?? 0} Active</Badge>
           </div>
 
           <div className="space-y-3">
             {data?.systemAlerts?.length === 0 ? (
               <div className="p-4 text-center text-xs text-slate-500">
-                No system alerts present.
+                No active system alerts.
               </div>
             ) : (
               data?.systemAlerts?.map((alert) => (
                 <div
                   key={alert.id}
-                  className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 flex items-start gap-3"
+                  className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200 flex items-start gap-3 hover:shadow-md transition-all"
                 >
                   <AlertTriangle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                   <div>
@@ -214,9 +317,9 @@ export default function DashboardPage() {
               ))
             )}
 
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-slate-500 flex-shrink-0" />
-              <span>Session Security: Enforced via HTTP-Only cookies</span>
+              <span>Session Security: Enforced via HTTP-Only JWT tokens</span>
             </div>
           </div>
         </div>
@@ -226,14 +329,14 @@ export default function DashboardPage() {
       <div className="pmfs-card p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-              Recent System & Audit Activity
+            <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+              Live Audit & Security Stream
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Live audit trail of user actions recorded in the database
+              Persistent log of user operations recorded in database
             </p>
           </div>
-          <Activity className="w-4 h-4 text-slate-400" />
+          <Activity className="w-4 h-4 text-brand-600 animate-pulse" />
         </div>
 
         <div className="divide-y divide-slate-100 overflow-x-auto">
@@ -243,27 +346,27 @@ export default function DashboardPage() {
             </div>
           ) : (
             data?.recentActivity?.map((act) => (
-              <div key={act.id} className="py-3 flex items-center justify-between text-xs gap-4">
+              <div key={act.id} className="py-3 flex items-center justify-between text-xs gap-4 hover:bg-slate-50/60 px-2 rounded-xl transition-colors">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 font-bold flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-brand-600 text-white font-bold flex items-center justify-center flex-shrink-0 shadow-xs">
                     {act.user?.fullName ? act.user.fullName.charAt(0).toUpperCase() : 'S'}
                   </div>
                   <div className="truncate">
-                    <span className="font-semibold text-slate-900">
+                    <span className="font-bold text-slate-900">
                       {act.user?.fullName || 'System'}
                     </span>{' '}
-                    <span className="text-slate-600">performed</span>{' '}
-                    <span className="font-medium text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">
+                    <span className="text-slate-500">performed</span>{' '}
+                    <span className="font-bold text-brand-700 bg-brand-50 border border-brand-200/60 px-2 py-0.5 rounded-lg">
                       {act.action.replace(/_/g, ' ')}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4 flex-shrink-0 text-slate-400">
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
+                  <span className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 font-mono font-bold uppercase">
                     {act.module}
                   </span>
-                  <span className="text-[11px] flex items-center gap-1">
+                  <span className="text-[11px] flex items-center gap-1 font-medium">
                     <Clock className="w-3 h-3" />
                     {new Date(act.createdAt).toLocaleString()}
                   </span>

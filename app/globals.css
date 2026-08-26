@@ -11,11 +11,11 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased font-sans selection:bg-blue-500 selection:text-white;
+    @apply bg-slate-50/80 text-slate-900 antialiased font-sans selection:bg-blue-600 selection:text-white;
   }
 }
 
-/* Custom Scrollbar for dense data views */
+/* Custom Smooth Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -27,22 +27,97 @@
 
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* Glass & Card Elevation */
+/* Stunning Glassmorphism & Micro-Interactions */
 .pmfs-card {
-  @apply bg-white border border-slate-200 rounded-lg shadow-sm hover:border-slate-300 transition-colors;
+  @apply bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-brand-300 transition-all duration-300 ease-out;
+}
+
+.pmfs-card-static {
+  @apply bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-sm transition-all duration-200;
 }
 
 .pmfs-table-th {
-  @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 bg-slate-50 border-b border-slate-200;
+  @apply px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-50/90 border-b border-slate-200/80;
 }
 
 .pmfs-table-td {
-  @apply px-4 py-3 text-sm text-slate-700 border-b border-slate-100 whitespace-nowrap;
+  @apply px-4 py-3.5 text-xs text-slate-700 border-b border-slate-100 whitespace-nowrap transition-colors;
+}
+
+/* Keyframe Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(14, 165, 233, 0);
+  }
+}
+
+/* Animation Utility Classes */
+.animate-fade-in {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float-slow {
+  animation: floatSlow 3s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Interactive Hover Utilities */
+.hover-lift {
+  @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg;
+}
+
+.hover-glow {
+  @apply transition-all duration-300 hover:shadow-lg hover:shadow-brand-500/20;
+}
+
+.glass-panel {
+  @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-lg;
 }

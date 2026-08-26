@@ -49,7 +49,7 @@ export default function FrontOfficePage() {
   const [walkinForm, setWalkinForm] = useState({
     firstName: '',
     lastName: '',
-    phone: '',
+    phone: '+91 ',
     email: '',
     roomId: '',
     arrivalDate: new Date().toISOString().split('T')[0],
@@ -73,6 +73,49 @@ export default function FrontOfficePage() {
   // Checkout Override State
   const [overrideBalance, setOverrideBalance] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
+
+  // Guest Auto-Lookup State
+  const [guestSearchQuery, setGuestSearchQuery] = useState('');
+  const [matchedGuests, setMatchedGuests] = useState<any[]>([]);
+  const [selectedGuestProfile, setSelectedGuestProfile] = useState<any>(null);
+
+  useEffect(() => {
+    const term = guestSearchQuery || walkinForm.phone;
+    if (!term || term.trim().length < 3) {
+      setMatchedGuests([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/guests?search=${encodeURIComponent(term.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMatchedGuests(data.guests || []);
+        }
+      } catch (e) {}
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [guestSearchQuery, walkinForm.phone]);
+
+  const handleSelectGuestForWalkin = (guest: any) => {
+    setSelectedGuestProfile(guest);
+    const names = (guest.displayName || '').split(' ');
+    const fName = guest.firstName || names[0] || '';
+    const lName = guest.lastName || names.slice(1).join(' ') || 'Guest';
+
+    setWalkinForm((prev) => ({
+      ...prev,
+      guestId: guest.id,
+      firstName: fName,
+      lastName: lName,
+      phone: guest.phone || '',
+      email: guest.email || '',
+    }));
+    setMatchedGuests([]);
+    showToast(`Loaded returning guest profile: ${guest.displayName}`, 'success');
+  };
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -99,10 +142,10 @@ export default function FrontOfficePage() {
     setSelectedRes(resItem);
     setAssignRoomId(resItem.assignedRoomId || '');
 
-    // Fetch physical rooms available for this room type & dates
+    // Fetch physical rooms available & suitable (CLEAN/INSPECTED) for check-in
     try {
       const res = await fetch(
-        `/api/availability?arrivalDate=${encodeURIComponent(resItem.arrivalDate)}&departureDate=${encodeURIComponent(resItem.departureDate)}&roomTypeId=${resItem.roomTypeId}`
+        `/api/availability?arrivalDate=${encodeURIComponent(resItem.arrivalDate)}&departureDate=${encodeURIComponent(resItem.departureDate)}&roomTypeId=${resItem.roomTypeId}&requireClean=true`
       );
       if (res.ok) {
         const data = await res.json();
@@ -898,6 +941,66 @@ export default function FrontOfficePage() {
       {/* Modal 3: Walk-In Check-In */}
       <Modal isOpen={isWalkinOpen} onClose={() => setIsWalkinOpen(false)} title="New Walk-in Check-in" maxWidth="lg">
         <form onSubmit={handleWalkinSubmit} className="space-y-4">
+          {/* Returning Guest Search Box */}
+          <div className="p-3 bg-brand-50/70 border border-brand-200 rounded-xl space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-brand-900 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-brand-600" />
+                Returning Guest Auto-Fill Search
+              </span>
+              {selectedGuestProfile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedGuestProfile(null);
+                    setWalkinForm((prev) => ({ ...prev, guestId: undefined, firstName: '', lastName: '', phone: '', email: '' }));
+                  }}
+                  className="text-[11px] text-brand-700 font-semibold hover:underline"
+                >
+                  Clear Selection
+                </button>
+              )}
+            </div>
+
+            <input
+              type="text"
+              value={guestSearchQuery}
+              onChange={(e) => setGuestSearchQuery(e.target.value)}
+              placeholder="Search existing guest by name, phone (+91...), or guest ref..."
+              className="w-full px-3 py-1.5 bg-white border border-brand-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+
+            {matchedGuests.length > 0 && !selectedGuestProfile && (
+              <div className="bg-white border border-brand-200 rounded-lg divide-y divide-slate-100 max-h-36 overflow-y-auto shadow-sm">
+                {matchedGuests.map((g) => (
+                  <div
+                    key={g.id}
+                    onClick={() => handleSelectGuestForWalkin(g)}
+                    className="p-2.5 hover:bg-brand-50/80 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-900 block">{g.displayName}</span>
+                      <span className="text-[11px] text-slate-500">{g.phone} {g.email ? `• ${g.email}` : ''}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="px-2 py-1 bg-brand-600 text-white font-bold text-[10px] rounded hover:bg-brand-700"
+                    >
+                      Auto-Fill
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {selectedGuestProfile && (
+              <div className="text-xs text-brand-900 font-medium flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-brand-200">
+                <span>Selected: <strong>{selectedGuestProfile.displayName}</strong> ({selectedGuestProfile.phone})</span>
+                <Badge variant="success">Auto-Filled</Badge>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">

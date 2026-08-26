@@ -28,16 +28,47 @@ export async function GET(req: Request) {
       include: {
         roomType: { select: { name: true, code: true, baseRate: true } },
         reservations: {
-          where: { status: 'CHECKED_IN' },
-          include: {
-            guest: { select: { displayName: true, phone: true, guestRef: true } },
-            folios: { select: { balanceAmount: true } },
+          where: { status: { in: ['CHECKED_IN', 'CONFIRMED'] } },
+          select: {
+            id: true,
+            reservationRef: true,
+            status: true,
+            arrivalDate: true,
+            departureDate: true,
+            adults: true,
+            children: true,
+            totalAmount: true,
+            guest: { select: { id: true, displayName: true, phone: true, email: true, guestRef: true } },
+            folios: { select: { id: true, folioNumber: true, balanceAmount: true, totalCharges: true, totalPayments: true } },
           },
+          orderBy: { arrivalDate: 'desc' },
           take: 1,
         },
       },
       orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }],
     });
+
+    // Dynamic Status Reconciliation
+    for (const room of rooms) {
+      const activeRes = room.reservations[0];
+      let expectedStatus = 'AVAILABLE';
+
+      if (room.maintenanceStatus !== 'OPERATIONAL' || room.availabilityStatus === 'BLOCKED') {
+        expectedStatus = 'BLOCKED';
+      } else if (activeRes?.status === 'CHECKED_IN') {
+        expectedStatus = 'OCCUPIED';
+      } else if (activeRes?.status === 'CONFIRMED') {
+        expectedStatus = 'RESERVED';
+      }
+
+      if (room.availabilityStatus !== expectedStatus) {
+        await db.room.update({
+          where: { id: room.id },
+          data: { availabilityStatus: expectedStatus },
+        });
+        room.availabilityStatus = expectedStatus;
+      }
+    }
 
     return NextResponse.json({ rooms });
   } catch (error) {
@@ -151,5 +182,49 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: true, room: updatedRoom });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update room status' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await getCurrentUser();
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { searchParams } = new URL(req.url);
+    const roomId = searchParams.get('id');
+
+    if (!roomId) return NextResponse.json({ error: 'Room ID is required' }, { status: 400 });
+
+    const room = await db.room.findUnique({
+      where: { id: roomId },
+      include: {
+        reservations: { where: { status: { in: ['CHECKED_IN', 'CONFIRMED'] } } },
+      },
+    });
+
+    if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+
+    if (room.reservations.length > 0) {
+      return NextResponse.json(
+        { error: `Cannot delete Room ${room.roomNumber}: Active or confirmed guest stays are linked to this room.` },
+        { status: 400 }
+      );
+    }
+
+    await db.room.delete({ where: { id: roomId } });
+
+    await logAuditEvent({
+      organizationId: session.organizationId,
+      propertyId: room.propertyId,
+      userId: session.userId,
+      action: 'ROOM_DELETED',
+      module: 'rooms',
+      entityId: roomId,
+      beforeData: { roomNumber: room.roomNumber, floor: room.floor },
+    });
+
+    return NextResponse.json({ success: true, message: `Room ${room.roomNumber} deleted successfully.` });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to delete room' }, { status: 500 });
   }
 }

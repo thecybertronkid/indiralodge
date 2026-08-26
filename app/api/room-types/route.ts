@@ -77,3 +77,47 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || 'Failed to create room type' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await getCurrentUser();
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { searchParams } = new URL(req.url);
+    const roomTypeId = searchParams.get('id');
+
+    if (!roomTypeId) return NextResponse.json({ error: 'Room type ID is required' }, { status: 400 });
+
+    const roomType = await db.roomType.findUnique({
+      where: { id: roomTypeId },
+      include: {
+        _count: { select: { rooms: true, reservations: true } },
+      },
+    });
+
+    if (!roomType) return NextResponse.json({ error: 'Room type not found' }, { status: 404 });
+
+    if (roomType._count.rooms > 0) {
+      return NextResponse.json(
+        { error: `Cannot delete '${roomType.name}': ${roomType._count.rooms} physical rooms belong to this category. Delete assigned physical rooms first.` },
+        { status: 400 }
+      );
+    }
+
+    await db.roomType.delete({ where: { id: roomTypeId } });
+
+    await logAuditEvent({
+      organizationId: session.organizationId,
+      propertyId: roomType.propertyId,
+      userId: session.userId,
+      action: 'ROOM_TYPE_DELETED',
+      module: 'rooms',
+      entityId: roomTypeId,
+      beforeData: { name: roomType.name, code: roomType.code },
+    });
+
+    return NextResponse.json({ success: true, message: `Room type ${roomType.name} deleted successfully.` });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to delete room type' }, { status: 500 });
+  }
+}

@@ -82,23 +82,97 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       guestId,
+      firstName,
+      lastName,
+      phone,
+      email,
+      address,
+      age,
+      gender,
+      occupation,
+      idType,
+      idNumber,
       bookingSourceId,
       roomTypeId,
       assignedRoomId,
       arrivalDate,
+      arrivalTime,
       departureDate,
+      departureTime,
       adults,
       children,
+      comingFrom,
+      purposeOfVisit,
       discountAmount,
       discountReason,
       depositAmount,
       specialRequests,
-      internalNotes,
-      customRate,
     } = body;
 
-    if (!guestId || !bookingSourceId || !roomTypeId || !arrivalDate || !departureDate) {
-      return NextResponse.json({ error: 'Guest, source, room type, arrival, and departure dates are required.' }, { status: 400 });
+    if (!roomTypeId || !arrivalDate || !departureDate) {
+      return NextResponse.json({ error: 'Room type, arrival date, and departure date are required.' }, { status: 400 });
+    }
+
+    // 1. Guest Handling: Create or Update Guest Profile
+    let finalGuestId = guestId;
+
+    if (!finalGuestId) {
+      if (!firstName || !phone) {
+        return NextResponse.json({ error: 'Guest name and phone number are required.' }, { status: 400 });
+      }
+
+      // Check duplicate guest by phone
+      const existingGuest = await db.guest.findFirst({
+        where: { organizationId: session.organizationId, phone: phone.trim() },
+      });
+
+      if (existingGuest) {
+        finalGuestId = existingGuest.id;
+        await db.guest.update({
+          where: { id: finalGuestId },
+          data: {
+            ...(address ? { address: address.trim() } : {}),
+            ...(age ? { age: parseInt(String(age), 10) } : {}),
+            ...(gender ? { gender } : {}),
+            ...(occupation ? { occupation: occupation.trim() } : {}),
+            ...(idType ? { idType } : {}),
+            ...(idNumber ? { idNumber: idNumber.trim() } : {}),
+          },
+        });
+      } else {
+        const guestRef = await generateReferenceNumber(propertyId, 'GST');
+        const newGuest = await db.guest.create({
+          data: {
+            organizationId: session.organizationId,
+            guestRef,
+            firstName: firstName.trim(),
+            lastName: lastName ? lastName.trim() : '',
+            displayName: `${firstName.trim()} ${lastName ? lastName.trim() : ''}`.trim(),
+            phone: phone.trim(),
+            email: email ? email.trim().toLowerCase() : null,
+            address: address ? address.trim() : null,
+            age: age ? parseInt(String(age), 10) : null,
+            gender: gender || 'Other',
+            occupation: occupation ? occupation.trim() : null,
+            idType: idType || null,
+            idNumber: idNumber ? idNumber.trim() : null,
+          },
+        });
+        finalGuestId = newGuest.id;
+      }
+    } else {
+      // Update existing guest profile with latest age, occupation, ID details
+      await db.guest.update({
+        where: { id: finalGuestId },
+        data: {
+          ...(address ? { address: address.trim() } : {}),
+          ...(age ? { age: parseInt(String(age), 10) } : {}),
+          ...(gender ? { gender } : {}),
+          ...(occupation ? { occupation: occupation.trim() } : {}),
+          ...(idType ? { idType } : {}),
+          ...(idNumber ? { idNumber: idNumber.trim() } : {}),
+        },
+      });
     }
 
     const arr = new Date(arrivalDate);
@@ -108,7 +182,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Departure date must be after arrival date.' }, { status: 400 });
     }
 
-    // 1. Availability Check for Room Type
+    // 2. Room Type & Auto-Allocation of Physical Room
     const roomTypeAvail = await checkRoomTypeAvailability(propertyId, arr, dep);
     const targetType = roomTypeAvail.find((rt) => rt.roomTypeId === roomTypeId);
 
@@ -116,15 +190,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No available rooms for the selected room type and dates.' }, { status: 400 });
     }
 
-    // 2. Physical Room Availability Check if room assigned
-    if (assignedRoomId) {
-      const isAvail = await isRoomAvailable(assignedRoomId, arr, dep);
-      if (!isAvail) {
-        return NextResponse.json({ error: 'The selected physical room is no longer available for these dates.' }, { status: 400 });
+    let targetRoomId = assignedRoomId || null;
+
+    // Auto-allocate physical room if unassigned
+    if (!targetRoomId) {
+      const physicalRooms = await db.room.findMany({
+        where: {
+          propertyId,
+          roomTypeId,
+          isActive: true,
+          availabilityStatus: 'AVAILABLE',
+          housekeepingStatus: 'CLEAN',
+          maintenanceStatus: 'OPERATIONAL',
+        },
+        orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }],
+      });
+
+      for (const pr of physicalRooms) {
+        const avail = await isRoomAvailable(pr.id, arr, dep);
+        if (avail) {
+          targetRoomId = pr.id;
+          break;
+        }
       }
     }
 
-    // 3. Server-side Pricing Calculation
+    // 3. Fallback Booking Source
+    let targetSourceId = bookingSourceId;
+    if (!targetSourceId) {
+      let defSource = await db.bookingSource.findFirst({ where: { propertyId, code: 'DIRECT' } });
+      if (!defSource) {
+        defSource = await db.bookingSource.create({ data: { propertyId, code: 'DIRECT', name: 'Direct Desk Booking' } });
+      }
+      targetSourceId = defSource.id;
+    }
+
+    // 4. Server-side Pricing Calculation
     const pricing = await calculateReservationPricing({
       propertyId,
       roomTypeId,
@@ -133,7 +234,6 @@ export async function POST(req: Request) {
       adults: parseInt(adults || '1', 10),
       children: parseInt(children || '0', 10),
       discountAmount: discountAmount ? parseFloat(discountAmount) : 0,
-      customRoomRate: customRate ? parseFloat(customRate) : undefined,
     });
 
     const reservationRef = await generateReferenceNumber(propertyId, 'RES');
@@ -141,21 +241,25 @@ export async function POST(req: Request) {
     const paidAmount = advDeposit;
     const balanceAmount = Math.max(0, pricing.totalAmount - paidAmount);
 
-    // 4. Transactionally create Reservation
+    // 5. Create Reservation with all 19 fields
     const reservation = await db.reservation.create({
       data: {
         propertyId,
         reservationRef,
-        guestId,
-        bookingSourceId,
+        guestId: finalGuestId,
+        bookingSourceId: targetSourceId,
         status: 'CONFIRMED',
         arrivalDate: arr,
+        arrivalTime: arrivalTime || '14:00',
         departureDate: dep,
+        departureTime: departureTime || '11:00',
         nights: pricing.nights,
         adults: parseInt(adults || '1', 10),
         children: parseInt(children || '0', 10),
+        comingFrom: comingFrom ? comingFrom.trim() : null,
+        purposeOfVisit: purposeOfVisit ? purposeOfVisit.trim() : null,
         roomTypeId,
-        assignedRoomId: assignedRoomId || null,
+        assignedRoomId: targetRoomId,
         roomRate: pricing.baseRate,
         discountAmount: pricing.discountAmount,
         discountReason: discountReason || null,
@@ -165,20 +269,19 @@ export async function POST(req: Request) {
         paidAmount,
         balanceAmount,
         specialRequests: specialRequests || null,
-        internalNotes: internalNotes || null,
         createdById: session.userId,
       },
       include: {
         guest: { select: { displayName: true, phone: true } },
-        roomType: { select: { name: true } },
+        roomType: { select: { name: true, baseRate: true } },
         assignedRoom: { select: { roomNumber: true } },
       },
     });
 
-    // Update assigned room status to RESERVED if arrival is today
-    if (assignedRoomId) {
+    // Mark allocated room as RESERVED if check-in is today
+    if (targetRoomId) {
       await db.room.update({
-        where: { id: assignedRoomId },
+        where: { id: targetRoomId },
         data: { availabilityStatus: 'RESERVED' },
       });
     }
