@@ -24,6 +24,11 @@ import { useToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { calculateIndiraLodgeRoomRate } from '@/lib/roomRates';
 
+const getCurrentTimeString = () => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
 export default function NewReservationPage() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -49,7 +54,7 @@ export default function NewReservationPage() {
 
     // Stay Fields (5, 6, 9, 10, 7, 8, 13, 14, 15, 17)
     arrivalDate: new Date().toISOString().split('T')[0],
-    arrivalTime: '14:00',
+    arrivalTime: getCurrentTimeString(),
     departureDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     departureTime: '11:00',
     roomTypeId: '',
@@ -92,7 +97,7 @@ export default function NewReservationPage() {
   const roomSubtotal = roomPricePerNight * daysStayed;
   const discountVal = parseFloat(form.discountAmount || '0');
   const totalPrice = Math.max(0, roomSubtotal - discountVal);
-  const taxableVal = Math.round((totalPrice / 1.18) * 100) / 100;
+  const taxableVal = Math.round((totalPrice / 1.05) * 100) / 100;
   const gstTaxVal = Math.round((totalPrice - taxableVal) * 100) / 100;
 
   // Fetch Room Types
@@ -644,7 +649,7 @@ export default function NewReservationPage() {
                 </div>
               )}
               <div className="flex justify-between text-emerald-400/90 text-[11px]">
-                <span>GST Tax (18%):</span>
+                <span>GST Tax (5%):</span>
                 <span className="font-medium">Included in Tariff (₹{gstTaxVal.toFixed(2)})</span>
               </div>
             </div>

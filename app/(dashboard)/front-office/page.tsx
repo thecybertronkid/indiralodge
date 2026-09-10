@@ -27,11 +27,21 @@ import {
   Briefcase,
   IdCard,
   UtensilsCrossed,
+  Lock,
+  Printer,
+  FileText,
+  Eye,
+  CheckCircle,
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { calculateIndiraLodgeRoomRate } from '@/lib/roomRates';
+
+const getCurrentTimeString = () => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
 
 export default function FrontOfficePage() {
   const { showToast } = useToast();
@@ -57,6 +67,15 @@ export default function FrontOfficePage() {
     notes: '',
   });
 
+  // Bill Generation & Finalized Bill Viewer State
+  const [isBillViewerOpen, setIsBillViewerOpen] = useState(false);
+  const [billType, setBillType] = useState<'GST' | 'NON_GST'>('GST');
+  const [customerGstin, setCustomerGstin] = useState('');
+  const [generatingBill, setGeneratingBill] = useState(false);
+  const [generatedInvoice, setGeneratedInvoice] = useState<any>(null);
+  const [fetchingInvoice, setFetchingInvoice] = useState(false);
+  const [recordPaymentWithBill, setRecordPaymentWithBill] = useState(false);
+
   const [selectedRes, setSelectedRes] = useState<any>(null);
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
   const [assignRoomId, setAssignRoomId] = useState('');
@@ -81,7 +100,7 @@ export default function FrontOfficePage() {
     // 5. Arrival Date
     arrivalDate: new Date().toISOString().split('T')[0],
     // 6. Arrival Time
-    arrivalTime: '12:00',
+    arrivalTime: getCurrentTimeString(),
     // 7. Room Type
     roomTypeId: '',
     // 8. Room No (Physical Room ID)
@@ -245,7 +264,7 @@ export default function FrontOfficePage() {
   const walkinRoomSubtotal = walkinPricePerNight * walkinDaysStayed;
   const walkinDiscountVal = parseFloat(walkinForm.discountAmount || '0');
   const walkinTotalPrice = Math.max(0, walkinRoomSubtotal - walkinDiscountVal);
-  const walkinTaxableVal = Math.round((walkinTotalPrice / 1.18) * 100) / 100;
+  const walkinTaxableVal = Math.round((walkinTotalPrice / 1.05) * 100) / 100;
   const walkinGstTaxVal = Math.round((walkinTotalPrice - walkinTaxableVal) * 100) / 100;
   const walkinDepositVal = parseFloat(walkinForm.depositAmount || '0');
   const walkinBalance = Math.max(0, walkinTotalPrice - walkinDepositVal);
@@ -402,10 +421,92 @@ export default function FrontOfficePage() {
     }
   };
 
+  const handleViewGeneratedBill = async (resItem: any) => {
+    if (!resItem) return;
+    setFetchingInvoice(true);
+    try {
+      const res = await fetch(`/api/finance/invoices/generate?reservationId=${resItem.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setGeneratedInvoice(data.invoice);
+        setIsBillViewerOpen(true);
+      } else {
+        const fbRes = await fetch('/api/finance/invoices/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reservationId: resItem.id,
+            invoiceType: resItem.billType || 'GST',
+          }),
+        });
+        if (fbRes.ok) {
+          const fbData = await fbRes.json();
+          setGeneratedInvoice(fbData.invoice);
+          setIsBillViewerOpen(true);
+        } else {
+          showToast('Could not retrieve final invoice', 'error');
+        }
+      }
+    } catch {
+      showToast('Error loading final bill', 'error');
+    } finally {
+      setFetchingInvoice(false);
+    }
+  };
+
+  const handleGenerateBill = async (reservationId: string, type: 'GST' | 'NON_GST', gstin?: string) => {
+    setGeneratingBill(true);
+    try {
+      const res = await fetch('/api/finance/invoices/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reservationId,
+          invoiceType: type,
+          customerGstin: gstin ? gstin.trim().toUpperCase() : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to generate bill', 'error');
+        return;
+      }
+
+      setGeneratedInvoice(data.invoice);
+      setIsBillViewerOpen(true);
+
+      setSelectedRes((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          isBilled: true,
+          billType: type,
+          billedInvoiceId: data.invoice.id,
+          billedAt: new Date().toISOString(),
+        };
+      });
+
+      showToast(
+        data.alreadyBilled
+          ? 'Displaying finalized bill'
+          : `${type === 'GST' ? 'GST Tax Invoice' : 'Non-GST Bill'} generated and locked!`,
+        'success'
+      );
+      fetchFrontDeskData();
+    } catch {
+      showToast('Error generating bill', 'error');
+    } finally {
+      setGeneratingBill(false);
+    }
+  };
+
   const openCheckoutModal = (resItem: any) => {
     setSelectedRes(resItem);
     setOverrideBalance(false);
     setOverrideReason('');
+    setBillType(resItem.billType === 'NON_GST' ? 'NON_GST' : 'GST');
+    setCustomerGstin(resItem.guest?.gstin || '');
     setIsCheckoutOpen(true);
   };
 
@@ -459,7 +560,7 @@ export default function FrontOfficePage() {
       city: '',
       state: '',
       arrivalDate: todayStr,
-      arrivalTime: '12:00',
+      arrivalTime: getCurrentTimeString(),
       roomTypeId: initialRoomTypeId,
       roomId: '',
       departureDate: tomorrowStr,
@@ -638,6 +739,9 @@ export default function FrontOfficePage() {
     const bal = folio ? folio.balanceAmount : resItem.balanceAmount;
     setPayAmount(bal > 0 ? String(bal) : '0');
     setPayMethod('CASH');
+    setBillType(resItem.billType === 'NON_GST' ? 'NON_GST' : 'GST');
+    setCustomerGstin(resItem.guest?.gstin || '');
+    setRecordPaymentWithBill(false);
     setIsPaymentOpen(true);
   };
 
@@ -666,7 +770,12 @@ export default function FrontOfficePage() {
 
       showToast(`Payment of ₹${payAmount} recorded successfully!`, 'success');
       setIsPaymentOpen(false);
-      fetchFrontDeskData();
+
+      if (recordPaymentWithBill && !selectedRes.isBilled) {
+        await handleGenerateBill(selectedRes.id, billType, customerGstin);
+      } else {
+        fetchFrontDeskData();
+      }
     } catch (e) {
       showToast('Error recording payment', 'error');
     } finally {
@@ -993,16 +1102,28 @@ export default function FrontOfficePage() {
                           </Badge>
                         </td>
                         <td className="pmfs-table-td text-right">
-                          {dep.status === 'CHECKED_IN' ? (
-                            <button
-                              onClick={() => openCheckoutModal(dep)}
-                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
-                            >
-                              Check Out
-                            </button>
-                          ) : (
-                            <span className="text-xs text-slate-400 font-semibold">Completed</span>
-                          )}
+                          <div className="flex items-center justify-end gap-1.5">
+                            {dep.isBilled && (
+                              <button
+                                onClick={() => handleViewGeneratedBill(dep)}
+                                className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-xs"
+                                title="View Final Bill"
+                              >
+                                <FileText className="w-3.5 h-3.5 text-purple-600" />
+                                <span>Bill</span>
+                              </button>
+                            )}
+                            {dep.status === 'CHECKED_IN' ? (
+                              <button
+                                onClick={() => openCheckoutModal(dep)}
+                                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                              >
+                                Check Out
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400 font-semibold">Completed</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1085,6 +1206,16 @@ export default function FrontOfficePage() {
                         </td>
                         <td className="pmfs-table-td text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {inh.isBilled && (
+                              <button
+                                onClick={() => handleViewGeneratedBill(inh)}
+                                className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md text-xs font-bold border border-purple-200 flex items-center gap-1 shadow-xs"
+                                title="View Final Generated Bill"
+                              >
+                                <FileText className="w-3 h-3 text-purple-600" />
+                                <span>Bill</span>
+                              </button>
+                            )}
                             <button
                               onClick={() => openRoomServiceModal(inh)}
                               className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md text-xs font-bold border border-indigo-200 flex items-center gap-1"
@@ -1235,6 +1366,100 @@ export default function FrontOfficePage() {
                         className="w-full px-3 py-1.5 bg-white border border-rose-300 rounded text-xs text-slate-900"
                       />
                     )}
+                  </div>
+                )}
+
+                {/* Bill Generation / Finalized Bill Status */}
+                {selectedRes?.isBilled ? (
+                  <div className="p-3.5 rounded-xl bg-purple-50/80 border border-purple-200 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-purple-700" />
+                        <span className="text-xs font-bold text-purple-900">
+                          Final {selectedRes.billType === 'NON_GST' ? 'Non-GST' : 'GST'} Bill Generated & Locked
+                        </span>
+                      </div>
+                      <Badge variant="success">LOCKED</Badge>
+                    </div>
+                    <p className="text-[11px] text-purple-800">
+                      This stay has been finalized. In accordance with system policy, no further charge modifications or edits can be made to this bill.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleViewGeneratedBill(selectedRes)}
+                      disabled={fetchingInvoice}
+                      className="w-full py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>{fetchingInvoice ? 'Loading Final Bill...' : 'View Final Generated Bill'}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-indigo-950 uppercase flex items-center gap-1.5">
+                        <Receipt className="w-4 h-4 text-indigo-600" />
+                        Generate Bill Option
+                      </label>
+                      <span className="text-[10px] text-indigo-700 font-semibold">Choose GST or Non-GST</span>
+                    </div>
+
+                    {/* Toggle GST vs Non-GST */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBillType('GST')}
+                        className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                          billType === 'GST'
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-indigo-200 hover:bg-indigo-50'
+                        }`}
+                      >
+                        <Receipt className="w-3.5 h-3.5" />
+                        <span>GST Bill (5%)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBillType('NON_GST')}
+                        className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                          billType === 'NON_GST'
+                            ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                            : 'bg-white text-slate-700 border-indigo-200 hover:bg-indigo-50'
+                        }`}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Non-GST Bill</span>
+                      </button>
+                    </div>
+
+                    {billType === 'GST' && (
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">
+                          Customer GSTIN (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={customerGstin}
+                          onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
+                          placeholder="e.g. 27AAAAA0000A1Z5"
+                          className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs text-slate-900 font-mono focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin)}
+                      disabled={generatingBill}
+                      className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-50"
+                    >
+                      <Receipt className="w-4 h-4" />
+                      <span>
+                        {generatingBill
+                          ? 'Generating Bill...'
+                          : `Generate & View ${billType === 'GST' ? 'GST' : 'Non-GST'} Bill`}
+                      </span>
+                    </button>
                   </div>
                 )}
 
@@ -1693,7 +1918,7 @@ export default function FrontOfficePage() {
                   />
                 </div>
                 <div className="flex justify-between text-emerald-400/90 text-[11px]">
-                  <span>GST Tax (18%):</span>
+                  <span>GST Tax (5%):</span>
                   <span className="font-medium">Included in Tariff (₹{walkinGstTaxVal.toFixed(2)})</span>
                 </div>
               </div>
@@ -1918,6 +2143,108 @@ export default function FrontOfficePage() {
             </select>
           </div>
 
+          {/* Option to generate GST or Non-GST Bill in Payment Box */}
+          {selectedRes?.isBilled ? (
+            <div className="p-3.5 rounded-xl bg-purple-50/80 border border-purple-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-purple-700" />
+                  <span className="text-xs font-bold text-purple-900">
+                    Final {selectedRes.billType === 'NON_GST' ? 'Non-GST' : 'GST'} Bill Generated & Locked
+                  </span>
+                </div>
+                <Badge variant="success">LOCKED</Badge>
+              </div>
+              <p className="text-[11px] text-purple-800">
+                The bill for this stay has been finalized. Any payment recorded will be applied to this locked bill.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleViewGeneratedBill(selectedRes)}
+                disabled={fetchingInvoice}
+                className="w-full py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50"
+              >
+                <FileText className="w-4 h-4" />
+                <span>{fetchingInvoice ? 'Loading Final Bill...' : 'View Final Generated Bill'}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                  <Receipt className="w-4 h-4 text-emerald-600" />
+                  Generate Bill Option
+                </label>
+                <span className="text-[10px] text-slate-500 font-semibold">GST or Non-GST</span>
+              </div>
+
+              {/* Toggle GST vs Non-GST */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBillType('GST')}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                    billType === 'GST'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>GST Bill (5%)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillType('NON_GST')}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                    billType === 'NON_GST'
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Non-GST Bill</span>
+                </button>
+              </div>
+
+              {billType === 'GST' && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                    Customer GSTIN (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={customerGstin}
+                    onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
+                    placeholder="e.g. 27AAAAA0000A1Z5"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-mono"
+                  />
+                </div>
+              )}
+
+              <div className="pt-1 flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={recordPaymentWithBill}
+                    onChange={(e) => setRecordPaymentWithBill(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 rounded"
+                  />
+                  <span>Generate Bill upon recording payment</span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin)}
+                  disabled={generatingBill}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{generatingBill ? 'Generating...' : 'Generate Bill Now'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
             <button
               type="button"
@@ -2140,6 +2467,305 @@ export default function FrontOfficePage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal 8: Final Generated Bill Viewer & Print Voucher */}
+      <Modal
+        isOpen={isBillViewerOpen}
+        onClose={() => setIsBillViewerOpen(false)}
+        title={
+          generatedInvoice?.isGstBill || generatedInvoice?.invoiceType === 'GST'
+            ? `GST Tax Invoice: ${generatedInvoice?.invoiceRef || ''}`
+            : `Hotel Bill & Receipt: ${generatedInvoice?.invoiceRef || ''}`
+        }
+        maxWidth="3xl"
+      >
+        {generatedInvoice ? (
+          <div className="space-y-4">
+            {/* Printable Container */}
+            <div
+              id="printable-bill"
+              className="p-6 bg-white border border-slate-200 rounded-2xl space-y-5 text-xs text-slate-800 shadow-sm"
+            >
+              {/* Hotel Header */}
+              <div className="flex items-start justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight">INDIRA LODGE</h2>
+                  <p className="text-slate-500 font-medium">Station Road, Main Hotel District</p>
+                  <p className="text-slate-500 font-medium">Contact: +91 98765 43210 • info@indiralodge.com</p>
+                  <p className="text-slate-700 font-bold mt-1">
+                    GSTIN: <span className="font-mono">18AOIPB2857A1ZB</span> • State Code: 18
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div
+                    className={`inline-block px-3 py-1 rounded-md text-xs font-black tracking-wider uppercase ${
+                      generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-slate-800 text-white'
+                    }`}
+                  >
+                    {generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST'
+                      ? 'TAX INVOICE'
+                      : 'HOTEL BILL & RECEIPT'}
+                  </div>
+                  <div className="mt-1 font-mono font-extrabold text-sm text-slate-900">
+                    {generatedInvoice.invoiceRef}
+                  </div>
+                  <div className="text-slate-500 text-[11px]">
+                    Date:{' '}
+                    <span className="font-semibold text-slate-700">
+                      {new Date(generatedInvoice.invoiceDate || generatedInvoice.createdAt).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                  <div className="text-slate-500 text-[11px]">
+                    Status: <span className="font-bold text-emerald-600 uppercase">{generatedInvoice.status || 'ISSUED'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Guest & Stay Meta Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px]">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Guest Name</span>
+                  <span className="font-extrabold text-slate-900 text-xs">
+                    {generatedInvoice.guest?.displayName || 'Guest'}
+                  </span>
+                  <span className="block text-slate-500 text-[10px]">{generatedInvoice.guest?.phone || '—'}</span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Customer GSTIN</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {generatedInvoice.customerGstin ||
+                      (generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST'
+                        ? 'Unregistered / B2C'
+                        : 'N/A')}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Room & Category</span>
+                  <span className="font-extrabold text-slate-900">
+                    Room {generatedInvoice.reservation?.assignedRoom?.roomNumber || selectedRes?.assignedRoom?.roomNumber || '—'}
+                  </span>
+                  <span className="block text-slate-500 text-[10px]">
+                    {generatedInvoice.reservation?.roomType?.name || selectedRes?.roomType?.name || 'Standard'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Booking Reference</span>
+                  <span className="font-mono font-bold text-brand-700">
+                    {generatedInvoice.reservation?.reservationRef || selectedRes?.reservationRef || '—'}
+                  </span>
+                  <span className="block text-slate-500 text-[10px]">
+                    Stay: {generatedInvoice.reservation?.nights || selectedRes?.nights || 1} Night(s)
+                  </span>
+                </div>
+              </div>
+
+              {/* Itemized Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-bold border-y border-slate-200 uppercase text-[10px] tracking-wider">
+                      <th className="py-2 px-2.5 text-left w-8">#</th>
+                      <th className="py-2 px-2.5 text-left">Particulars / Description</th>
+                      {(generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST') && (
+                        <th className="py-2 px-2 text-center">HSN/SAC</th>
+                      )}
+                      <th className="py-2 px-2 text-center w-12">Qty</th>
+                      <th className="py-2 px-2.5 text-right w-20">Rate (₹)</th>
+                      {(generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST') && (
+                        <>
+                          <th className="py-2 px-2.5 text-right w-20">Taxable (₹)</th>
+                          <th className="py-2 px-2 text-right w-16">CGST (2.5%)</th>
+                          <th className="py-2 px-2 text-right w-16">SGST (2.5%)</th>
+                        </>
+                      )}
+                      <th className="py-2 px-2.5 text-right w-24">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {generatedInvoice.lines?.map((line: any, idx: number) => (
+                      <tr key={line.id || idx} className="hover:bg-slate-50/50">
+                        <td className="py-2 px-2.5 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                        <td className="py-2 px-2.5 text-slate-900 font-semibold">{line.description}</td>
+                        {(generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST') && (
+                          <td className="py-2 px-2 text-center font-mono text-[11px] text-slate-600">
+                            {line.hsnSacCode || '996311'}
+                          </td>
+                        )}
+                        <td className="py-2 px-2 text-center font-mono">{line.quantity || 1}</td>
+                        <td className="py-2 px-2.5 text-right font-mono">
+                          ₹{Number(line.unitPrice || 0).toFixed(2)}
+                        </td>
+                        {(generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST') && (
+                          <>
+                            <td className="py-2 px-2.5 text-right font-mono text-slate-700">
+                              ₹{Number(line.taxableAmount || 0).toFixed(2)}
+                            </td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-600">
+                              ₹{Number(line.cgstAmount || 0).toFixed(2)}
+                            </td>
+                            <td className="py-2 px-2 text-right font-mono text-slate-600">
+                              ₹{Number(line.sgstAmount || 0).toFixed(2)}
+                            </td>
+                          </>
+                        )}
+                        <td className="py-2 px-2.5 text-right font-mono font-bold text-slate-900">
+                          ₹{Number(line.totalAmount || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Financial Totals Calculation Box */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end pt-3 border-t border-slate-200 gap-4">
+                <div className="text-[11px] text-slate-500 max-w-xs space-y-1">
+                  <div className="font-semibold text-slate-700">Terms & Conditions:</div>
+                  <p>1. Check-out time is 11:00 AM.</p>
+                  <p>2. Room tariffs are inclusive of applicable GST taxes.</p>
+                  <p>3. This computer generated bill is final and acknowledged.</p>
+                </div>
+
+                <div className="w-full sm:w-72 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Gross Subtotal:</span>
+                    <span className="font-mono font-semibold">₹{Number(generatedInvoice.subtotal || 0).toFixed(2)}</span>
+                  </div>
+
+                  {Number(generatedInvoice.discount || 0) > 0 && (
+                    <div className="flex justify-between text-emerald-700">
+                      <span>Discount:</span>
+                      <span className="font-mono font-semibold">-₹{Number(generatedInvoice.discount || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {(generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST') && (
+                    <>
+                      <div className="flex justify-between text-slate-600 text-[11px]">
+                        <span>CGST (2.5%):</span>
+                        <span className="font-mono">₹{Number(generatedInvoice.cgstAmount || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600 text-[11px]">
+                        <span>SGST (2.5%):</span>
+                        <span className="font-mono">₹{Number(generatedInvoice.sgstAmount || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-700 font-semibold text-[11px] border-t border-slate-200/60 pt-1">
+                        <span>Total GST (5% Included):</span>
+                        <span className="font-mono">
+                          ₹{(Number(generatedInvoice.cgstAmount || 0) + Number(generatedInvoice.sgstAmount || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex justify-between border-t-2 border-slate-300 pt-2 text-sm font-black text-slate-900">
+                    <span>Grand Total:</span>
+                    <span className="font-mono text-emerald-700">
+                      ₹{Number(generatedInvoice.totalAmount || 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Locked System Banner */}
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl flex items-center gap-2.5 text-purple-900 text-xs">
+                <Lock className="w-4 h-4 text-purple-700 flex-shrink-0" />
+                <div className="leading-snug">
+                  <span className="font-bold block">
+                    FINAL GENERATED BILL — LOCKED & REGISTERED
+                  </span>
+                  <span className="text-[11px] text-purple-800">
+                    This bill has been officially locked. No modifications, edits, or extra items can be altered on this finalized bill.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span className="text-xs text-slate-500 font-medium">
+                Bill Reference: <strong className="font-mono text-slate-800">{generatedInvoice.invoiceRef}</strong>
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBillViewerOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const printContents = document.getElementById('printable-bill')?.innerHTML;
+                    if (!printContents) {
+                      window.print();
+                      return;
+                    }
+                    const printWindow = window.open('', '', 'height=700,width=900');
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>${generatedInvoice.invoiceRef} - Indira Lodge</title>
+                            <style>
+                              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #1e293b; }
+                              table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
+                              th, td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+                              th { background: #f8fafc; font-weight: bold; text-transform: uppercase; font-size: 10px; }
+                              .text-right { text-align: right; }
+                              .text-center { text-align: center; }
+                              .font-mono { font-family: monospace; }
+                              .font-bold { font-weight: bold; }
+                              .border-b { border-bottom: 1px solid #e2e8f0; }
+                              .border-t { border-top: 1px solid #e2e8f0; }
+                              .text-xl { font-size: 20px; }
+                              .text-sm { font-size: 14px; }
+                              .text-xs { font-size: 12px; }
+                              .text-slate-500 { color: #64748b; }
+                              .bg-slate-50 { background: #f8fafc; }
+                              .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+                              @media print { body { padding: 0; } }
+                            </style>
+                          </head>
+                          <body>${printContents}</body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                      printWindow.focus();
+                      setTimeout(() => {
+                        printWindow.print();
+                        printWindow.close();
+                      }, 300);
+                    } else {
+                      window.print();
+                    }
+                  }}
+                  className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Final Bill</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="py-12 text-center text-xs text-slate-500">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-600" />
+            Loading bill details...
+          </div>
+        )}
       </Modal>
     </div>
   );

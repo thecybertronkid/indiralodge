@@ -4,6 +4,49 @@ import { db } from '@/lib/db';
 import { generateReferenceNumber } from '@/lib/refGenerator';
 import { logAuditEvent } from '@/lib/audit';
 
+export async function GET(req: Request) {
+  try {
+    const session = await getCurrentUser();
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { searchParams } = new URL(req.url);
+    const reservationId = searchParams.get('reservationId');
+    const invoiceId = searchParams.get('invoiceId');
+
+    if (!reservationId && !invoiceId) {
+      return NextResponse.json({ error: 'reservationId or invoiceId is required' }, { status: 400 });
+    }
+
+    const whereClause: any = {};
+    if (invoiceId) {
+      whereClause.id = invoiceId;
+    } else if (reservationId) {
+      whereClause.reservationId = reservationId;
+    }
+
+    const invoice = await db.taxInvoice.findFirst({
+      where: whereClause,
+      include: {
+        lines: true,
+        guest: true,
+        property: true,
+        reservation: {
+          include: { assignedRoom: true, roomType: true, folios: { include: { payments: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!invoice) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ invoice });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to fetch invoice' }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getCurrentUser();
@@ -22,7 +65,7 @@ export async function POST(req: Request) {
         guest: true,
         roomType: true,
         assignedRoom: true,
-        folios: { include: { transactions: true } },
+        folios: { include: { transactions: true, payments: true } },
       },
     });
 
@@ -34,7 +77,14 @@ export async function POST(req: Request) {
     if (reservation.isBilled && reservation.billedInvoiceId) {
       const existingInvoice = await db.taxInvoice.findUnique({
         where: { id: reservation.billedInvoiceId },
-        include: { lines: true, guest: true, property: true, reservation: true },
+        include: {
+          lines: true,
+          guest: true,
+          property: true,
+          reservation: {
+            include: { assignedRoom: true, roomType: true, folios: { include: { payments: true } } },
+          },
+        },
       });
       if (existingInvoice) {
         return NextResponse.json({ success: true, invoice: existingInvoice, alreadyBilled: true });
@@ -62,8 +112,8 @@ export async function POST(req: Request) {
     const totalAmount = netTotal;
 
     if (isGst) {
-      // 18% GST (9% CGST + 9% SGST) extracted from inclusive total
-      taxableSubtotal = Math.round((netTotal / 1.18) * 100) / 100;
+      // 5% GST (2.5% CGST + 2.5% SGST) extracted from inclusive total
+      taxableSubtotal = Math.round((netTotal / 1.05) * 100) / 100;
       const totalGst = Math.round((netTotal - taxableSubtotal) * 100) / 100;
       cgstAmount = Math.round((totalGst / 2) * 100) / 100;
       sgstAmount = Math.round((totalGst - cgstAmount) * 100) / 100;
@@ -81,9 +131,9 @@ export async function POST(req: Request) {
         hsnSacCode: '996311',
         quantity: reservation.nights,
         unitPrice: reservation.roomRate,
-        taxableAmount: isGst ? Math.round((roomCharges / 1.18) * 100) / 100 : roomCharges,
-        cgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.18) * 100) / 100) / 2) * 100) / 100 : 0,
-        sgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.18) * 100) / 100) / 2) * 100) / 100 : 0,
+        taxableAmount: isGst ? Math.round((roomCharges / 1.05) * 100) / 100 : roomCharges,
+        cgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.05) * 100) / 100) / 2) * 100) / 100 : 0,
+        sgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.05) * 100) / 100) / 2) * 100) / 100 : 0,
         totalAmount: roomCharges,
       },
     ];
@@ -91,7 +141,7 @@ export async function POST(req: Request) {
     for (const ec of extraCharges) {
       const isFood = ec.category === 'FOOD_BEVERAGE' || ec.category === 'ROOM_SERVICE';
       const sac = isFood ? '996331' : '996311';
-      const itemTaxBase = isGst ? Math.round((ec.amount / 1.18) * 100) / 100 : ec.amount;
+      const itemTaxBase = isGst ? Math.round((ec.amount / 1.05) * 100) / 100 : ec.amount;
       const itemGst = isGst ? Math.round((ec.amount - itemTaxBase) * 100) / 100 : 0;
       const itemCgst = Math.round((itemGst / 2) * 100) / 100;
       const itemSgst = Math.round((itemGst - itemCgst) * 100) / 100;
@@ -136,7 +186,7 @@ export async function POST(req: Request) {
         guest: true,
         property: true,
         reservation: {
-          include: { assignedRoom: true, roomType: true },
+          include: { assignedRoom: true, roomType: true, folios: { include: { payments: true } } },
         },
       },
     });

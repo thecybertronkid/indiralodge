@@ -35,6 +35,8 @@ interface SidebarProps {
   propertyName?: string;
   userFullName?: string;
   userRole?: string;
+  userRoles?: string[];
+  permissions?: string[];
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
   isCollapsed: boolean;
@@ -45,6 +47,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   propertyName = 'Indira Lodge',
   userFullName = 'Hotel Staff',
   userRole = 'Staff',
+  userRoles = [],
+  permissions = [],
   isMobileOpen,
   setIsMobileOpen,
   isCollapsed,
@@ -65,25 +69,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const navItems = [
-    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, isReady: true },
-    { label: 'Front Office', href: '/front-office', icon: ConciergeBell, isReady: true },
-    { label: 'Reservations', href: '/reservations', icon: CalendarDays, isReady: true },
-    { label: 'Rooms & Inventory', href: '/rooms', icon: BedDouble, isReady: true },
-    { label: 'Guests', href: '/guests', icon: Users, isReady: true },
-    { label: 'Housekeeping', href: '/housekeeping', icon: Sparkles, isReady: true },
-    { label: 'Maintenance', href: '/maintenance', icon: Wrench, isReady: true },
-    { label: 'Reports & Statements', href: '/reports', icon: FileSpreadsheet, isReady: true },
-    { label: 'Restaurant / POS', href: '/pos', icon: UtensilsCrossed, isReady: false },
-    { label: 'Inventory', href: '/inventory', icon: Boxes, isReady: false },
-    { label: 'Procurement', href: '/procurement', icon: ShoppingBag, isReady: false },
-    { label: 'Finance & Accounting', href: '/finance', icon: Landmark, isReady: true },
-    { label: 'Analytics', href: '/analytics', icon: BarChart3, isReady: true },
-    { label: 'CRM', href: '/crm', icon: UserCheck, isReady: false },
-    { label: 'Users & Staff', href: '/users', icon: UserCog, isReady: true },
-    { label: 'Audit Logs', href: '/audit-logs', icon: FileCheck2, isReady: true },
-    { label: 'Settings', href: '/settings', icon: Settings, isReady: true },
+  const isSuperAdminOrOwner =
+    userRoles.some((r) => r === 'Super Admin' || r === 'Owner') ||
+    permissions.includes('*') ||
+    userRole === 'Super Admin' ||
+    userRole === 'Owner';
+
+  const allNavItems: {
+    label: string;
+    href: string;
+    icon: any;
+    isReady: boolean;
+    permission?: string | string[];
+    allowedRoles?: string[];
+  }[] = [
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, isReady: true, permission: 'dashboard.view' },
+    { label: 'Front Office', href: '/front-office', icon: ConciergeBell, isReady: true, permission: 'frontdesk.view' },
+    { label: 'Reservations', href: '/reservations', icon: CalendarDays, isReady: true, permission: 'reservation.view' },
+    { label: 'Rooms & Inventory', href: '/rooms', icon: BedDouble, isReady: true, permission: 'room.view' },
+    { label: 'Guests', href: '/guests', icon: Users, isReady: true, permission: 'guest.view' },
+    { label: 'Housekeeping', href: '/housekeeping', icon: Sparkles, isReady: true, permission: 'housekeeping.view' },
+    { label: 'Maintenance', href: '/maintenance', icon: Wrench, isReady: true, permission: 'maintenance.view' },
+    { label: 'Reports & Statements', href: '/reports', icon: FileSpreadsheet, isReady: true, permission: 'reports.view' },
+    { label: 'Restaurant / POS', href: '/pos', icon: UtensilsCrossed, isReady: false, allowedRoles: ['Super Admin', 'Owner', 'General Manager', 'Restaurant Manager', 'Cashier'] },
+    { label: 'Inventory', href: '/inventory', icon: Boxes, isReady: false, allowedRoles: ['Super Admin', 'Owner', 'General Manager', 'Inventory Manager', 'Housekeeping Manager', 'Maintenance Manager'] },
+    { label: 'Procurement', href: '/procurement', icon: ShoppingBag, isReady: false, allowedRoles: ['Super Admin', 'Owner', 'General Manager', 'Purchase Manager', 'Finance Manager', 'Inventory Manager'] },
+    { label: 'Finance & Accounting', href: '/finance', icon: Landmark, isReady: true, permission: ['finance.view', 'cash.view', 'accounts.view', 'invoice.view'] },
+    { label: 'Analytics', href: '/analytics', icon: BarChart3, isReady: true, permission: 'analytics.view' },
+    { label: 'CRM', href: '/crm', icon: UserCheck, isReady: false, allowedRoles: ['Super Admin', 'Owner', 'General Manager', 'Front Office Manager'] },
+    { label: 'Users & Staff', href: '/users', icon: UserCog, isReady: true, permission: 'users.view' },
+    { label: 'Audit Logs', href: '/audit-logs', icon: FileCheck2, isReady: true, permission: 'audit_logs.view' },
+    { label: 'Settings', href: '/settings', icon: Settings, isReady: true, permission: 'settings.view' },
   ];
+
+  const navItems = allNavItems.filter((item) => {
+    if (isSuperAdminOrOwner) return true;
+    if (!item.permission && !item.allowedRoles) return true;
+
+    if (item.permission) {
+      const reqList = Array.isArray(item.permission) ? item.permission : [item.permission];
+      const hasP = reqList.some((req) => permissions.includes(req) || permissions.includes('*'));
+      if (hasP) return true;
+    }
+
+    if (item.allowedRoles) {
+      const hasR = userRoles.some((r) => item.allowedRoles?.includes(r)) || (userRole && item.allowedRoles.includes(userRole));
+      if (hasR) return true;
+    }
+
+    return false;
+  });
 
   return (
     <>

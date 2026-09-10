@@ -66,6 +66,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         propertyName={propertyName}
         userFullName={userFullName}
         userRole={userRole}
+        userRoles={userData.roles}
+        permissions={userData.permissions}
         isMobileOpen={isMobileOpen}
         setIsMobileOpen={setIsMobileOpen}
         isCollapsed={isCollapsed}

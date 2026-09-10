@@ -27,6 +27,7 @@ import {
   ShoppingBag,
   PlusCircle,
   GlassWater,
+  Lock,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -850,13 +851,20 @@ export default function RoomsPage() {
 
                     {res.status === 'CHECKED_IN' && (
                       <div className="pt-2 space-y-2">
-                        <button
-                          onClick={() => setIsRoomServiceOpen(true)}
-                          className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors"
-                        >
-                          <UtensilsCrossed className="w-3.5 h-3.5" />
-                          <span>+ Add Room Order / Food Item</span>
-                        </button>
+                        {res.isBilled ? (
+                          <div className="p-2.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-900 text-xs flex items-center gap-2">
+                            <Lock className="w-3.5 h-3.5 text-purple-700 flex-shrink-0" />
+                            <span className="font-semibold text-[11px]">Final {res.billType || ''} Bill Locked. No extra orders can be posted.</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setIsRoomServiceOpen(true)}
+                            className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors"
+                          >
+                            <UtensilsCrossed className="w-3.5 h-3.5" />
+                            <span>+ Add Room Order / Food Item</span>
+                          </button>
+                        )}
 
                         <button
                           onClick={() => handleRoomCheckout(res.id, res.guest?.displayName || 'Guest', selectedRoom.roomNumber)}

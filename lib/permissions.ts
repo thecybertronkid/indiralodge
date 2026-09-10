@@ -45,6 +45,7 @@ export const SYSTEM_PERMISSIONS: PermissionDef[] = [
   { code: 'checkout.override_balance', name: 'Override Unpaid Checkout', module: 'front_office', description: 'Allow check-out with pending balance' },
   { code: 'room.transfer', name: 'Transfer Room', module: 'front_office', description: 'Move active guest stay to another room' },
   { code: 'stay.extend', name: 'Extend Stay', module: 'front_office', description: 'Extend guest check-out date' },
+  { code: 'room_order.create', name: 'Add Room Order', module: 'front_office', description: 'Add room orders, food, beverages, and extra charges to guest room' },
 
   // Phase 2 & Phase 4: Folios & Financials
   { code: 'folio.view', name: 'View Guest Folio', module: 'finance', description: 'View guest stay charges and balances' },
@@ -154,7 +155,104 @@ export const INITIAL_ROLES = [
   { name: 'Technician', description: 'Assigned maintenance ticket execution and equipment repairs.' },
 ];
 
+export const ROLE_PERMISSIONS_MAP: Record<string, string[]> = {
+  'Super Admin': ['*'],
+  'Owner': ['*'],
+  'General Manager': [
+    'dashboard.view', 'dashboard.manager', 'kpi_targets.view', 'forecast.view',
+    'frontdesk.view', 'checkin.create', 'checkout.create', 'room.transfer', 'stay.extend', 'room_order.create',
+    'reservation.view', 'reservation.create', 'reservation.edit', 'reservation.cancel', 'reservation.no_show', 'reservation.assign_room', 'reservation.discount',
+    'room.view', 'room.edit', 'room.status.manage', 'room.block',
+    'guest.view', 'guest.create', 'guest.edit', 'guest.documents.view', 'guest.documents.manage',
+    'housekeeping.view', 'housekeeping.tasks.view', 'housekeeping.tasks.create', 'housekeeping.tasks.assign', 'housekeeping.tasks.manage', 'housekeeping.inspection.view', 'housekeeping.inspection.manage', 'housekeeping.lost_found.view', 'housekeeping.lost_found.manage', 'housekeeping.reports.view',
+    'maintenance.view', 'maintenance.ticket.view', 'maintenance.ticket.create', 'maintenance.ticket.assign', 'maintenance.ticket.manage', 'maintenance.ticket.resolve', 'maintenance.asset.view', 'maintenance.reports.view', 'maintenance.cost.view',
+    'reports.view', 'reports.export', 'reports.create', 'reports.builder',
+    'analytics.view', 'analytics.operational', 'analytics.guest', 'analytics.housekeeping', 'analytics.maintenance',
+    'folio.view', 'folio.charge', 'folio.payment',
+    'users.view',
+  ],
+  'Front Office Manager': [
+    'dashboard.view',
+    'frontdesk.view', 'checkin.create', 'checkout.create', 'checkout.override_balance', 'room.transfer', 'stay.extend', 'room_order.create',
+    'reservation.view', 'reservation.create', 'reservation.edit', 'reservation.cancel', 'reservation.no_show', 'reservation.assign_room', 'reservation.discount',
+    'room.view', 'room.status.manage', 'room.block',
+    'guest.view', 'guest.create', 'guest.edit', 'guest.documents.view', 'guest.documents.manage',
+    'folio.view', 'folio.charge', 'folio.payment',
+    'reports.view', 'reports.export',
+  ],
+  'Receptionist': [
+    'dashboard.view',
+    'frontdesk.view', 'checkin.create', 'checkout.create', 'room.transfer', 'stay.extend', 'room_order.create',
+    'reservation.view', 'reservation.create', 'reservation.edit', 'reservation.cancel', 'reservation.no_show', 'reservation.assign_room',
+    'room.view', 'room.status.manage',
+    'guest.view', 'guest.create', 'guest.edit', 'guest.documents.view', 'guest.documents.manage',
+    'folio.view', 'folio.charge', 'folio.payment',
+  ],
+  'Housekeeping Manager': [
+    'dashboard.view',
+    'room.view', 'room.status.manage',
+    'housekeeping.view', 'housekeeping.tasks.view', 'housekeeping.tasks.create', 'housekeeping.tasks.assign', 'housekeeping.tasks.manage', 'housekeeping.inspection.view', 'housekeeping.inspection.manage', 'housekeeping.checklist.manage', 'housekeeping.lost_found.view', 'housekeeping.lost_found.manage', 'housekeeping.reports.view',
+    'reports.view',
+  ],
+  'Housekeeper': [
+    'dashboard.view',
+    'room.view', 'room.status.manage',
+    'housekeeping.view', 'housekeeping.tasks.view', 'housekeeping.tasks.manage', 'housekeeping.lost_found.view', 'housekeeping.lost_found.manage',
+  ],
+  'Maintenance Manager': [
+    'dashboard.view',
+    'room.view', 'room.block', 'room.status.manage',
+    'maintenance.view', 'maintenance.ticket.view', 'maintenance.ticket.create', 'maintenance.ticket.assign', 'maintenance.ticket.manage', 'maintenance.ticket.resolve', 'maintenance.ticket.reopen', 'maintenance.asset.view', 'maintenance.asset.manage', 'maintenance.preventive.manage', 'maintenance.reports.view', 'maintenance.cost.view',
+    'reports.view',
+  ],
+  'Technician': [
+    'dashboard.view',
+    'room.view',
+    'maintenance.view', 'maintenance.ticket.view', 'maintenance.ticket.manage', 'maintenance.ticket.resolve', 'maintenance.asset.view',
+  ],
+  'Finance Manager': [
+    'dashboard.view',
+    'folio.view', 'folio.charge', 'folio.payment', 'folio.void',
+    'finance.view', 'finance.dashboard.view', 'accounts.view', 'accounts.create', 'accounts.edit', 'journal.view', 'journal.create', 'journal.approve', 'journal.post', 'journal.reverse', 'invoice.view', 'invoice.create', 'invoice.issue', 'invoice.cancel', 'credit_note.create', 'debit_note.create', 'expense.view', 'expense.create', 'expense.approve', 'expense.post', 'receivable.view', 'payable.view', 'vendor.view', 'vendor.manage', 'cash.view', 'cash.manage', 'bank.view', 'bank.reconcile', 'tax.view', 'tax.manage', 'accounting_period.close', 'financial_reports.view',
+    'reports.view', 'reports.export', 'reports.create', 'reports.builder',
+    'analytics.view', 'analytics.financial',
+  ],
+  'Accountant': [
+    'dashboard.view',
+    'folio.view', 'folio.charge', 'folio.payment',
+    'finance.view', 'finance.dashboard.view', 'accounts.view', 'journal.view', 'journal.create', 'invoice.view', 'invoice.create', 'invoice.issue', 'credit_note.create', 'debit_note.create', 'expense.view', 'expense.create', 'receivable.view', 'payable.view', 'vendor.view', 'cash.view', 'bank.view', 'tax.view', 'financial_reports.view',
+    'reports.view', 'reports.export',
+  ],
+  'Cashier': [
+    'dashboard.view',
+    'frontdesk.view',
+    'folio.view', 'folio.payment', 'folio.charge',
+    'invoice.view', 'invoice.create', 'invoice.issue',
+    'cash.view', 'cash.manage',
+  ],
+  'Inventory Manager': [
+    'dashboard.view',
+    'housekeeping.lost_found.view', 'housekeeping.lost_found.manage',
+    'maintenance.asset.view', 'maintenance.asset.manage',
+    'vendor.view',
+    'reports.view',
+  ],
+  'Purchase Manager': [
+    'dashboard.view',
+    'vendor.view', 'vendor.manage',
+    'expense.view', 'expense.create',
+    'maintenance.asset.view',
+    'reports.view',
+  ],
+  'Restaurant Manager': [
+    'dashboard.view',
+    'folio.view', 'folio.charge', 'room_order.create',
+    'reports.view',
+  ],
+};
+
 export function hasPermission(userPermissions: string[], requiredPermission: string): boolean {
+  if (!userPermissions || !Array.isArray(userPermissions)) return false;
   if (userPermissions.includes('*') || userPermissions.includes('all')) return true;
   return userPermissions.includes(requiredPermission);
 }

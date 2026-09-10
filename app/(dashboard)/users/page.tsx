@@ -11,6 +11,8 @@ import {
   XCircle,
   KeyRound,
   Edit,
+  Trash2,
+  AlertTriangle,
   ShieldAlert,
   Loader2,
   RefreshCw,
@@ -30,7 +32,10 @@ export default function UsersPage() {
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Add User Form State
   const [addForm, setAddForm] = useState({
@@ -162,6 +167,34 @@ export default function UsersPage() {
       showToast('Error updating user', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openDeleteModal = (user: any) => {
+    setUserToDelete(user);
+    setIsDeleteOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/users/${userToDelete.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Staff member "${userToDelete.fullName}" deleted successfully!`, 'success');
+        setIsDeleteOpen(false);
+        setUserToDelete(null);
+        fetchUsers();
+      } else {
+        showToast(data.error || 'Failed to delete staff member', 'error');
+      }
+    } catch (e) {
+      showToast('Network error deleting staff member', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -313,6 +346,13 @@ export default function UsersPage() {
                             ) : (
                               <CheckCircle2 className="w-4 h-4" />
                             )}
+                          </button>
+                          <button
+                            onClick={() => openDeleteModal(u)}
+                            className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                            title="Delete staff account"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -505,6 +545,56 @@ export default function UsersPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal: Confirm Delete Staff Member */}
+      <Modal
+        isOpen={isDeleteOpen}
+        onClose={() => !deleting && setIsDeleteOpen(false)}
+        title="Delete Staff Account"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-900">
+            <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-bold">This action cannot be undone.</p>
+              <p className="text-rose-700">
+                Are you sure you want to permanently delete staff member{' '}
+                <span className="font-extrabold underline">{userToDelete?.fullName}</span> ({userToDelete?.email})? All active sessions and assigned permissions will be revoked immediately.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => setIsDeleteOpen(false)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={handleDeleteConfirm}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-md disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Confirm Delete
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

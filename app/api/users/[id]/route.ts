@@ -72,3 +72,50 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: error.message || 'Failed to update user' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const session = await getCurrentUser();
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (!hasPermission(session.permissions, 'users.delete')) {
+      return NextResponse.json({ error: 'Forbidden: Insufficient permission to delete staff' }, { status: 403 });
+    }
+
+    const userId = params.id;
+
+    if (session.userId === userId) {
+      return NextResponse.json({ error: 'You cannot delete your own account.' }, { status: 400 });
+    }
+
+    const existingUser = await db.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Clean up dependent user records safely
+    await db.userSession.deleteMany({ where: { userId } }).catch(() => {});
+    await db.userRole.deleteMany({ where: { userId } }).catch(() => {});
+    await db.notification.deleteMany({ where: { userId } }).catch(() => {});
+    await db.notificationPreference.deleteMany({ where: { userId } }).catch(() => {});
+    await db.user.delete({ where: { id: userId } });
+
+    await logAuditEvent({
+      organizationId: session.organizationId,
+      propertyId: session.propertyId,
+      userId: session.userId,
+      action: 'USER_DELETED',
+      module: 'users',
+      entityId: userId,
+      beforeData: { fullName: existingUser.fullName, email: existingUser.email },
+    });
+
+    return NextResponse.json({ success: true, message: `Staff member "${existingUser.fullName}" deleted successfully.` });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to delete user' }, { status: 500 });
+  }
+}
+

@@ -238,7 +238,7 @@ export default function TaxInvoicesPage() {
             <div>
               <h2 className="text-lg font-black text-slate-900">INDIRA LODGE</h2>
               <p className="text-slate-500">Main Road, Hotel District</p>
-              <p className="text-slate-500">GSTIN: 27AABCI1234F1Z9</p>
+              <p className="text-slate-500">GSTIN: 18AOIPB2857A1ZB</p>
             </div>
             <div className="text-right">
               <span className="text-base font-extrabold text-emerald-700">TAX INVOICE</span>
@@ -266,8 +266,8 @@ export default function TaxInvoicesPage() {
                 <th className="p-2 text-left">Description</th>
                 <th className="p-2 text-center">SAC Code</th>
                 <th className="p-2 text-right">Taxable Amt</th>
-                <th className="p-2 text-right">CGST (6%)</th>
-                <th className="p-2 text-right">SGST (6%)</th>
+                <th className="p-2 text-right">CGST (2.5%)</th>
+                <th className="p-2 text-right">SGST (2.5%)</th>
                 <th className="p-2 text-right">Total (₹)</th>
               </tr>
             </thead>
@@ -292,11 +292,11 @@ export default function TaxInvoicesPage() {
                 <span className="font-mono font-bold">₹{selectedInvoice?.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>CGST (6%):</span>
+                <span>CGST (2.5%):</span>
                 <span className="font-mono font-bold">₹{selectedInvoice?.cgstAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>SGST (6%):</span>
+                <span>SGST (2.5%):</span>
                 <span className="font-mono font-bold">₹{selectedInvoice?.sgstAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm font-extrabold text-emerald-700 pt-2 border-t">

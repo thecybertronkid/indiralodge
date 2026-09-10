@@ -1,5 +1,5 @@
 import { db } from './db';
-import { SYSTEM_PERMISSIONS, INITIAL_ROLES } from './permissions';
+import { SYSTEM_PERMISSIONS, INITIAL_ROLES, ROLE_PERMISSIONS_MAP } from './permissions';
 import { hashPassword } from './auth';
 
 export const STANDARD_BOOKING_SOURCES = [
@@ -51,32 +51,17 @@ export async function seedPermissionsAndRoles(organizationId: string) {
       },
     });
 
-    let permCodes: string[] = [];
-    if (r.name === 'Super Admin' || r.name === 'Owner' || r.name === 'General Manager') {
-      permCodes = allPermissions.map((p) => p.code);
-    } else if (r.name === 'Front Office Manager' || r.name === 'Receptionist') {
-      permCodes = [
-        'dashboard.view', 'frontdesk.view', 'guest.view', 'guest.create', 'guest.edit', 'guest.documents.view', 'guest.documents.manage',
-        'room.view', 'room.status.manage', 'reservation.view', 'reservation.create', 'reservation.edit', 'reservation.cancel', 'reservation.no_show',
-        'reservation.assign_room', 'reservation.discount', 'checkin.create', 'checkout.create', 'room.transfer', 'stay.extend',
-        'folio.view', 'folio.charge', 'folio.payment', 'reports.view'
-      ];
-    } else {
-      permCodes = ['dashboard.view'];
-    }
+    const permCodes = ROLE_PERMISSIONS_MAP[r.name] || ['dashboard.view'];
+    const matchedPerms = permCodes.includes('*')
+      ? allPermissions
+      : allPermissions.filter((p) => permCodes.includes(p.code));
 
-    const matchedPerms = allPermissions.filter((p) => permCodes.includes(p.code));
+    // Clear old role permissions to ensure clean state
+    await db.rolePermission.deleteMany({ where: { roleId: role.id } });
 
     for (const perm of matchedPerms) {
-      await db.rolePermission.upsert({
-        where: {
-          roleId_permissionId: {
-            roleId: role.id,
-            permissionId: perm.id,
-          },
-        },
-        update: {},
-        create: {
+      await db.rolePermission.create({
+        data: {
           roleId: role.id,
           permissionId: perm.id,
         },

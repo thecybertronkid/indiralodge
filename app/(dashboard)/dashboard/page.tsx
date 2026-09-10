@@ -25,6 +25,7 @@ import { useToast } from '@/components/ui/Toast';
 export default function DashboardPage() {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState('Staff');
   const [data, setData] = useState<{
     stats: any;
     recentActivity: any[];
@@ -39,6 +40,18 @@ export default function DashboardPage() {
     else if (hour < 17) setGreeting('Good afternoon');
     else setGreeting('Good evening');
 
+    const loadUserData = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const uData = await res.json();
+          if (uData.user?.fullName) {
+            setUserName(uData.user.fullName);
+          }
+        }
+      } catch (e) {}
+    };
+
     const fetchStats = async () => {
       try {
         const res = await fetch('/api/dashboard/stats');
@@ -52,6 +65,8 @@ export default function DashboardPage() {
         setLoading(false);
       }
     };
+
+    loadUserData();
     fetchStats();
   }, [showToast]);
 
@@ -132,7 +147,7 @@ export default function DashboardPage() {
       <div className="relative overflow-hidden flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gradient-to-r from-slate-950 via-slate-900 to-brand-950 text-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-800">
         <div className="relative z-10">
           <h1 className="text-2xl md:text-3xl font-black tracking-tight flex items-center gap-2">
-            <span>{greeting}, Administrator</span>
+            <span>{greeting}, {userName}</span>
             <Sparkles className="w-6 h-6 text-amber-400 animate-float-slow" />
           </h1>
           <p className="text-slate-300 text-xs md:text-sm mt-1.5 font-medium">

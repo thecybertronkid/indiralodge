@@ -541,7 +541,7 @@ export default function ReservationDetailPage() {
               </div>
 
               <div className="flex justify-between">
-                <span className="text-slate-600">GST Tax (18%):</span>
+                <span className="text-slate-600">GST Tax (5%):</span>
                 <span className="font-semibold text-slate-900">
                   {res.taxAmount > 0 ? `₹${res.taxAmount.toFixed(2)} (Included in Tariff)` : 'Included in Tariff'}
                 </span>
@@ -894,7 +894,7 @@ export default function ReservationDetailPage() {
                   <h2 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">INDIRA LODGE</h2>
                   <p className="text-xs text-slate-500">Luxury Hospitality & Property Services</p>
                   <p className="text-[11px] text-slate-500">Assam, India • Contact: +91 98765 43210</p>
-                  <p className="text-[11px] font-mono text-slate-700 font-bold mt-1">Property GSTIN: 18AABCU9603R1ZM</p>
+                  <p className="text-[11px] font-mono text-slate-700 font-bold mt-1">Property GSTIN: 18AOIPB2857A1ZB</p>
                 </div>
                 <div className="text-right space-y-1">
                   <div className="inline-block px-3 py-1 bg-slate-900 text-white font-extrabold text-xs uppercase rounded">
@@ -973,11 +973,11 @@ export default function ReservationDetailPage() {
                         <span>₹{(activeInvoice.totalAmount - activeInvoice.cgstAmount - activeInvoice.sgstAmount).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-slate-600">
-                        <span>CGST (9%):</span>
+                        <span>CGST (2.5%):</span>
                         <span>₹{activeInvoice.cgstAmount.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-slate-600">
-                        <span>SGST (9%):</span>
+                        <span>SGST (2.5%):</span>
                         <span>₹{activeInvoice.sgstAmount.toFixed(2)}</span>
                       </div>
                     </>

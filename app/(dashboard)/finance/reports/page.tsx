@@ -254,7 +254,7 @@ export default function FinancialReportsPage() {
               <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                 Itemized GST Tax Invoices Log
               </h3>
-              <Badge variant="info">Property GSTIN: 18AABCU9603R1ZM</Badge>
+              <Badge variant="info">Property GSTIN: 18AOIPB2857A1ZB</Badge>
             </div>
 
             <div className="overflow-x-auto">

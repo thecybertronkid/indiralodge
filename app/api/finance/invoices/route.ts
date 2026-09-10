@@ -57,7 +57,7 @@ export async function POST(req: Request) {
         lineItemsData = folio.transactions
           .filter((t) => t.type === 'DEBIT')
           .map((t) => {
-            const taxBase = Math.round((t.amount / 1.18) * 100) / 100;
+            const taxBase = Math.round((t.amount / 1.05) * 100) / 100;
             const gst = Math.round((t.amount - taxBase) * 100) / 100;
             const cgst = Math.round((gst / 2) * 100) / 100;
             const sgst = Math.round((gst - cgst) * 100) / 100;
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
     if (lineItemsData.length === 0) {
       // Default line item
       subtotal = 2500.0;
-      const taxBase = Math.round((2500.0 / 1.18) * 100) / 100;
+      const taxBase = Math.round((2500.0 / 1.05) * 100) / 100;
       const gst = Math.round((2500.0 - taxBase) * 100) / 100;
       const cgst = Math.round((gst / 2) * 100) / 100;
       const sgst = Math.round((gst - cgst) * 100) / 100;

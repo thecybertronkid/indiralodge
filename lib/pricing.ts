@@ -38,7 +38,7 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
     where: { propertyId: input.propertyId },
   });
 
-  const taxRate = propSettings?.defaultTaxRate ?? 18.0;
+  const taxRate = propSettings?.defaultTaxRate ?? 5.0;
 
   // Calculate nights
   const arr = new Date(input.arrivalDate);

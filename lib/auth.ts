@@ -97,6 +97,9 @@ export async function verifySession(token: string): Promise<UserPayload | null> 
 
     const permissionSet = new Set<string>();
     user.userRoles.forEach((ur) => {
+      if (ur.role.name === 'Super Admin' || ur.role.name === 'Owner') {
+        permissionSet.add('*');
+      }
       ur.role.rolePerms.forEach((rp) => {
         permissionSet.add(rp.permission.code);
       });
