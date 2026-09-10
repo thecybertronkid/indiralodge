@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { hasPermission } from '@/lib/permissions';
 import { generateReferenceNumber } from '@/lib/refGenerator';
 import { calculateReservationPricing } from '@/lib/pricing';
-import { checkRoomTypeAvailability, isRoomAvailable } from '@/lib/availability';
+import { checkRoomTypeAvailability, isRoomAvailable, getAvailablePhysicalRooms } from '@/lib/availability';
 import { logAuditEvent } from '@/lib/audit';
 
 export async function GET(req: Request) {
@@ -194,24 +194,9 @@ export async function POST(req: Request) {
 
     // Auto-allocate physical room if unassigned
     if (!targetRoomId) {
-      const physicalRooms = await db.room.findMany({
-        where: {
-          propertyId,
-          roomTypeId,
-          isActive: true,
-          availabilityStatus: 'AVAILABLE',
-          housekeepingStatus: 'CLEAN',
-          maintenanceStatus: 'OPERATIONAL',
-        },
-        orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }],
-      });
-
-      for (const pr of physicalRooms) {
-        const avail = await isRoomAvailable(pr.id, arr, dep);
-        if (avail) {
-          targetRoomId = pr.id;
-          break;
-        }
+      const availPhysical = await getAvailablePhysicalRooms(propertyId, roomTypeId, arr, dep);
+      if (availPhysical.length > 0) {
+        targetRoomId = availPhysical[0].id;
       }
     }
 

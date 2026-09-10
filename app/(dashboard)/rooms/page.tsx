@@ -20,6 +20,13 @@ import {
   Phone,
   Receipt,
   Trash2,
+  CheckCircle,
+  LogOut,
+  UtensilsCrossed,
+  Coffee,
+  ShoppingBag,
+  PlusCircle,
+  GlassWater,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -41,6 +48,19 @@ export default function RoomsPage() {
   const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
   const [isBlockOpen, setIsBlockOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Room Service & Extra Item Charges State
+  const [isRoomServiceOpen, setIsRoomServiceOpen] = useState(false);
+  const [roomExtraCharges, setRoomExtraCharges] = useState<any[]>([]);
+  const [loadingCharges, setLoadingCharges] = useState(false);
+  const [postingCharge, setPostingCharge] = useState(false);
+  const [serviceForm, setServiceForm] = useState({
+    description: 'Packaged Drinking Water Bottle (1L)',
+    category: 'FOOD_BEVERAGE',
+    quantity: '1',
+    unitPrice: '20',
+    notes: '',
+  });
 
   // New Physical Room Form State
   const [newRoom, setNewRoom] = useState({
@@ -145,6 +165,168 @@ export default function RoomsPage() {
       }
     } catch (e) {
       showToast('Error updating status', 'error');
+    }
+  };
+
+  const handleClearMaintenance = async (roomId: string) => {
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId,
+          maintenanceStatus: 'OPERATIONAL',
+          availabilityStatus: 'AVAILABLE',
+          housekeepingStatus: 'CLEAN',
+        }),
+      });
+
+      if (res.ok) {
+        showToast('Room cleared from maintenance — now Available & Clean!', 'success');
+        fetchData();
+        if (selectedRoom && selectedRoom.id === roomId) {
+          setSelectedRoom((prev: any) => ({
+            ...prev,
+            maintenanceStatus: 'OPERATIONAL',
+            availabilityStatus: 'AVAILABLE',
+            housekeepingStatus: 'CLEAN',
+          }));
+        }
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Failed to clear maintenance', 'error');
+      }
+    } catch (e) {
+      showToast('Error clearing maintenance', 'error');
+    }
+  };
+
+  const [checkingOut, setCheckingOut] = useState(false);
+
+  const handleRoomCheckout = async (reservationId: string, guestName: string, roomNumber: string) => {
+    if (!confirm(`Check out ${guestName} from Room ${roomNumber}?\n\nThis will mark the room as DIRTY for housekeeping.`)) return;
+    setCheckingOut(true);
+    try {
+      const res = await fetch('/api/front-desk/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reservationId, overrideBalance: false }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.requiresOverride) {
+          const reason = prompt(
+            `Outstanding balance \u20b9${Number(data.outstandingBalance || 0).toFixed(2)}.\n\nEnter manager override reason to proceed anyway:`
+          );
+          if (!reason) { setCheckingOut(false); return; }
+          const res2 = await fetch('/api/front-desk/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reservationId, overrideBalance: true, overrideReason: reason }),
+          });
+          const data2 = await res2.json();
+          if (!res2.ok) {
+            showToast(data2.error || 'Checkout failed', 'error');
+            setCheckingOut(false);
+            return;
+          }
+        } else {
+          showToast(data.error || 'Checkout failed', 'error');
+          setCheckingOut(false);
+          return;
+        }
+      }
+      showToast(`${guestName} checked out. Room ${roomNumber} queued for housekeeping.`, 'success');
+      setSelectedRoom(null);
+      fetchData();
+    } catch {
+      showToast('Error completing checkout', 'error');
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
+  const loadRoomCharges = async (roomId: string) => {
+    setLoadingCharges(true);
+    try {
+      const res = await fetch(`/api/front-desk/room-charges?roomId=${roomId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRoomExtraCharges(data.extraCharges || []);
+      } else {
+        setRoomExtraCharges([]);
+      }
+    } catch {
+      setRoomExtraCharges([]);
+    } finally {
+      setLoadingCharges(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedRoom?.id && (selectedRoom.availabilityStatus === 'OCCUPIED' || selectedRoom.reservations?.length > 0)) {
+      loadRoomCharges(selectedRoom.id);
+    } else {
+      setRoomExtraCharges([]);
+    }
+  }, [selectedRoom?.id]);
+
+  const handlePostRoomCharge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRoom?.id) return;
+    setPostingCharge(true);
+    try {
+      const qty = parseInt(serviceForm.quantity || '1', 10);
+      const price = parseFloat(serviceForm.unitPrice || '0');
+      const res = await fetch('/api/front-desk/room-charges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: selectedRoom.id,
+          description: serviceForm.description,
+          category: serviceForm.category,
+          quantity: qty,
+          unitPrice: price,
+          notes: serviceForm.notes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to post room charge', 'error');
+        setPostingCharge(false);
+        return;
+      }
+      showToast(data.message || 'Room charge posted successfully!', 'success');
+      setIsRoomServiceOpen(false);
+      setServiceForm({
+        description: 'Packaged Drinking Water Bottle (1L)',
+        category: 'FOOD_BEVERAGE',
+        quantity: '1',
+        unitPrice: '20',
+        notes: '',
+      });
+      loadRoomCharges(selectedRoom.id);
+      fetchData();
+
+      // Instantly update selectedRoom drawer balance
+      setSelectedRoom((prev: any) => {
+        if (!prev) return prev;
+        const copy = JSON.parse(JSON.stringify(prev));
+        if (copy.reservations?.[0]) {
+          const added = Math.round(qty * price * 100) / 100;
+          if (copy.reservations[0].folios?.[0]) {
+            copy.reservations[0].folios[0].balanceAmount = (copy.reservations[0].folios[0].balanceAmount || 0) + added;
+            copy.reservations[0].folios[0].totalCharges = (copy.reservations[0].folios[0].totalCharges || 0) + added;
+          }
+          copy.reservations[0].balanceAmount = (copy.reservations[0].balanceAmount || 0) + added;
+          copy.reservations[0].totalAmount = (copy.reservations[0].totalAmount || 0) + added;
+        }
+        return copy;
+      });
+    } catch {
+      showToast('Error posting room charge', 'error');
+    } finally {
+      setPostingCharge(false);
     }
   };
 
@@ -345,6 +527,31 @@ export default function RoomsPage() {
       {/* TAB 1: VISUAL ROOM MAP */}
       {activeTab === 'map' && (
         <div className="space-y-6">
+          {/* Status Color Legend */}
+          <div className="flex flex-wrap items-center gap-4 p-3.5 bg-white rounded-xl border border-slate-200 text-xs font-semibold shadow-xs">
+            <span className="text-slate-500 uppercase tracking-wider text-[11px] font-bold">Room Matrix Legend:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-xs" />
+              <span className="text-slate-700 font-bold">Available</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-rose-600 shadow-xs animate-pulse" />
+              <span className="text-rose-700 font-bold">Occupied (Guest In-House)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-blue-600 shadow-xs" />
+              <span className="text-blue-700 font-bold">Reserved (Confirmed Booking)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-amber-500 shadow-xs" />
+              <span className="text-amber-700 font-bold">Dirty (Housekeeping Needed)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-slate-500 shadow-xs" />
+              <span className="text-slate-700 font-bold">Maintenance / Blocked</span>
+            </div>
+          </div>
+
           {loading ? (
             <div className="py-16 text-center text-xs text-slate-500">
               <Loader2 className="w-6 h-6 animate-spin text-brand-600 mx-auto mb-2" />
@@ -364,23 +571,39 @@ export default function RoomsPage() {
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {floorRooms.map((r: any) => {
-                      const isOccupied = r.availabilityStatus === 'OCCUPIED';
-                      const isDirty = r.housekeepingStatus === 'DIRTY';
+                      const activeStay = r.reservations?.[0];
+                      const isOccupied = r.availabilityStatus === 'OCCUPIED' || activeStay?.status === 'CHECKED_IN';
+                      const isReserved = !isOccupied && (r.availabilityStatus === 'RESERVED' || activeStay?.status === 'CONFIRMED');
                       const isBlocked = r.availabilityStatus === 'BLOCKED' || r.maintenanceStatus !== 'OPERATIONAL';
+                      const isDirty = !isOccupied && r.housekeepingStatus === 'DIRTY';
+
+                      let cardBorderBg = 'bg-emerald-50/80 border-emerald-300 hover:border-emerald-500 text-emerald-950';
+                      let statusBadgeClass = 'text-emerald-800 bg-emerald-100 border-emerald-200';
+                      let statusText = 'AVAILABLE';
+
+                      if (isBlocked) {
+                        cardBorderBg = 'bg-slate-100/90 border-slate-300 hover:border-slate-500 text-slate-900';
+                        statusBadgeClass = 'text-slate-700 bg-slate-200 border-slate-300';
+                        statusText = 'BLOCKED';
+                      } else if (isOccupied) {
+                        cardBorderBg = 'bg-rose-50/90 border-rose-300 hover:border-rose-500 text-rose-950 shadow-sm';
+                        statusBadgeClass = 'text-rose-800 bg-rose-100 border-rose-300 font-extrabold animate-pulse';
+                        statusText = 'OCCUPIED';
+                      } else if (isReserved) {
+                        cardBorderBg = 'bg-blue-50/90 border-blue-300 hover:border-blue-500 text-blue-950';
+                        statusBadgeClass = 'text-blue-800 bg-blue-100 border-blue-200 font-bold';
+                        statusText = 'RESERVED';
+                      } else if (isDirty) {
+                        cardBorderBg = 'bg-amber-50/90 border-amber-300 hover:border-amber-500 text-amber-950';
+                        statusBadgeClass = 'text-amber-800 bg-amber-100 border-amber-200 font-bold';
+                        statusText = 'DIRTY';
+                      }
 
                       return (
                         <div
                           key={r.id}
                           onClick={() => setSelectedRoom(r)}
-                          className={`p-3.5 rounded-xl border transition-all cursor-pointer hover:shadow-md ${
-                            isOccupied
-                              ? 'bg-blue-50/80 border-blue-200'
-                              : isBlocked
-                              ? 'bg-rose-50/80 border-rose-200'
-                              : isDirty
-                              ? 'bg-amber-50/80 border-amber-200'
-                              : 'bg-emerald-50/80 border-emerald-200'
-                          }`}
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer hover:shadow-md ${cardBorderBg}`}
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-extrabold text-slate-900 text-sm">Room {r.roomNumber}</span>
@@ -392,8 +615,8 @@ export default function RoomsPage() {
                           <div className="mt-2.5 space-y-1 text-[11px]">
                             <div className="flex items-center justify-between">
                               <span className="text-slate-500">Occupancy:</span>
-                              <span className={`font-bold ${isOccupied ? 'text-blue-700' : 'text-emerald-700'}`}>
-                                {r.availabilityStatus}
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold border ${statusBadgeClass}`}>
+                                {statusText}
                               </span>
                             </div>
 
@@ -404,11 +627,13 @@ export default function RoomsPage() {
                               </span>
                             </div>
 
-                            {isOccupied && r.reservations?.[0]?.guest && (
-                              <div className="pt-1.5 border-t border-blue-200/60 mt-1.5 flex items-center justify-between">
+                            {activeStay?.guest && (
+                              <div className={`pt-1.5 mt-1.5 border-t flex items-center justify-between ${
+                                isOccupied ? 'border-rose-200/80 text-rose-900' : 'border-blue-200/80 text-blue-900'
+                              }`}>
                                 <span className="text-[10px] text-slate-500 font-medium">Guest:</span>
-                                <span className="font-bold text-blue-900 text-[11px] truncate max-w-[95px]">
-                                  {r.reservations[0].guest.displayName}
+                                <span className="font-bold text-[11px] truncate max-w-[95px]">
+                                  {activeStay.guest.displayName}
                                 </span>
                               </div>
                             )}
@@ -447,8 +672,22 @@ export default function RoomsPage() {
                     <td className="pmfs-table-td">{r.floor}</td>
                     <td className="pmfs-table-td font-semibold">{r.roomType?.name}</td>
                     <td className="pmfs-table-td">
-                      <Badge variant={r.availabilityStatus === 'OCCUPIED' ? 'info' : 'success'}>
-                        {r.availabilityStatus}
+                      <Badge
+                        variant={
+                          r.availabilityStatus === 'OCCUPIED' || r.reservations?.[0]?.status === 'CHECKED_IN'
+                            ? 'error'
+                            : r.availabilityStatus === 'RESERVED' || r.reservations?.[0]?.status === 'CONFIRMED'
+                            ? 'info'
+                            : r.availabilityStatus === 'BLOCKED' || r.maintenanceStatus !== 'OPERATIONAL'
+                            ? 'neutral'
+                            : 'success'
+                        }
+                      >
+                        {r.availabilityStatus === 'OCCUPIED' || r.reservations?.[0]?.status === 'CHECKED_IN'
+                          ? 'OCCUPIED'
+                          : r.availabilityStatus === 'RESERVED' || r.reservations?.[0]?.status === 'CONFIRMED'
+                          ? 'RESERVED'
+                          : r.availabilityStatus}
                       </Badge>
                     </td>
                     <td className="pmfs-table-td">
@@ -608,8 +847,53 @@ export default function RoomsPage() {
                         <span>View Details</span>
                       </Link>
                     </div>
+
+                    {res.status === 'CHECKED_IN' && (
+                      <div className="pt-2 space-y-2">
+                        <button
+                          onClick={() => setIsRoomServiceOpen(true)}
+                          className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <UtensilsCrossed className="w-3.5 h-3.5" />
+                          <span>+ Add Room Order / Food Item</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleRoomCheckout(res.id, res.guest?.displayName || 'Guest', selectedRoom.roomNumber)}
+                          disabled={checkingOut}
+                          className="w-full px-3 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          {checkingOut ? 'Processing Checkout…' : 'Manual Check-Out'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Extra Room Orders List */}
+                    {roomExtraCharges.length > 0 && (
+                      <div className="pt-2.5 border-t border-blue-200/60 space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px] uppercase font-bold text-slate-600">
+                          <span>Room Orders & Extras ({roomExtraCharges.length})</span>
+                          <span className="text-indigo-700 font-extrabold font-mono">
+                            ₹{roomExtraCharges.reduce((sum, c) => sum + (c.amount || 0), 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                          {roomExtraCharges.map((c: any) => (
+                            <div key={c.id} className="p-1.5 rounded-lg bg-white/90 border border-blue-200/70 flex items-center justify-between text-[11px]">
+                              <div className="truncate mr-2">
+                                <span className="font-bold text-slate-900 block truncate">{c.description}</span>
+                                <span className="text-[10px] text-slate-500">{c.quantity}x @ ₹{c.unitPrice}</span>
+                              </div>
+                              <span className="font-mono font-bold text-slate-900 shrink-0">₹{c.amount.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
+
               })()
             ) : selectedRoom.availabilityStatus === 'OCCUPIED' ? (
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
@@ -649,12 +933,36 @@ export default function RoomsPage() {
           {/* Maintenance & Out of Order */}
           <div className="pt-4 border-t border-slate-100 space-y-3">
             <h4 className="text-xs font-bold text-slate-800 uppercase">Maintenance Actions</h4>
+
+            {/* Block for Maintenance */}
             <button
               onClick={() => setIsBlockOpen(true)}
               className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
             >
               <Wrench className="w-4 h-4" /> Block Room for Maintenance
             </button>
+
+            {/* Clear Maintenance → Mark Available */}
+            {(selectedRoom.maintenanceStatus === 'UNDER_MAINTENANCE' ||
+              selectedRoom.maintenanceStatus === 'OUT_OF_ORDER' ||
+              selectedRoom.availabilityStatus === 'OUT_OF_ORDER') && (
+              <button
+                onClick={() => handleClearMaintenance(selectedRoom.id)}
+                className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" /> Clear Maintenance — Mark Available
+              </button>
+            )}
+
+            {/* Quick release even if not blocked — useful if stuck */}
+            {selectedRoom.maintenanceStatus !== 'OPERATIONAL' && (
+              <button
+                onClick={() => handleClearMaintenance(selectedRoom.id)}
+                className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" /> Release Room — Mark Operational & Available
+              </button>
+            )}
 
             <button
               onClick={() => handleDeleteRoom(selectedRoom.id, selectedRoom.roomNumber)}
@@ -663,6 +971,7 @@ export default function RoomsPage() {
               <Trash2 className="w-4 h-4" /> Delete Room from Inventory
             </button>
           </div>
+
         </div>
       )}
 
@@ -897,6 +1206,211 @@ export default function RoomsPage() {
               className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-md disabled:opacity-50"
             >
               {submitting ? 'Blocking...' : 'Block Room'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Room Service & Extra Orders */}
+      <Modal
+        isOpen={isRoomServiceOpen}
+        onClose={() => setIsRoomServiceOpen(false)}
+        title={`Add Room Order / Charge — Room ${selectedRoom?.roomNumber || ''}`}
+        maxWidth="lg"
+      >
+        <form onSubmit={handlePostRoomCharge} className="space-y-4">
+          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs flex items-center justify-between">
+            <div>
+              <span className="font-bold text-slate-900 block">
+                Guest: {selectedRoom?.reservations?.[0]?.guest?.displayName || 'In-House Guest'}
+              </span>
+              <span className="text-[11px] text-blue-700">
+                Booking Ref: {selectedRoom?.reservations?.[0]?.reservationRef} • Room {selectedRoom?.roomNumber}
+              </span>
+            </div>
+            <Badge variant="info">In-House Stay</Badge>
+          </div>
+
+          {/* Quick Preset Buttons */}
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Quick Item Presets (Click to Select)
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { name: 'Water Bottle (1L)', cat: 'FOOD_BEVERAGE', price: '20', icon: '💧' },
+                { name: 'Breakfast / Morning Meal', cat: 'FOOD_BEVERAGE', price: '100', icon: '🍳' },
+                { name: 'Tea / Coffee', cat: 'FOOD_BEVERAGE', price: '20', icon: '☕' },
+                { name: 'Meal / Dinner Thali', cat: 'FOOD_BEVERAGE', price: '150', icon: '🍲' },
+                { name: 'Extra Mattress / Bed', cat: 'EXTRA_BED', price: '500', icon: '🛏️' },
+                { name: 'Laundry Service', cat: 'LAUNDRY', price: '100', icon: '🧺' },
+              ].map((preset) => (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      description: preset.name,
+                      category: preset.cat,
+                      unitPrice: preset.price,
+                    }))
+                  }
+                  className={`p-2 rounded-xl border text-left transition-all flex items-center gap-2 text-xs ${
+                    serviceForm.description === preset.name
+                      ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/20 text-indigo-950 font-bold'
+                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <span className="text-base">{preset.icon}</span>
+                  <div className="truncate">
+                    <div className="truncate font-semibold">{preset.name}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">₹{preset.price}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Description & Category */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                Item Description *
+              </label>
+              <input
+                type="text"
+                required
+                value={serviceForm.description}
+                onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
+                placeholder="e.g. Packaged Drinking Water Bottle (1L)"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                Category *
+              </label>
+              <select
+                value={serviceForm.category}
+                onChange={(e) => setServiceForm({ ...serviceForm, category: e.target.value })}
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="FOOD_BEVERAGE">Food & Beverage</option>
+                <option value="ROOM_SERVICE">Room Service</option>
+                <option value="LAUNDRY">Laundry Service</option>
+                <option value="EXTRA_BED">Extra Mattress / Bed</option>
+                <option value="OTHER">Other / Miscellaneous</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Quantity, Unit Price & Total Calculation */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-900 text-white rounded-xl">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Quantity
+              </label>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      quantity: String(Math.max(1, (parseInt(prev.quantity || '1', 10) || 1) - 1)),
+                    }))
+                  }
+                  className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 flex items-center justify-center text-sm"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={serviceForm.quantity}
+                  onChange={(e) => setServiceForm({ ...serviceForm, quantity: e.target.value })}
+                  className="w-16 text-center py-1 bg-slate-800 border border-slate-700 rounded font-mono font-bold text-white text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      quantity: String((parseInt(prev.quantity || '1', 10) || 1) + 1),
+                    }))
+                  }
+                  className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 flex items-center justify-center text-sm"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Unit Price (₹) *
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={serviceForm.unitPrice}
+                onChange={(e) => setServiceForm({ ...serviceForm, unitPrice: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded font-mono font-bold text-white text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+            </div>
+
+            <div className="flex flex-col justify-between text-right border-l border-slate-800 pl-3">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Total Charge</span>
+              <span className="text-xl font-black text-emerald-400 font-mono tracking-tight">
+                ₹{((parseInt(serviceForm.quantity || '1', 10) || 1) * (parseFloat(serviceForm.unitPrice || '0') || 0)).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          {/* Remarks */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+              Remarks / Room Note (Optional)
+            </label>
+            <input
+              type="text"
+              value={serviceForm.notes}
+              onChange={(e) => setServiceForm({ ...serviceForm, notes: e.target.value })}
+              placeholder="e.g. Delivered at 8:30 AM by Staff"
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900"
+            />
+          </div>
+
+          <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsRoomServiceOpen(false)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={postingCharge}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-md shadow-indigo-600/20 disabled:opacity-50 flex items-center gap-2"
+            >
+              {postingCharge ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Posting Charge...</span>
+                </>
+              ) : (
+                <>
+                  <UtensilsCrossed className="w-4 h-4" />
+                  <span>
+                    Post ₹{((parseInt(serviceForm.quantity || '1', 10) || 1) * (parseFloat(serviceForm.unitPrice || '0') || 0)).toFixed(2)} to Room {selectedRoom?.roomNumber || ''}
+                  </span>
+                </>
+              )}
             </button>
           </div>
         </form>

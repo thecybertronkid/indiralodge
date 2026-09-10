@@ -28,13 +28,31 @@ export async function checkRoomTypeAvailability(
   const results: RoomTypeAvailability[] = [];
 
   for (const rt of roomTypes) {
-    const totalRoomsCount = rt.rooms.length;
+    // Handle shared inventory for Deluxe (DLX-AC & DLX-NAC) and Executive Deluxe (EDX-AC & EDX-NAC)
+    let relatedTypeIds = [rt.id];
+    let candidateRooms = rt.rooms;
+
+    if (rt.code === 'DLX-NAC' || rt.code === 'DLX-AC') {
+      const dlxTypes = roomTypes.filter((t) => t.code === 'DLX-NAC' || t.code === 'DLX-AC');
+      relatedTypeIds = dlxTypes.map((t) => t.id);
+      candidateRooms = roomTypes
+        .filter((t) => t.code === 'DLX-NAC' || t.code === 'DLX-AC')
+        .flatMap((t) => t.rooms);
+    } else if (rt.code === 'EDX-NAC' || rt.code === 'EDX-AC') {
+      const edxTypes = roomTypes.filter((t) => t.code === 'EDX-NAC' || t.code === 'EDX-AC');
+      relatedTypeIds = edxTypes.map((t) => t.id);
+      candidateRooms = roomTypes
+        .filter((t) => t.code === 'EDX-NAC' || t.code === 'EDX-AC')
+        .flatMap((t) => t.rooms);
+    }
+
+    const totalRoomsCount = candidateRooms.length;
 
     // Find reservations overlapping [arrivalDate, departureDate)
     const overlappingRes = await db.reservation.findMany({
       where: {
         propertyId,
-        roomTypeId: rt.id,
+        roomTypeId: { in: relatedTypeIds },
         status: { in: ['CONFIRMED', 'CHECKED_IN'] },
         AND: [
           { arrivalDate: { lt: departureDate } },
@@ -47,7 +65,7 @@ export async function checkRoomTypeAvailability(
     const reservedCount = overlappingRes.length;
 
     // Find room blocks overlapping dates
-    const roomIds = rt.rooms.map((r) => r.id);
+    const roomIds = candidateRooms.map((r) => r.id);
     const overlappingBlocks = await db.roomBlock.findMany({
       where: {
         propertyId,
@@ -59,7 +77,7 @@ export async function checkRoomTypeAvailability(
       },
     });
 
-    const maintenanceRooms = rt.rooms.filter(
+    const maintenanceRooms = candidateRooms.filter(
       (r) => r.maintenanceStatus === 'OUT_OF_ORDER' || r.maintenanceStatus === 'MAINTENANCE'
     ).length;
 
@@ -135,10 +153,37 @@ export async function getAvailablePhysicalRooms(
   excludeReservationId?: string,
   requireCleanForCheckin: boolean = false
 ) {
+  let targetTypeIds: string[] | undefined = undefined;
+
+  if (roomTypeId) {
+    const selectedType = await db.roomType.findUnique({
+      where: { id: roomTypeId },
+      select: { code: true, propertyId: true },
+    });
+
+    if (selectedType) {
+      if (selectedType.code === 'DLX-NAC' || selectedType.code === 'DLX-AC') {
+        const paired = await db.roomType.findMany({
+          where: { propertyId: selectedType.propertyId, code: { in: ['DLX-NAC', 'DLX-AC'] } },
+          select: { id: true },
+        });
+        targetTypeIds = paired.map((p) => p.id);
+      } else if (selectedType.code === 'EDX-NAC' || selectedType.code === 'EDX-AC') {
+        const paired = await db.roomType.findMany({
+          where: { propertyId: selectedType.propertyId, code: { in: ['EDX-NAC', 'EDX-AC'] } },
+          select: { id: true },
+        });
+        targetTypeIds = paired.map((p) => p.id);
+      } else {
+        targetTypeIds = [roomTypeId];
+      }
+    }
+  }
+
   const rooms = await db.room.findMany({
     where: {
       propertyId,
-      ...(roomTypeId ? { roomTypeId } : {}),
+      ...(targetTypeIds ? { roomTypeId: { in: targetTypeIds } } : {}),
       isActive: true,
       maintenanceStatus: 'OPERATIONAL',
       ...(requireCleanForCheckin ? { housekeepingStatus: { in: ['CLEAN', 'INSPECTED'] } } : {}),

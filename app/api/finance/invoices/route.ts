@@ -56,34 +56,44 @@ export async function POST(req: Request) {
         subtotal = folio.transactions.reduce((sum, t) => sum + (t.type === 'DEBIT' ? t.amount : 0), 0);
         lineItemsData = folio.transactions
           .filter((t) => t.type === 'DEBIT')
-          .map((t) => ({
-            description: t.description,
-            hsnSacCode: '996311', // Hotel lodging SAC
-            quantity: t.quantity,
-            unitPrice: t.unitPrice,
-            taxableAmount: t.amount,
-            cgstAmount: Math.round(t.amount * 0.06 * 100) / 100, // 12% total GST standard
-            sgstAmount: Math.round(t.amount * 0.06 * 100) / 100,
-            igstAmount: 0,
-            totalAmount: Math.round(t.amount * 1.12 * 100) / 100,
-          }));
+          .map((t) => {
+            const taxBase = Math.round((t.amount / 1.18) * 100) / 100;
+            const gst = Math.round((t.amount - taxBase) * 100) / 100;
+            const cgst = Math.round((gst / 2) * 100) / 100;
+            const sgst = Math.round((gst - cgst) * 100) / 100;
+            return {
+              description: t.description,
+              hsnSacCode: '996311', // Hotel lodging SAC
+              quantity: t.quantity,
+              unitPrice: t.unitPrice,
+              taxableAmount: taxBase,
+              cgstAmount: cgst,
+              sgstAmount: sgst,
+              igstAmount: 0,
+              totalAmount: t.amount,
+            };
+          });
       }
     }
 
     if (lineItemsData.length === 0) {
-      // Default line item from reservation
-      subtotal = 3500.0;
+      // Default line item
+      subtotal = 2500.0;
+      const taxBase = Math.round((2500.0 / 1.18) * 100) / 100;
+      const gst = Math.round((2500.0 - taxBase) * 100) / 100;
+      const cgst = Math.round((gst / 2) * 100) / 100;
+      const sgst = Math.round((gst - cgst) * 100) / 100;
       lineItemsData = [
         {
           description: 'Hotel Accommodation Stay Tariff',
           hsnSacCode: '996311',
           quantity: 1,
-          unitPrice: 3500.0,
-          taxableAmount: 3500.0,
-          cgstAmount: 210.0,
-          sgstAmount: 210.0,
+          unitPrice: 2500.0,
+          taxableAmount: taxBase,
+          cgstAmount: cgst,
+          sgstAmount: sgst,
           igstAmount: 0,
-          totalAmount: 3920.0,
+          totalAmount: 2500.0,
         },
       ];
     }
@@ -91,7 +101,7 @@ export async function POST(req: Request) {
     const cgstAmount = lineItemsData.reduce((sum, l) => sum + l.cgstAmount, 0);
     const sgstAmount = lineItemsData.reduce((sum, l) => sum + l.sgstAmount, 0);
     const igstAmount = lineItemsData.reduce((sum, l) => sum + l.igstAmount, 0);
-    const totalAmount = subtotal + cgstAmount + sgstAmount + igstAmount;
+    const totalAmount = subtotal;
 
     const invoiceRef = await generateReferenceNumber(propertyId, 'INV');
 

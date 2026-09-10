@@ -20,10 +20,18 @@ import {
   CheckCircle2,
   Clock,
   ShieldAlert,
+  Receipt,
+  User,
+  Sparkles,
+  MapPin,
+  Briefcase,
+  IdCard,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
+import { calculateIndiraLodgeRoomRate } from '@/lib/roomRates';
 
 export default function FrontOfficePage() {
   const { showToast } = useToast();
@@ -40,23 +48,71 @@ export default function FrontOfficePage() {
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isExtendOpen, setIsExtendOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isRoomServiceOpen, setIsRoomServiceOpen] = useState(false);
+  const [serviceForm, setServiceForm] = useState({
+    description: 'Packaged Drinking Water Bottle (1L)',
+    category: 'FOOD_BEVERAGE',
+    quantity: '1',
+    unitPrice: '20',
+    notes: '',
+  });
 
   const [selectedRes, setSelectedRes] = useState<any>(null);
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
   const [assignRoomId, setAssignRoomId] = useState('');
 
-  // Walk-in form state
+  const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  const [walkinAutoAllocatedRoom, setWalkinAutoAllocatedRoom] = useState<any>(null);
+
+  // Walk-in form state - all 19 fields matching New Reservation form
   const [walkinForm, setWalkinForm] = useState({
+    guestId: undefined as string | undefined,
+    // 1. Name
     firstName: '',
     lastName: '',
+    // 2. Phone
     phone: '+91 ',
+    // 3. Email
     email: '',
-    roomId: '',
+    // 4. Address
+    address: '',
+    city: '',
+    state: '',
+    // 5. Arrival Date
     arrivalDate: new Date().toISOString().split('T')[0],
+    // 6. Arrival Time
+    arrivalTime: '12:00',
+    // 7. Room Type
+    roomTypeId: '',
+    // 8. Room No (Physical Room ID)
+    roomId: '',
+    // 9. Departure Date
     departureDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    // 10. Departure Time
+    departureTime: '11:00',
+    // 11. Age
+    age: '',
+    // 12. Gender
+    gender: 'Male',
+    // 13. Adults
     adults: '1',
+    // 14. Children
+    children: '0',
+    // 15. Coming From
+    comingFrom: '',
+    // 16. Occupation
+    occupation: 'Business',
+    // 17. Purpose of Visit
+    purposeOfVisit: 'Tourism / Leisure',
+    // 18. ID Type
+    idType: 'Aadhaar Card',
+    // 19. ID Number
+    idNumber: '',
+    // Financial & Payment
+    discountAmount: '0',
     depositAmount: '0',
     paymentMethod: 'CASH',
+    specialRequests: '',
   });
 
   // Transfer & Extension Form States
@@ -79,8 +135,124 @@ export default function FrontOfficePage() {
   const [matchedGuests, setMatchedGuests] = useState<any[]>([]);
   const [selectedGuestProfile, setSelectedGuestProfile] = useState<any>(null);
 
+  // Phone number formatter (+91 XXXXX XXXXX)
+  const handleWalkinPhoneChange = (val: string) => {
+    let clean = val;
+    if (!clean.startsWith('+91')) {
+      clean = '+91 ' + clean.replace(/^\+?91\s*/, '');
+    }
+    const digits = clean.replace(/\D/g, '').slice(2);
+    let formatted = '+91 ';
+    if (digits.length > 0) {
+      formatted += digits.slice(0, 5);
+      if (digits.length > 5) {
+        formatted += ' ' + digits.slice(5, 10);
+      }
+    }
+    setWalkinForm((prev) => ({ ...prev, phone: formatted }));
+  };
+
+  // Fetch Room Types on Mount
   useEffect(() => {
-    const term = guestSearchQuery || walkinForm.phone;
+    const fetchRoomTypes = async () => {
+      try {
+        const res = await fetch('/api/room-types');
+        if (res.ok) {
+          const data = await res.json();
+          setRoomTypes(data.roomTypes || []);
+          if (data.roomTypes?.length > 0) {
+            setWalkinForm((prev) => ({
+              ...prev,
+              roomTypeId: prev.roomTypeId || data.roomTypes[0].id,
+            }));
+          }
+        }
+      } catch (e) {}
+    };
+    fetchRoomTypes();
+  }, []);
+
+  // Smart Bed Category Auto-Selection based on Adults & Children
+  useEffect(() => {
+    if (!roomTypes || roomTypes.length === 0 || !isWalkinOpen) return;
+
+    const nAdults = parseInt(walkinForm.adults || '1', 10);
+    const nChildren = parseInt(walkinForm.children || '0', 10);
+
+    let preferredBedType = 'Single Bed';
+    if (nAdults >= 3 || (nAdults === 2 && nChildren >= 3) || (nAdults + nChildren) > 4) {
+      preferredBedType = 'Triple Bed';
+    } else if (nAdults === 2 || (nAdults === 1 && nChildren >= 2) || (nAdults + nChildren) > 2) {
+      preferredBedType = 'Double Bed';
+    }
+
+    const matchedType =
+      roomTypes.find((rt) => rt.bedType === preferredBedType) ||
+      roomTypes.find((rt) => (rt.adultsCapacity || 2) >= nAdults) ||
+      roomTypes[0];
+
+    if (matchedType && matchedType.id !== walkinForm.roomTypeId) {
+      setWalkinForm((prev) => ({ ...prev, roomTypeId: matchedType.id, roomId: '' }));
+    }
+  }, [walkinForm.adults, walkinForm.children, roomTypes, isWalkinOpen]);
+
+  // Fetch Available Rooms & Auto-allocate Physical Room Number for Walk-in
+  useEffect(() => {
+    if (!walkinForm.roomTypeId || !walkinForm.arrivalDate || !walkinForm.departureDate || !isWalkinOpen) return;
+
+    const fetchAvailability = async () => {
+      try {
+        const res = await fetch(
+          `/api/availability?arrivalDate=${encodeURIComponent(walkinForm.arrivalDate)}&departureDate=${encodeURIComponent(walkinForm.departureDate)}&roomTypeId=${walkinForm.roomTypeId}&requireClean=true`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const rooms = data.availablePhysicalRooms || [];
+          setAvailableRooms(rooms);
+          if (rooms.length > 0) {
+            setWalkinAutoAllocatedRoom(rooms[0]);
+            setWalkinForm((prev) => ({
+              ...prev,
+              roomId: prev.roomId && rooms.some((r: any) => r.id === prev.roomId)
+                ? prev.roomId
+                : rooms[0].id,
+            }));
+          } else {
+            setWalkinAutoAllocatedRoom(null);
+            setWalkinForm((prev) => ({ ...prev, roomId: '' }));
+          }
+        }
+      } catch (e) {}
+    };
+
+    fetchAvailability();
+  }, [walkinForm.roomTypeId, walkinForm.arrivalDate, walkinForm.departureDate, isWalkinOpen]);
+
+  // Pricing Calculations
+  const walkinArrDate = new Date(walkinForm.arrivalDate);
+  const walkinDepDate = new Date(walkinForm.departureDate);
+  const walkinDiffTime = walkinDepDate.getTime() - walkinArrDate.getTime();
+  const walkinDaysStayed = Math.max(1, Math.ceil(walkinDiffTime / (1000 * 60 * 60 * 24)));
+
+  const walkinAdults = parseInt(walkinForm.adults || '1', 10);
+  const walkinChildren = parseInt(walkinForm.children || '0', 10);
+
+  const selectedWalkinRoomType = roomTypes.find((rt) => rt.id === walkinForm.roomTypeId) || roomTypes[0];
+  const walkinPricePerNight = selectedWalkinRoomType
+    ? calculateIndiraLodgeRoomRate(selectedWalkinRoomType.code, walkinAdults, walkinChildren, selectedWalkinRoomType.baseRate)
+    : 0;
+
+  const walkinRoomSubtotal = walkinPricePerNight * walkinDaysStayed;
+  const walkinDiscountVal = parseFloat(walkinForm.discountAmount || '0');
+  const walkinTotalPrice = Math.max(0, walkinRoomSubtotal - walkinDiscountVal);
+  const walkinTaxableVal = Math.round((walkinTotalPrice / 1.18) * 100) / 100;
+  const walkinGstTaxVal = Math.round((walkinTotalPrice - walkinTaxableVal) * 100) / 100;
+  const walkinDepositVal = parseFloat(walkinForm.depositAmount || '0');
+  const walkinBalance = Math.max(0, walkinTotalPrice - walkinDepositVal);
+
+  // Debounced Returning Guest Search
+  useEffect(() => {
+    const term = guestSearchQuery || (walkinForm.phone && walkinForm.phone.length > 5 ? walkinForm.phone : '');
     if (!term || term.trim().length < 3) {
       setMatchedGuests([]);
       return;
@@ -110,8 +282,16 @@ export default function FrontOfficePage() {
       guestId: guest.id,
       firstName: fName,
       lastName: lName,
-      phone: guest.phone || '',
+      phone: guest.phone || '+91 ',
       email: guest.email || '',
+      address: guest.address || '',
+      city: guest.city || '',
+      state: guest.state || '',
+      age: guest.age ? String(guest.age) : '',
+      gender: guest.gender || 'Male',
+      occupation: guest.occupation || 'Business',
+      idType: guest.idType || 'Aadhaar Card',
+      idNumber: guest.idNumber || '',
     }));
     setMatchedGuests([]);
     showToast(`Loaded returning guest profile: ${guest.displayName}`, 'success');
@@ -137,6 +317,40 @@ export default function FrontOfficePage() {
   useEffect(() => {
     fetchFrontDeskData();
   }, []);
+
+  const handleCheckinClick = async (resItem: any) => {
+    const targetRoomId = resItem.assignedRoomId || resItem.assignedRoom?.id;
+    if (targetRoomId) {
+      setSubmitting(true);
+      try {
+        const res = await fetch('/api/front-desk/checkin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reservationId: resItem.id,
+            roomId: targetRoomId,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data.error || 'Check-in failed', 'error');
+          setSubmitting(false);
+          return;
+        }
+
+        const roomNo = resItem.assignedRoom?.roomNumber ? `Room ${resItem.assignedRoom.roomNumber}` : 'assigned room';
+        showToast(`Guest ${resItem.guest?.displayName} checked in directly to ${roomNo}!`, 'success');
+        fetchFrontDeskData();
+      } catch (e) {
+        showToast('Error executing check-in', 'error');
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      openCheckinModal(resItem);
+    }
+  };
 
   const openCheckinModal = async (resItem: any) => {
     setSelectedRes(resItem);
@@ -229,19 +443,57 @@ export default function FrontOfficePage() {
   };
 
   const openWalkinModal = async () => {
-    // Fetch available rooms for today
-    const arr = new Date().toISOString().split('T')[0];
-    const dep = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    setSelectedGuestProfile(null);
+    setGuestSearchQuery('');
+    const todayStr = new Date().toISOString().split('T')[0];
+    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const initialRoomTypeId = roomTypes[0]?.id || '';
+
+    setWalkinForm({
+      guestId: undefined,
+      firstName: '',
+      lastName: '',
+      phone: '+91 ',
+      email: '',
+      address: '',
+      city: '',
+      state: '',
+      arrivalDate: todayStr,
+      arrivalTime: '12:00',
+      roomTypeId: initialRoomTypeId,
+      roomId: '',
+      departureDate: tomorrowStr,
+      departureTime: '11:00',
+      age: '',
+      gender: 'Male',
+      adults: '1',
+      children: '0',
+      comingFrom: '',
+      occupation: 'Business',
+      purposeOfVisit: 'Tourism / Leisure',
+      idType: 'Aadhaar Card',
+      idNumber: '',
+      discountAmount: '0',
+      depositAmount: '0',
+      paymentMethod: 'CASH',
+      specialRequests: '',
+    });
+
     try {
-      const res = await fetch(`/api/rooms?availability=AVAILABLE`);
+      const res = await fetch(
+        `/api/availability?arrivalDate=${encodeURIComponent(todayStr)}&departureDate=${encodeURIComponent(tomorrowStr)}${initialRoomTypeId ? `&roomTypeId=${initialRoomTypeId}` : ''}&requireClean=true`
+      );
       if (res.ok) {
         const data = await res.json();
-        setAvailableRooms(data.rooms || []);
-        if (data.rooms?.length > 0) {
-          setWalkinForm((prev) => ({ ...prev, roomId: data.rooms[0].id }));
+        const rooms = data.availablePhysicalRooms || [];
+        setAvailableRooms(rooms);
+        if (rooms.length > 0) {
+          setWalkinAutoAllocatedRoom(rooms[0]);
+          setWalkinForm((prev) => ({ ...prev, roomId: rooms[0].id }));
         }
       }
     } catch (e) {}
+
     setIsWalkinOpen(true);
   };
 
@@ -249,11 +501,29 @@ export default function FrontOfficePage() {
     e.preventDefault();
     setSubmitting(true);
 
+    if (new Date(walkinForm.departureDate) <= new Date(walkinForm.arrivalDate)) {
+      showToast('Departure date must be after arrival date.', 'error');
+      setSubmitting(false);
+      return;
+    }
+
     try {
+      const targetRoomId = walkinForm.roomId || walkinAutoAllocatedRoom?.id || (availableRooms.length > 0 ? availableRooms[0].id : '');
+      if (!targetRoomId) {
+        showToast('No clean physical room available for selected dates.', 'error');
+        setSubmitting(false);
+        return;
+      }
+
+      const payload = {
+        ...walkinForm,
+        roomId: targetRoomId,
+      };
+
       const res = await fetch('/api/front-desk/walkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(walkinForm),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -263,7 +533,7 @@ export default function FrontOfficePage() {
         return;
       }
 
-      showToast('Walk-in guest checked in successfully!', 'success');
+      showToast(`Walk-in guest ${walkinForm.firstName} ${walkinForm.lastName} checked in successfully!`, 'success');
       setIsWalkinOpen(false);
       fetchFrontDeskData();
     } catch (e) {
@@ -399,6 +669,53 @@ export default function FrontOfficePage() {
       fetchFrontDeskData();
     } catch (e) {
       showToast('Error recording payment', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openRoomServiceModal = (resItem: any) => {
+    setSelectedRes(resItem);
+    setServiceForm({
+      description: 'Packaged Drinking Water Bottle (1L)',
+      category: 'FOOD_BEVERAGE',
+      quantity: '1',
+      unitPrice: '20',
+      notes: '',
+    });
+    setIsRoomServiceOpen(true);
+  };
+
+  const handlePostRoomCharge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRes?.id) return;
+    setSubmitting(true);
+    try {
+      const qty = parseInt(serviceForm.quantity || '1', 10);
+      const price = parseFloat(serviceForm.unitPrice || '0');
+      const res = await fetch('/api/front-desk/room-charges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reservationId: selectedRes.id,
+          description: serviceForm.description,
+          category: serviceForm.category,
+          quantity: qty,
+          unitPrice: price,
+          notes: serviceForm.notes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to post room charge', 'error');
+        setSubmitting(false);
+        return;
+      }
+      showToast(data.message || 'Room charge posted successfully!', 'success');
+      setIsRoomServiceOpen(false);
+      fetchFrontDeskData();
+    } catch {
+      showToast('Error posting room charge', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -585,8 +902,9 @@ export default function FrontOfficePage() {
                       <td className="pmfs-table-td text-right">
                         {arr.status === 'CONFIRMED' ? (
                           <button
-                            onClick={() => openCheckinModal(arr)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                            onClick={() => handleCheckinClick(arr)}
+                            disabled={submitting}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
                           >
                             Check In
                           </button>
@@ -768,6 +1086,14 @@ export default function FrontOfficePage() {
                         <td className="pmfs-table-td text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
+                              onClick={() => openRoomServiceModal(inh)}
+                              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md text-xs font-bold border border-indigo-200 flex items-center gap-1"
+                              title="Add Room Service / Order Item"
+                            >
+                              <UtensilsCrossed className="w-3 h-3" />
+                              <span>Order</span>
+                            </button>
+                            <button
                               onClick={() => openPaymentModal(inh)}
                               className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-semibold border border-emerald-200"
                               title="Record Payment"
@@ -938,11 +1264,11 @@ export default function FrontOfficePage() {
         </form>
       </Modal>
 
-      {/* Modal 3: Walk-In Check-In */}
-      <Modal isOpen={isWalkinOpen} onClose={() => setIsWalkinOpen(false)} title="New Walk-in Check-in" maxWidth="lg">
-        <form onSubmit={handleWalkinSubmit} className="space-y-4">
-          {/* Returning Guest Search Box */}
-          <div className="p-3 bg-brand-50/70 border border-brand-200 rounded-xl space-y-2">
+      {/* Modal 3: Walk-In Check-In (Identical 19 Fields & Mechanism to New Booking Form) */}
+      <Modal isOpen={isWalkinOpen} onClose={() => setIsWalkinOpen(false)} title="Walk-in Direct Check-In (Immediate Stay)" maxWidth="4xl">
+        <form onSubmit={handleWalkinSubmit} className="space-y-5">
+          {/* Returning Guest Auto-Fill Search */}
+          <div className="p-3.5 bg-brand-50/80 border border-brand-200 rounded-xl space-y-2.5">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-brand-900 flex items-center gap-1.5">
                 <UserCheck className="w-4 h-4 text-brand-600" />
@@ -953,7 +1279,22 @@ export default function FrontOfficePage() {
                   type="button"
                   onClick={() => {
                     setSelectedGuestProfile(null);
-                    setWalkinForm((prev) => ({ ...prev, guestId: undefined, firstName: '', lastName: '', phone: '', email: '' }));
+                    setWalkinForm((prev) => ({
+                      ...prev,
+                      guestId: undefined,
+                      firstName: '',
+                      lastName: '',
+                      phone: '+91 ',
+                      email: '',
+                      address: '',
+                      city: '',
+                      state: '',
+                      age: '',
+                      gender: 'Male',
+                      occupation: 'Business',
+                      idType: 'Aadhaar Card',
+                      idNumber: '',
+                    }));
                   }}
                   className="text-[11px] text-brand-700 font-semibold hover:underline"
                 >
@@ -966,12 +1307,12 @@ export default function FrontOfficePage() {
               type="text"
               value={guestSearchQuery}
               onChange={(e) => setGuestSearchQuery(e.target.value)}
-              placeholder="Search existing guest by name, phone (+91...), or guest ref..."
-              className="w-full px-3 py-1.5 bg-white border border-brand-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="Search existing guest directory by name, phone (+91...), or guest ref..."
+              className="w-full px-3.5 py-2 bg-white border border-brand-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-xs"
             />
 
             {matchedGuests.length > 0 && !selectedGuestProfile && (
-              <div className="bg-white border border-brand-200 rounded-lg divide-y divide-slate-100 max-h-36 overflow-y-auto shadow-sm">
+              <div className="bg-white border border-brand-200 rounded-lg divide-y divide-slate-100 max-h-40 overflow-y-auto shadow-md">
                 {matchedGuests.map((g) => (
                   <div
                     key={g.id}
@@ -984,7 +1325,7 @@ export default function FrontOfficePage() {
                     </div>
                     <button
                       type="button"
-                      className="px-2 py-1 bg-brand-600 text-white font-bold text-[10px] rounded hover:bg-brand-700"
+                      className="px-2.5 py-1 bg-brand-600 text-white font-bold text-[10px] rounded hover:bg-brand-700 transition-colors shadow-xs"
                     >
                       Auto-Fill
                     </button>
@@ -1001,105 +1342,409 @@ export default function FrontOfficePage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Guest First Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={walkinForm.firstName}
-                onChange={(e) => setWalkinForm({ ...walkinForm, firstName: e.target.value })}
-                placeholder="e.g. Aniket"
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
+          {/* SECTION 1: GUEST IDENTIFICATION & DEMOGRAPHICS */}
+          <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200 space-y-3">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200/80 pb-2">
+              <User className="w-4 h-4 text-brand-600" />
+              1. Guest Identification & Demographics
+            </h4>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Guest Last Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={walkinForm.lastName}
-                onChange={(e) => setWalkinForm({ ...walkinForm, lastName: e.target.value })}
-                placeholder="e.g. Das"
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
+              {/* 1. Name */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">First Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={walkinForm.firstName}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, firstName: e.target.value })}
+                  placeholder="e.g. Ramesh"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Phone Number *
-              </label>
-              <input
-                type="text"
-                required
-                value={walkinForm.phone}
-                onChange={(e) => setWalkinForm({ ...walkinForm, phone: e.target.value })}
-                placeholder="+91 98765 11111"
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Last Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={walkinForm.lastName}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, lastName: e.target.value })}
+                  placeholder="e.g. Sharma"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={walkinForm.email}
-                onChange={(e) => setWalkinForm({ ...walkinForm, email: e.target.value })}
-                placeholder="aniket@email.com"
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
+              {/* 2. Phone Number */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Phone Number *</label>
+                <input
+                  type="text"
+                  required
+                  value={walkinForm.phone}
+                  onChange={(e) => handleWalkinPhoneChange(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 3. Email ID */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Email ID</label>
+                <input
+                  type="email"
+                  value={walkinForm.email}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, email: e.target.value })}
+                  placeholder="guest@example.com"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 11. Age */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Age</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={walkinForm.age}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, age: e.target.value })}
+                  placeholder="e.g. 35"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 12. Gender */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Gender</label>
+                <select
+                  value={walkinForm.gender}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, gender: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* 4. Address */}
+              <div className="sm:col-span-3">
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Address</label>
+                <input
+                  type="text"
+                  value={walkinForm.address}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, address: e.target.value })}
+                  placeholder="House / Street, Area, City, State"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 16. Occupation */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Occupation</label>
+                <select
+                  value={walkinForm.occupation}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, occupation: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                >
+                  <option value="Business">Business</option>
+                  <option value="Private Service">Private Service</option>
+                  <option value="Government Service">Government Service</option>
+                  <option value="Self Employed">Self Employed</option>
+                  <option value="Student">Student</option>
+                  <option value="Professional / Doctor / Engineer">Professional</option>
+                  <option value="Retired">Retired</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* 18. ID Type */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">ID Document Type *</label>
+                <select
+                  value={walkinForm.idType}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, idType: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                >
+                  <option value="Aadhaar Card">Aadhaar Card</option>
+                  <option value="Passport">Passport</option>
+                  <option value="Driving License">Driving License</option>
+                  <option value="Voter ID">Voter ID</option>
+                  <option value="PAN Card">PAN Card</option>
+                </select>
+              </div>
+
+              {/* 19. ID Number */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">ID Document Number</label>
+                <input
+                  type="text"
+                  value={walkinForm.idNumber}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, idNumber: e.target.value })}
+                  placeholder="e.g. 1234-5678-9012"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Select Physical Room *
-              </label>
-              <select
-                required
-                value={walkinForm.roomId}
-                onChange={(e) => setWalkinForm({ ...walkinForm, roomId: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              >
-                {availableRooms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    Room {r.roomNumber} ({r.roomType?.name})
-                  </option>
-                ))}
-              </select>
+          {/* SECTION 2: STAY SCHEDULE & ROOM ALLOCATION */}
+          <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200 space-y-3">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200/80 pb-2">
+              <BedDouble className="w-4 h-4 text-brand-600" />
+              2. Stay Schedule & Room Allocation
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+              {/* 5. Arrival Date */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Arrival Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={walkinForm.arrivalDate}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, arrivalDate: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 6. Arrival Time */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Arrival Time *</label>
+                <input
+                  type="time"
+                  required
+                  value={walkinForm.arrivalTime}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, arrivalTime: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 9. Departure Date */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Departure Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={walkinForm.departureDate}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, departureDate: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 10. Departure Time + Days Stayed */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block font-semibold text-slate-700 uppercase text-[11px]">Departure Time</label>
+                  <span className="text-[10px] font-bold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">
+                    {walkinDaysStayed} Day{walkinDaysStayed > 1 ? 's' : ''} Stayed
+                  </span>
+                </div>
+                <input
+                  type="time"
+                  required
+                  value={walkinForm.departureTime}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, departureTime: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Expected Checkout *
-              </label>
-              <input
-                type="date"
-                required
-                value={walkinForm.departureDate}
-                onChange={(e) => setWalkinForm({ ...walkinForm, departureDate: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-slate-200/60 text-xs">
+              {/* 7. Room Type */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-700 uppercase text-[11px]">Room Type *</label>
+                  <span className="font-mono font-bold text-brand-700 text-xs">
+                    Rate: ₹{walkinPricePerNight} / night
+                  </span>
+                </div>
+                <select
+                  required
+                  value={walkinForm.roomTypeId}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, roomTypeId: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  {roomTypes.map((rt) => (
+                    <option key={rt.id} value={rt.id}>
+                      {rt.name} ({rt.code}) — Base ₹{rt.baseRate}/night
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Deposit Received (₹)
-              </label>
-              <input
-                type="number"
-                value={walkinForm.depositAmount}
-                onChange={(e) => setWalkinForm({ ...walkinForm, depositAmount: e.target.value })}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
+              {/* 8. Room Number (Auto Allocated based on availability) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-700 uppercase text-[11px]">Room Number *</label>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                    {walkinAutoAllocatedRoom ? `Auto-Allocated: Room ${walkinAutoAllocatedRoom.roomNumber}` : 'No Clean Room Available'}
+                  </span>
+                </div>
+                <select
+                  required
+                  value={walkinForm.roomId}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, roomId: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  {availableRooms.length === 0 ? (
+                    <option value="">No Clean Room Available for Stay Dates</option>
+                  ) : (
+                    availableRooms.map((pr) => (
+                      <option key={pr.id} value={pr.id}>
+                        Room {pr.roomNumber} ({pr.floor})
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {/* 13. Adults */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Number of Adults *</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={walkinForm.adults}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, adults: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 14. Children */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Number of Children</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={walkinForm.children}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, children: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 15. Coming From */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Coming From (Origin)</label>
+                <input
+                  type="text"
+                  value={walkinForm.comingFrom}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, comingFrom: e.target.value })}
+                  placeholder="e.g. Guwahati, Delhi, Kolkata"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 17. Purpose of Visit */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Purpose of Visit</label>
+                <select
+                  value={walkinForm.purposeOfVisit}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, purposeOfVisit: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                >
+                  <option value="Tourism / Leisure">Tourism / Leisure</option>
+                  <option value="Business / Corporate">Business / Corporate</option>
+                  <option value="Personal / Family">Personal / Family</option>
+                  <option value="Official / Government">Official / Government</option>
+                  <option value="Medical / Health">Medical / Health</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3: FINAL BILLING, PRICING & DIRECT CHECK-IN PAYMENT */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white space-y-4 border border-slate-700 shadow-md">
+            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center justify-between border-b border-slate-700 pb-2">
+              <span className="flex items-center gap-1.5">
+                <Receipt className="w-4 h-4 text-emerald-400" />
+                3. Final Price Calculation & Advance Deposit
+              </span>
+              <span className="text-[11px] text-emerald-400 font-mono font-bold">
+                Occupancy: {walkinAdults} Adult(s){walkinChildren > 0 ? `, ${walkinChildren} Child` : ''}
+              </span>
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-slate-300">
+                  <span>Nightly Tariff ({selectedWalkinRoomType?.name}):</span>
+                  <span className="font-mono font-bold">₹{walkinPricePerNight} / night</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Stay Duration:</span>
+                  <span className="font-mono font-bold">{walkinDaysStayed} Night(s)</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Room Subtotal:</span>
+                  <span className="font-mono font-bold">₹{walkinRoomSubtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center text-rose-300">
+                  <span>Discount Applied (₹):</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={walkinForm.discountAmount}
+                    onChange={(e) => setWalkinForm({ ...walkinForm, discountAmount: e.target.value })}
+                    className="w-24 px-2 py-1 bg-slate-800 border border-slate-600 rounded text-right font-mono text-white text-xs"
+                  />
+                </div>
+                <div className="flex justify-between text-emerald-400/90 text-[11px]">
+                  <span>GST Tax (18%):</span>
+                  <span className="font-medium">Included in Tariff (₹{walkinGstTaxVal.toFixed(2)})</span>
+                </div>
+              </div>
+
+              {/* Total Price & Payment Card */}
+              <div className="p-3.5 rounded-xl bg-slate-800/90 border border-slate-700 space-y-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-bold uppercase text-slate-400">Total Payable:</span>
+                  <span className="text-2xl font-black text-emerald-400 font-mono">
+                    ₹{walkinTotalPrice.toLocaleString('en-IN')}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-700 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-300 mb-1">
+                      Deposit Paid (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={walkinForm.depositAmount}
+                      onChange={(e) => setWalkinForm({ ...walkinForm, depositAmount: e.target.value })}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-300 mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={walkinForm.paymentMethod}
+                      onChange={(e) => setWalkinForm({ ...walkinForm, paymentMethod: e.target.value })}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="UPI">UPI / QR</option>
+                      <option value="CARD">Credit / Debit Card</option>
+                      <option value="NET_BANKING">Net Banking</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1">
+                  <span>Balance Due on Checkout:</span>
+                  <span className={`font-mono font-bold ${walkinBalance > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    ₹{walkinBalance.toFixed(2)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1107,16 +1752,23 @@ export default function FrontOfficePage() {
             <button
               type="button"
               onClick={() => setIsWalkinOpen(false)}
-              className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold"
+              className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-md disabled:opacity-50"
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-md shadow-emerald-600/20 disabled:opacity-50 transition-all flex items-center gap-2"
             >
-              {submitting ? 'Processing Walk-in...' : 'Complete Walk-in Check-in'}
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Processing Direct Check-in...</span>
+                </>
+              ) : (
+                <span>Complete Walk-in Check-in (Instant Stay)</span>
+              )}
             </button>
           </div>
         </form>
@@ -1280,6 +1932,211 @@ export default function FrontOfficePage() {
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-md disabled:opacity-50"
             >
               {submitting ? 'Recording Payment...' : 'Record Payment'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal 7: Room Service / Order Item */}
+      <Modal
+        isOpen={isRoomServiceOpen}
+        onClose={() => setIsRoomServiceOpen(false)}
+        title={`Add Room Order / Charge — Room ${selectedRes?.assignedRoom?.roomNumber || ''}`}
+        maxWidth="lg"
+      >
+        <form onSubmit={handlePostRoomCharge} className="space-y-4">
+          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs flex items-center justify-between">
+            <div>
+              <span className="font-bold text-slate-900 block">
+                Guest: {selectedRes?.guest?.displayName || 'In-House Guest'}
+              </span>
+              <span className="text-[11px] text-blue-700">
+                Booking Ref: {selectedRes?.reservationRef} • Room {selectedRes?.assignedRoom?.roomNumber || 'N/A'}
+              </span>
+            </div>
+            <Badge variant="info">In-House Stay</Badge>
+          </div>
+
+          {/* Quick Preset Buttons */}
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Quick Item Presets (Click to Select)
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { name: 'Water Bottle (1L)', cat: 'FOOD_BEVERAGE', price: '20', icon: '💧' },
+                { name: 'Breakfast / Morning Meal', cat: 'FOOD_BEVERAGE', price: '100', icon: '🍳' },
+                { name: 'Tea / Coffee', cat: 'FOOD_BEVERAGE', price: '20', icon: '☕' },
+                { name: 'Meal / Dinner Thali', cat: 'FOOD_BEVERAGE', price: '150', icon: '🍲' },
+                { name: 'Extra Mattress / Bed', cat: 'EXTRA_BED', price: '500', icon: '🛏️' },
+                { name: 'Laundry Service', cat: 'LAUNDRY', price: '100', icon: '🧺' },
+              ].map((preset) => (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      description: preset.name,
+                      category: preset.cat,
+                      unitPrice: preset.price,
+                    }))
+                  }
+                  className={`p-2 rounded-xl border text-left transition-all flex items-center gap-2 text-xs ${
+                    serviceForm.description === preset.name
+                      ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/20 text-indigo-950 font-bold'
+                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <span className="text-base">{preset.icon}</span>
+                  <div className="truncate">
+                    <div className="truncate font-semibold">{preset.name}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">₹{preset.price}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Description & Category */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                Item Description *
+              </label>
+              <input
+                type="text"
+                required
+                value={serviceForm.description}
+                onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
+                placeholder="e.g. Packaged Drinking Water Bottle (1L)"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                Category *
+              </label>
+              <select
+                value={serviceForm.category}
+                onChange={(e) => setServiceForm({ ...serviceForm, category: e.target.value })}
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="FOOD_BEVERAGE">Food & Beverage</option>
+                <option value="ROOM_SERVICE">Room Service</option>
+                <option value="LAUNDRY">Laundry Service</option>
+                <option value="EXTRA_BED">Extra Mattress / Bed</option>
+                <option value="OTHER">Other / Miscellaneous</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Quantity, Unit Price & Total Calculation */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-900 text-white rounded-xl">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Quantity
+              </label>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      quantity: String(Math.max(1, (parseInt(prev.quantity || '1', 10) || 1) - 1)),
+                    }))
+                  }
+                  className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 flex items-center justify-center text-sm"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={serviceForm.quantity}
+                  onChange={(e) => setServiceForm({ ...serviceForm, quantity: e.target.value })}
+                  className="w-16 text-center py-1 bg-slate-800 border border-slate-700 rounded font-mono font-bold text-white text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      quantity: String((parseInt(prev.quantity || '1', 10) || 1) + 1),
+                    }))
+                  }
+                  className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 flex items-center justify-center text-sm"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Unit Price (₹) *
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={serviceForm.unitPrice}
+                onChange={(e) => setServiceForm({ ...serviceForm, unitPrice: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded font-mono font-bold text-white text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+            </div>
+
+            <div className="flex flex-col justify-between text-right border-l border-slate-800 pl-3">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Total Charge</span>
+              <span className="text-xl font-black text-emerald-400 font-mono tracking-tight">
+                ₹{((parseInt(serviceForm.quantity || '1', 10) || 1) * (parseFloat(serviceForm.unitPrice || '0') || 0)).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          {/* Remarks */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+              Remarks / Room Note (Optional)
+            </label>
+            <input
+              type="text"
+              value={serviceForm.notes}
+              onChange={(e) => setServiceForm({ ...serviceForm, notes: e.target.value })}
+              placeholder="e.g. Delivered at 8:30 AM by Staff"
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900"
+            />
+          </div>
+
+          <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsRoomServiceOpen(false)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-md shadow-indigo-600/20 disabled:opacity-50 flex items-center gap-2"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Posting Charge...</span>
+                </>
+              ) : (
+                <>
+                  <UtensilsCrossed className="w-4 h-4" />
+                  <span>
+                    Post ₹{((parseInt(serviceForm.quantity || '1', 10) || 1) * (parseFloat(serviceForm.unitPrice || '0') || 0)).toFixed(2)} to Room {selectedRes?.assignedRoom?.roomNumber || ''}
+                  </span>
+                </>
+              )}
             </button>
           </div>
         </form>

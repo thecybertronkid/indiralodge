@@ -44,26 +44,69 @@ export async function POST(req: Request) {
     const propertyId = reservation.propertyId;
     const isGst = invoiceType === 'GST';
 
-    // Calculate Financial Breakdown
+    const folio = reservation.folios?.[0] || null;
+    const extraCharges = folio?.transactions?.filter(
+      (t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE'
+    ) || [];
+
+    // Calculate Financial Breakdown (Room rates are GST-inclusive)
     const roomCharges = reservation.roomRate * reservation.nights;
+    const extraChargesTotal = extraCharges.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+    const grossSubtotal = roomCharges + extraChargesTotal;
     const discount = reservation.discountAmount || 0;
-    const taxableSubtotal = Math.max(0, roomCharges - discount);
+    const netTotal = Math.max(0, grossSubtotal - discount);
 
     let cgstAmount = 0;
     let sgstAmount = 0;
-    let totalAmount = taxableSubtotal;
+    let taxableSubtotal = netTotal;
+    const totalAmount = netTotal;
 
     if (isGst) {
-      // 18% GST (9% CGST + 9% SGST)
-      cgstAmount = Math.round(taxableSubtotal * 0.09 * 100) / 100;
-      sgstAmount = Math.round(taxableSubtotal * 0.09 * 100) / 100;
-      totalAmount = Math.round((taxableSubtotal + cgstAmount + sgstAmount) * 100) / 100;
+      // 18% GST (9% CGST + 9% SGST) extracted from inclusive total
+      taxableSubtotal = Math.round((netTotal / 1.18) * 100) / 100;
+      const totalGst = Math.round((netTotal - taxableSubtotal) * 100) / 100;
+      cgstAmount = Math.round((totalGst / 2) * 100) / 100;
+      sgstAmount = Math.round((totalGst - cgstAmount) * 100) / 100;
     }
 
     const refPrefix = isGst ? 'INV' : 'BIL';
     const invoiceRef = await generateReferenceNumber(propertyId, refPrefix);
 
-    const folioId = reservation.folios?.[0]?.id || null;
+    const folioId = folio?.id || null;
+
+    // Build itemized invoice lines: Accommodation + all room service/extra items
+    const invoiceLinesToCreate: any[] = [
+      {
+        description: `Accommodation Charges (${reservation.roomType.name} - Room ${reservation.assignedRoom?.roomNumber || 'N/A'}) x ${reservation.nights} Night${reservation.nights > 1 ? 's' : ''}`,
+        hsnSacCode: '996311',
+        quantity: reservation.nights,
+        unitPrice: reservation.roomRate,
+        taxableAmount: isGst ? Math.round((roomCharges / 1.18) * 100) / 100 : roomCharges,
+        cgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.18) * 100) / 100) / 2) * 100) / 100 : 0,
+        sgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.18) * 100) / 100) / 2) * 100) / 100 : 0,
+        totalAmount: roomCharges,
+      },
+    ];
+
+    for (const ec of extraCharges) {
+      const isFood = ec.category === 'FOOD_BEVERAGE' || ec.category === 'ROOM_SERVICE';
+      const sac = isFood ? '996331' : '996311';
+      const itemTaxBase = isGst ? Math.round((ec.amount / 1.18) * 100) / 100 : ec.amount;
+      const itemGst = isGst ? Math.round((ec.amount - itemTaxBase) * 100) / 100 : 0;
+      const itemCgst = Math.round((itemGst / 2) * 100) / 100;
+      const itemSgst = Math.round((itemGst - itemCgst) * 100) / 100;
+
+      invoiceLinesToCreate.push({
+        description: ec.description,
+        hsnSacCode: sac,
+        quantity: ec.quantity || 1,
+        unitPrice: ec.unitPrice || ec.amount,
+        taxableAmount: itemTaxBase,
+        cgstAmount: itemCgst,
+        sgstAmount: itemSgst,
+        totalAmount: ec.amount,
+      });
+    }
 
     // Create Tax Invoice
     const invoice = await db.taxInvoice.create({
@@ -77,7 +120,7 @@ export async function POST(req: Request) {
         customerGstin: customerGstin || reservation.guest.gstin || null,
         invoiceType: isGst ? 'GST' : 'NON_GST',
         isGstBill: isGst,
-        subtotal: roomCharges,
+        subtotal: grossSubtotal,
         discount,
         cgstAmount,
         sgstAmount,
@@ -85,17 +128,7 @@ export async function POST(req: Request) {
         status: 'ISSUED',
         issuedById: session.userId,
         lines: {
-          create: [
-            {
-              description: `Accommodation Charges (${reservation.roomType.name} - Room ${reservation.assignedRoom?.roomNumber || 'N/A'}) x ${reservation.nights} Nights`,
-              hsnSacCode: '996311',
-              quantity: reservation.nights,
-              unitPrice: reservation.roomRate,
-              taxableAmount: taxableSubtotal,
-              cgstAmount,
-              sgstAmount,
-            },
-          ],
+          create: invoiceLinesToCreate,
         },
       },
       include: {

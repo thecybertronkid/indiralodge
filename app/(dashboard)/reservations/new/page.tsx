@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
+import { calculateIndiraLodgeRoomRate } from '@/lib/roomRates';
 
 export default function NewReservationPage() {
   const router = useRouter();
@@ -78,16 +79,21 @@ export default function NewReservationPage() {
   const diffTime = depDate.getTime() - arrDate.getTime();
   const daysStayed = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
-  // Selected Room Type Price
-  const selectedRoomType = roomTypes.find((rt) => rt.id === form.roomTypeId) || roomTypes[0];
-  const roomPricePerNight = selectedRoomType ? selectedRoomType.baseRate : 0;
+  const numAdults = parseInt(form.adults || '1', 10);
+  const numChildren = parseInt(form.children || '0', 10);
 
-  // Final Price Calculations
+  // Selected Room Type Price based on Occupancy Table
+  const selectedRoomType = roomTypes.find((rt) => rt.id === form.roomTypeId) || roomTypes[0];
+  const roomPricePerNight = selectedRoomType
+    ? calculateIndiraLodgeRoomRate(selectedRoomType.code, numAdults, numChildren, selectedRoomType.baseRate)
+    : 0;
+
+  // Final Price Calculations (Room rates are GST-inclusive)
   const roomSubtotal = roomPricePerNight * daysStayed;
   const discountVal = parseFloat(form.discountAmount || '0');
-  const taxableVal = Math.max(0, roomSubtotal - discountVal);
-  const gstTaxVal = Math.round(taxableVal * 0.18 * 100) / 100;
-  const totalPrice = taxableVal + gstTaxVal;
+  const totalPrice = Math.max(0, roomSubtotal - discountVal);
+  const taxableVal = Math.round((totalPrice / 1.18) * 100) / 100;
+  const gstTaxVal = Math.round((totalPrice - taxableVal) * 100) / 100;
 
   // Fetch Room Types
   useEffect(() => {
@@ -147,8 +153,15 @@ export default function NewReservationPage() {
           setAvailablePhysicalRooms(rooms);
           if (rooms.length > 0) {
             setAutoAllocatedRoom(rooms[0]);
+            setForm((prev) => ({
+              ...prev,
+              assignedRoomId: prev.assignedRoomId && rooms.some((r: any) => r.id === prev.assignedRoomId)
+                ? prev.assignedRoomId
+                : rooms[0].id,
+            }));
           } else {
             setAutoAllocatedRoom(null);
+            setForm((prev) => ({ ...prev, assignedRoomId: '' }));
           }
         }
       } catch (e) {}
@@ -212,6 +225,7 @@ export default function NewReservationPage() {
       const payload = {
         guestId: selectedGuest?.id,
         ...form,
+        assignedRoomId: form.assignedRoomId || autoAllocatedRoom?.id || undefined,
       };
 
       const res = await fetch('/api/reservations', {
@@ -623,13 +637,15 @@ export default function NewReservationPage() {
                 <span>Room Subtotal:</span>
                 <span className="font-mono font-bold">₹{roomSubtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-rose-300">
-                <span>Discount Applied:</span>
-                <span className="font-mono font-bold">- ₹{discountVal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Estimated GST Tax (18%):</span>
-                <span className="font-mono font-bold">₹{gstTaxVal.toFixed(2)}</span>
+              {discountVal > 0 && (
+                <div className="flex justify-between text-rose-300">
+                  <span>Discount Applied:</span>
+                  <span className="font-mono font-bold">- ₹{discountVal.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-emerald-400/90 text-[11px]">
+                <span>GST Tax (18%):</span>
+                <span className="font-medium">Included in Tariff (₹{gstTaxVal.toFixed(2)})</span>
               </div>
             </div>
 
@@ -641,7 +657,7 @@ export default function NewReservationPage() {
                   ₹{totalPrice.toLocaleString('en-IN')}
                 </span>
                 <span className="text-[11px] text-slate-400 block mt-1">
-                  (Includes Room Type Rate × {daysStayed} Days + Tax)
+                  (GST Included • ₹{roomPricePerNight} × {daysStayed} Night{daysStayed > 1 ? 's' : ''}{discountVal > 0 ? ` - ₹${discountVal.toFixed(2)}` : ''})
                 </span>
               </div>
             </div>

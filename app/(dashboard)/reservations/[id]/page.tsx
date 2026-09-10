@@ -21,6 +21,8 @@ import {
   Edit3,
   FileText,
   Building,
+  UtensilsCrossed,
+  Plus,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -63,6 +65,17 @@ export default function ReservationDetailPage() {
   const [billingType, setBillingType] = useState<'GST' | 'NON_GST'>('GST');
   const [customerGstinInput, setCustomerGstinInput] = useState('');
   const [generatingBill, setGeneratingBill] = useState(false);
+
+  // Room Service / Extra Item Charges State
+  const [isRoomServiceOpen, setIsRoomServiceOpen] = useState(false);
+  const [postingCharge, setPostingCharge] = useState(false);
+  const [serviceForm, setServiceForm] = useState({
+    description: 'Packaged Drinking Water Bottle (1L)',
+    category: 'FOOD_BEVERAGE',
+    quantity: '1',
+    unitPrice: '20',
+    notes: '',
+  });
 
   const fetchDetails = async () => {
     try {
@@ -212,6 +225,48 @@ export default function ReservationDetailPage() {
       showToast('Error processing bill generation', 'error');
     } finally {
       setGeneratingBill(false);
+    }
+  };
+
+  const handlePostRoomCharge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reservationId) return;
+    setPostingCharge(true);
+    try {
+      const qty = parseInt(serviceForm.quantity || '1', 10);
+      const price = parseFloat(serviceForm.unitPrice || '0');
+      const res = await fetch('/api/front-desk/room-charges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reservationId,
+          description: serviceForm.description,
+          category: serviceForm.category,
+          quantity: qty,
+          unitPrice: price,
+          notes: serviceForm.notes,
+        }),
+      });
+      const resData = await res.json();
+      if (!res.ok) {
+        showToast(resData.error || 'Failed to post room charge', 'error');
+        setPostingCharge(false);
+        return;
+      }
+      showToast(resData.message || 'Room charge posted successfully!', 'success');
+      setIsRoomServiceOpen(false);
+      setServiceForm({
+        description: 'Packaged Drinking Water Bottle (1L)',
+        category: 'FOOD_BEVERAGE',
+        quantity: '1',
+        unitPrice: '20',
+        notes: '',
+      });
+      fetchDetails();
+    } catch {
+      showToast('Error posting room charge', 'error');
+    } finally {
+      setPostingCharge(false);
     }
   };
 
@@ -486,8 +541,10 @@ export default function ReservationDetailPage() {
               </div>
 
               <div className="flex justify-between">
-                <span className="text-slate-600">GST Tax (18% if GST bill):</span>
-                <span className="font-semibold text-slate-900">₹{res.taxAmount.toFixed(2)}</span>
+                <span className="text-slate-600">GST Tax (18%):</span>
+                <span className="font-semibold text-slate-900">
+                  {res.taxAmount > 0 ? `₹${res.taxAmount.toFixed(2)} (Included in Tariff)` : 'Included in Tariff'}
+                </span>
               </div>
 
               <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-sm">
@@ -542,6 +599,16 @@ export default function ReservationDetailPage() {
               </h3>
               <span className="text-xs text-slate-500">Folio Status: {folio?.status || 'ACTIVE'}</span>
             </div>
+
+            {!isBilled && res.status === 'CHECKED_IN' && (
+              <button
+                onClick={() => setIsRoomServiceOpen(true)}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+              >
+                <UtensilsCrossed className="w-3.5 h-3.5" />
+                <span>+ Add Room Order / Food Item</span>
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -889,7 +956,7 @@ export default function ReservationDetailPage() {
               <div className="flex justify-end pt-2">
                 <div className="w-64 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-600">
-                    <span>Subtotal:</span>
+                    <span>{activeInvoice.isGstBill ? 'Room Charges (Incl. Tax):' : 'Room Charges:'}</span>
                     <span>₹{activeInvoice.subtotal.toFixed(2)}</span>
                   </div>
                   {activeInvoice.discount > 0 && (
@@ -901,6 +968,10 @@ export default function ReservationDetailPage() {
 
                   {activeInvoice.isGstBill ? (
                     <>
+                      <div className="flex justify-between text-slate-500 text-[11px] pt-1 border-t border-slate-200">
+                        <span>Taxable Value (Base):</span>
+                        <span>₹{(activeInvoice.totalAmount - activeInvoice.cgstAmount - activeInvoice.sgstAmount).toFixed(2)}</span>
+                      </div>
                       <div className="flex justify-between text-slate-600">
                         <span>CGST (9%):</span>
                         <span>₹{activeInvoice.cgstAmount.toFixed(2)}</span>
@@ -911,8 +982,8 @@ export default function ReservationDetailPage() {
                       </div>
                     </>
                   ) : (
-                    <div className="text-[10px] text-slate-500 italic text-right py-0.5">
-                      (Non-GST Bill / Tax Exempt Receipt)
+                    <div className="text-[10px] text-slate-500 italic text-right py-1 border-t border-slate-200">
+                      (Non-GST Bill / Tax Exempt Hotel Receipt)
                     </div>
                   )}
 
@@ -937,6 +1008,211 @@ export default function ReservationDetailPage() {
             </div>
           )}
         </div>
+      </Modal>
+
+      {/* Modal: Room Service & Extra Orders */}
+      <Modal
+        isOpen={isRoomServiceOpen}
+        onClose={() => setIsRoomServiceOpen(false)}
+        title={`Add Room Order / Charge — Room ${res.assignedRoom?.roomNumber || 'Stay'}`}
+        maxWidth="lg"
+      >
+        <form onSubmit={handlePostRoomCharge} className="space-y-4">
+          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs flex items-center justify-between">
+            <div>
+              <span className="font-bold text-slate-900 block">
+                Guest: {res.guest?.displayName || 'In-House Guest'}
+              </span>
+              <span className="text-[11px] text-blue-700">
+                Booking Ref: {res.reservationRef} • Room {res.assignedRoom?.roomNumber || 'N/A'}
+              </span>
+            </div>
+            <Badge variant="info">{res.status}</Badge>
+          </div>
+
+          {/* Quick Preset Buttons */}
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Quick Item Presets (Click to Select)
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { name: 'Water Bottle (1L)', cat: 'FOOD_BEVERAGE', price: '20', icon: '💧' },
+                { name: 'Breakfast / Morning Meal', cat: 'FOOD_BEVERAGE', price: '100', icon: '🍳' },
+                { name: 'Tea / Coffee', cat: 'FOOD_BEVERAGE', price: '20', icon: '☕' },
+                { name: 'Meal / Dinner Thali', cat: 'FOOD_BEVERAGE', price: '150', icon: '🍲' },
+                { name: 'Extra Mattress / Bed', cat: 'EXTRA_BED', price: '500', icon: '🛏️' },
+                { name: 'Laundry Service', cat: 'LAUNDRY', price: '100', icon: '🧺' },
+              ].map((preset) => (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      description: preset.name,
+                      category: preset.cat,
+                      unitPrice: preset.price,
+                    }))
+                  }
+                  className={`p-2 rounded-xl border text-left transition-all flex items-center gap-2 text-xs ${
+                    serviceForm.description === preset.name
+                      ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/20 text-indigo-950 font-bold'
+                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <span className="text-base">{preset.icon}</span>
+                  <div className="truncate">
+                    <div className="truncate font-semibold">{preset.name}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">₹{preset.price}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Description & Category */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                Item Description *
+              </label>
+              <input
+                type="text"
+                required
+                value={serviceForm.description}
+                onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
+                placeholder="e.g. Packaged Drinking Water Bottle (1L)"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                Category *
+              </label>
+              <select
+                value={serviceForm.category}
+                onChange={(e) => setServiceForm({ ...serviceForm, category: e.target.value })}
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="FOOD_BEVERAGE">Food & Beverage</option>
+                <option value="ROOM_SERVICE">Room Service</option>
+                <option value="LAUNDRY">Laundry Service</option>
+                <option value="EXTRA_BED">Extra Mattress / Bed</option>
+                <option value="OTHER">Other / Miscellaneous</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Quantity, Unit Price & Total Calculation */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-900 text-white rounded-xl">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Quantity
+              </label>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      quantity: String(Math.max(1, (parseInt(prev.quantity || '1', 10) || 1) - 1)),
+                    }))
+                  }
+                  className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 flex items-center justify-center text-sm"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={serviceForm.quantity}
+                  onChange={(e) => setServiceForm({ ...serviceForm, quantity: e.target.value })}
+                  className="w-16 text-center py-1 bg-slate-800 border border-slate-700 rounded font-mono font-bold text-white text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      quantity: String((parseInt(prev.quantity || '1', 10) || 1) + 1),
+                    }))
+                  }
+                  className="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 font-bold text-slate-200 flex items-center justify-center text-sm"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Unit Price (₹) *
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={serviceForm.unitPrice}
+                onChange={(e) => setServiceForm({ ...serviceForm, unitPrice: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded font-mono font-bold text-white text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
+            </div>
+
+            <div className="flex flex-col justify-between text-right border-l border-slate-800 pl-3">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Total Charge</span>
+              <span className="text-xl font-black text-emerald-400 font-mono tracking-tight">
+                ₹{((parseInt(serviceForm.quantity || '1', 10) || 1) * (parseFloat(serviceForm.unitPrice || '0') || 0)).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          {/* Remarks */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+              Remarks / Room Note (Optional)
+            </label>
+            <input
+              type="text"
+              value={serviceForm.notes}
+              onChange={(e) => setServiceForm({ ...serviceForm, notes: e.target.value })}
+              placeholder="e.g. Delivered at 8:30 AM by Staff"
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900"
+            />
+          </div>
+
+          <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsRoomServiceOpen(false)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={postingCharge}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-md shadow-indigo-600/20 disabled:opacity-50 flex items-center gap-2"
+            >
+              {postingCharge ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Posting Charge...</span>
+                </>
+              ) : (
+                <>
+                  <UtensilsCrossed className="w-4 h-4" />
+                  <span>
+                    Post ₹{((parseInt(serviceForm.quantity || '1', 10) || 1) * (parseFloat(serviceForm.unitPrice || '0') || 0)).toFixed(2)} Charge
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

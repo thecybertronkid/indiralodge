@@ -8,7 +8,7 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -26,15 +26,17 @@ export const Modal: React.FC<ModalProps> = ({
     lg: 'max-w-lg',
     xl: 'max-w-xl',
     '2xl': 'max-w-2xl',
+    '3xl': 'max-w-3xl',
+    '4xl': 'max-w-4xl',
   };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
       <div
-        className={`bg-white rounded-xl shadow-2xl border border-slate-200 w-full ${maxWidthClasses[maxWidth]} overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150`}
+        className={`bg-white rounded-2xl shadow-2xl border border-slate-200 w-full ${maxWidthClasses[maxWidth]} max-h-[92vh] flex flex-col overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+          <h3 className="text-lg font-bold text-slate-900">{title}</h3>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"
@@ -42,7 +44,7 @@ export const Modal: React.FC<ModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

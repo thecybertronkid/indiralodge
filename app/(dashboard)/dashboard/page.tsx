@@ -231,6 +231,7 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
                 {roomsList.map((r: any) => {
                   const isOccupied = r.availabilityStatus === 'OCCUPIED';
+                  const isReserved = r.availabilityStatus === 'RESERVED';
                   const isDirty = r.housekeepingStatus === 'DIRTY';
                   const isBlocked = r.availabilityStatus === 'BLOCKED' || r.maintenanceStatus !== 'OPERATIONAL';
 
@@ -240,11 +241,13 @@ export default function DashboardPage() {
                       href="/rooms"
                       className={`p-3 rounded-2xl border transition-all duration-300 hover:scale-105 hover:shadow-lg block ${
                         isOccupied
-                          ? 'bg-blue-50/90 border-blue-200/90 hover:border-blue-400'
+                          ? 'bg-rose-50/90 border-rose-300 hover:border-rose-400 shadow-xs'
+                          : isReserved
+                          ? 'bg-blue-50/90 border-blue-300 hover:border-blue-400'
                           : isBlocked
-                          ? 'bg-rose-50/90 border-rose-200/90 hover:border-rose-400'
+                          ? 'bg-slate-100/90 border-slate-300 hover:border-slate-400'
                           : isDirty
-                          ? 'bg-amber-50/90 border-amber-200/90 hover:border-amber-400'
+                          ? 'bg-amber-50/90 border-amber-300 hover:border-amber-400'
                           : 'bg-emerald-50/90 border-emerald-200/90 hover:border-emerald-400'
                       }`}
                     >

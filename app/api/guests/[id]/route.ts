@@ -86,26 +86,58 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const guestId = params.id;
     const body = await req.json();
-    const { firstName, lastName, phone, email, company, gstin, vipStatus, blacklistedStatus, notes } = body;
+    const {
+      firstName, lastName, middleName, phone, alternatePhone, email,
+      gender, dateOfBirth, nationality, age, occupation, idType, idNumber,
+      address, city, state, country, postalCode,
+      company, gstin, guestType, notes, vipStatus, blacklistedStatus,
+    } = body;
 
     const existingGuest = await db.guest.findUnique({ where: { id: guestId } });
     if (!existingGuest) return NextResponse.json({ error: 'Guest not found' }, { status: 404 });
 
     const updateData: any = {};
-    if (firstName) updateData.firstName = firstName.trim();
-    if (lastName) updateData.lastName = lastName.trim();
-    if (firstName || lastName) {
-      const fn = firstName ? firstName.trim() : existingGuest.firstName;
-      const ln = lastName ? lastName.trim() : existingGuest.lastName;
-      updateData.displayName = `${fn} ${ln}`;
+
+    // Name fields
+    if (firstName !== undefined) updateData.firstName = firstName.trim();
+    if (middleName !== undefined) updateData.middleName = middleName ? middleName.trim() : null;
+    if (lastName !== undefined) updateData.lastName = lastName.trim();
+    const fn = firstName !== undefined ? firstName.trim() : existingGuest.firstName;
+    const ln = lastName !== undefined ? lastName.trim() : existingGuest.lastName;
+    if (firstName !== undefined || lastName !== undefined) {
+      updateData.displayName = `${fn} ${ln}`.trim();
     }
-    if (phone) updateData.phone = phone.trim();
+
+    // Contact fields
+    if (phone !== undefined && phone) updateData.phone = phone.trim();
+    if (alternatePhone !== undefined) updateData.alternatePhone = alternatePhone ? alternatePhone.trim() : null;
     if (email !== undefined) updateData.email = email ? email.toLowerCase().trim() : null;
-    if (company !== undefined) updateData.company = company;
-    if (gstin !== undefined) updateData.gstin = gstin;
+
+    // Personal fields
+    if (gender !== undefined) updateData.gender = gender || null;
+    if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+    if (nationality !== undefined) updateData.nationality = nationality || 'Indian';
+    if (age !== undefined) updateData.age = age ? Number(age) : null;
+    if (occupation !== undefined) updateData.occupation = occupation || null;
+    if (idType !== undefined) updateData.idType = idType || null;
+    if (idNumber !== undefined) updateData.idNumber = idNumber || null;
+
+    // Address fields
+    if (address !== undefined) updateData.address = address || null;
+    if (city !== undefined) updateData.city = city || null;
+    if (state !== undefined) updateData.state = state || null;
+    if (country !== undefined) updateData.country = country || 'India';
+    if (postalCode !== undefined) updateData.postalCode = postalCode || null;
+
+    // Business fields
+    if (company !== undefined) updateData.company = company || null;
+    if (gstin !== undefined) updateData.gstin = gstin || null;
+    if (guestType !== undefined) updateData.guestType = guestType || 'INDIVIDUAL';
+    if (notes !== undefined) updateData.notes = notes || null;
+
+    // Status fields
     if (vipStatus !== undefined) updateData.vipStatus = vipStatus;
     if (blacklistedStatus !== undefined) updateData.blacklistedStatus = blacklistedStatus;
-    if (notes !== undefined) updateData.notes = notes;
 
     const updatedGuest = await db.guest.update({
       where: { id: guestId },
@@ -128,3 +160,4 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'Failed to update guest' }, { status: 500 });
   }
 }
+

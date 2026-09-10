@@ -26,18 +26,31 @@ export async function POST(req: Request) {
       lastName,
       phone,
       email,
+      address,
+      age,
+      gender,
+      occupation,
+      idType,
+      idNumber,
       roomId,
+      roomTypeId: bodyRoomTypeId,
       arrivalDate,
+      arrivalTime,
       departureDate,
+      departureTime,
       adults,
       children,
+      comingFrom,
+      purposeOfVisit,
       depositAmount,
       paymentMethod,
+      specialRequests,
+      discountAmount,
     } = body;
 
     let targetGuestId = guestId;
 
-    // 1. Create guest if new
+    // 1. Upsert guest — create if new, update extra fields if returning
     if (!targetGuestId) {
       if (!firstName || !lastName || !phone) {
         return NextResponse.json({ error: 'First name, last name, and phone are required for new walk-in guest.' }, { status: 400 });
@@ -52,11 +65,31 @@ export async function POST(req: Request) {
           displayName: `${firstName.trim()} ${lastName.trim()}`,
           phone: phone.trim(),
           email: email ? email.toLowerCase().trim() : null,
+          address: address ? address.trim() : null,
+          ...(age ? { age: parseInt(age, 10) } : {}),
+          ...(gender ? { gender } : {}),
+          ...(occupation ? { occupation: occupation.trim() } : {}),
+          ...(idType ? { idType } : {}),
+          ...(idNumber ? { idNumber: idNumber.trim() } : {}),
           guestType: 'INDIVIDUAL',
         },
       });
       targetGuestId = newGuest.id;
+    } else {
+      // Update existing guest profile with any new info
+      await db.guest.update({
+        where: { id: targetGuestId },
+        data: {
+          ...(address ? { address: address.trim() } : {}),
+          ...(age ? { age: parseInt(age, 10) } : {}),
+          ...(gender ? { gender } : {}),
+          ...(occupation ? { occupation: occupation.trim() } : {}),
+          ...(idType ? { idType } : {}),
+          ...(idNumber ? { idNumber: idNumber.trim() } : {}),
+        },
+      });
     }
+
 
     if (!roomId || !arrivalDate || !departureDate) {
       return NextResponse.json({ error: 'Room selection, arrival date, and departure date are required.' }, { status: 400 });
@@ -98,6 +131,7 @@ export async function POST(req: Request) {
       departureDate: dep,
       adults: parseInt(adults || '1', 10),
       children: parseInt(children || '0', 10),
+      discountAmount: discountAmount ? parseFloat(discountAmount) : 0,
     });
 
     const resRef = await generateReferenceNumber(propertyId, 'RES');
@@ -113,6 +147,11 @@ export async function POST(req: Request) {
         status: 'CHECKED_IN',
         arrivalDate: arr,
         departureDate: dep,
+        arrivalTime: arrivalTime || null,
+        departureTime: departureTime || null,
+        comingFrom: comingFrom ? comingFrom.trim() : null,
+        purposeOfVisit: purposeOfVisit ? purposeOfVisit.trim() : null,
+        specialRequests: specialRequests ? specialRequests.trim() : null,
         actualCheckInAt: new Date(),
         nights: pricing.nights,
         adults: parseInt(adults || '1', 10),
