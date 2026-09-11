@@ -1,7 +1,8 @@
 // Prisma Schema for Hotel PMFS - Indira Lodge Core, Phase 2, Phase 3, Phase 4 & Phase 5 Business Intelligence
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -93,7 +94,7 @@ model PropertySettings {
   timeFormat     String   @default("12H")
   currencySymbol String   @default("₹")
   taxInclusive   Boolean  @default(false)
-  defaultTaxRate Float    @default(18.0)
+  defaultTaxRate Float    @default(5.0)
   logoUrl        String?
   primaryColor   String   @default("#0c8de9")
   createdAt      DateTime @default(now())
