@@ -296,15 +296,24 @@ export default function UsersPage() {
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="pmfs-table-td">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 font-bold text-xs flex items-center justify-center border border-brand-200">
-                            {u.fullName.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-slate-900">{u.fullName}</div>
-                            <div className="text-xs text-slate-500">{u.email}</div>
-                          </div>
-                        </div>
+                        {(() => {
+                          const isAyan = u.email === 'ayan@indiralodge' || u.email === 'ayan@indiralodge.com' || u.fullName?.toLowerCase().includes('ayan');
+                          return (
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-brand-200 bg-brand-100 text-brand-700 font-bold text-xs flex items-center justify-center shadow-xs">
+                                {isAyan ? (
+                                  <img src="/avatars/ayan.png" alt={u.fullName} className="w-full h-full object-cover" />
+                                ) : (
+                                  u.fullName.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-semibold text-slate-900">{u.fullName}</div>
+                                <div className="text-xs text-slate-500">{u.email}</div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="pmfs-table-td">
                         <span className="font-medium text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md text-xs">

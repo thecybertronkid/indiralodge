@@ -22,6 +22,7 @@ interface HeaderProps {
   userFullName?: string;
   userEmail?: string;
   userRole?: string;
+  userAvatar?: string;
   availableProperties?: Array<{ id: string; name: string; city: string; code: string }>;
   onMenuClick: () => void;
   isCollapsed: boolean;
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   userFullName = 'Hotel Staff',
   userEmail = 'staff@indiralodge.com',
   userRole = 'Owner',
+  userAvatar,
   availableProperties = [],
   onMenuClick,
   isCollapsed,
@@ -54,6 +56,12 @@ export const Header: React.FC<HeaderProps> = ({
   // Profile Menu & Property Selector State
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPropOpen, setIsPropOpen] = useState(false);
+
+  const isAyan =
+    userEmail === 'ayan@indiralodge' ||
+    userEmail === 'ayan@indiralodge.com' ||
+    userFullName?.toLowerCase().includes('ayan');
+  const avatarSrc = userAvatar || (isAyan ? '/avatars/ayan.png' : null);
 
   // Hotel Timezone Clock
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -348,20 +356,33 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
             >
-              <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 font-bold text-xs flex items-center justify-center border border-brand-200">
-                {userFullName.charAt(0).toUpperCase()}
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-brand-200 bg-brand-100 text-brand-700 font-bold text-xs flex items-center justify-center shrink-0">
+                {avatarSrc ? (
+                  <img src={avatarSrc} alt={userFullName} className="w-full h-full object-cover" />
+                ) : (
+                  userFullName.charAt(0).toUpperCase()
+                )}
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
             </button>
 
             {isProfileOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-slate-200 z-50 p-1">
-                <div className="px-3 py-2 border-b border-slate-100">
-                  <p className="text-xs font-bold text-slate-800 truncate">{userFullName}</p>
-                  <p className="text-[11px] text-slate-500 truncate">{userEmail}</p>
-                  <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-semibold">
-                    {userRole}
-                  </span>
+              <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-3 py-2.5 border-b border-slate-100 flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-200 bg-brand-50 flex items-center justify-center text-brand-700 font-bold text-xs">
+                    {avatarSrc ? (
+                      <img src={avatarSrc} alt={userFullName} className="w-full h-full object-cover" />
+                    ) : (
+                      userFullName.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-slate-800 truncate">{userFullName}</p>
+                    <p className="text-[11px] text-slate-500 truncate">{userEmail}</p>
+                    <span className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-semibold">
+                      {userRole}
+                    </span>
+                  </div>
                 </div>
                 <div className="py-1">
                   <Link

@@ -213,10 +213,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Bottom User & Logout Section */}
         <div className="p-3 border-t border-slate-800/80 bg-slate-950/80 backdrop-blur-md space-y-2">
           {!isCollapsed && (
-            <div className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-              <div className="flex flex-col truncate">
-                <span className="text-xs font-bold text-slate-200 truncate">{userFullName}</span>
-                <span className="text-[10px] text-slate-400 truncate">{userRole}</span>
+            <div className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-slate-700 bg-slate-800 flex items-center justify-center text-slate-200 font-bold text-xs">
+                  {userFullName?.toLowerCase().includes('ayan') ? (
+                    <img src="/avatars/ayan.png" alt={userFullName} className="w-full h-full object-cover" />
+                  ) : (
+                    userFullName.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="flex flex-col truncate">
+                  <span className="text-xs font-bold text-slate-200 truncate">{userFullName}</span>
+                  <span className="text-[10px] text-slate-400 truncate">{userRole}</span>
+                </div>
               </div>
               <Badge variant="success" className="text-[9px] py-0.5 px-2 font-bold animate-pulse">Online</Badge>
             </div>
