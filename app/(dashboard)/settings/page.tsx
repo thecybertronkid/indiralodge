@@ -126,57 +126,55 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Tabs Bar - Glassmorphism Design */}
-      <div className="flex items-center overflow-x-auto py-1">
-        <div className="flex items-center gap-1.5 p-1.5 rounded-2xl glass-tab-container border border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl shadow-xl">
-          <button
-            onClick={() => setActiveTab('general')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 whitespace-nowrap ${
-              activeTab === 'general'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Building className={`w-4 h-4 ${activeTab === 'general' ? 'text-white' : 'text-red-400'}`} />
-            <span>General Hotel Profile</span>
-          </button>
+      {/* Tabs Bar */}
+      <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
+        <button
+          onClick={() => setActiveTab('general')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
+            activeTab === 'general'
+              ? 'bg-brand-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Building className="w-4 h-4" />
+          General Hotel Profile
+        </button>
 
-          <button
-            onClick={() => setActiveTab('localization')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 whitespace-nowrap ${
-              activeTab === 'localization'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Globe className={`w-4 h-4 ${activeTab === 'localization' ? 'text-white' : 'text-red-400'}`} />
-            <span>Localization & Timezone</span>
-          </button>
+        <button
+          onClick={() => setActiveTab('localization')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
+            activeTab === 'localization'
+              ? 'bg-brand-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Globe className="w-4 h-4" />
+          Localization & Timezone
+        </button>
 
-          <button
-            onClick={() => setActiveTab('tax')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 whitespace-nowrap ${
-              activeTab === 'tax'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Receipt className={`w-4 h-4 ${activeTab === 'tax' ? 'text-white' : 'text-red-400'}`} />
-            <span>Tax Configuration (GST)</span>
-          </button>
+        <button
+          onClick={() => setActiveTab('tax')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
+            activeTab === 'tax'
+              ? 'bg-brand-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Receipt className="w-4 h-4" />
+          Tax Configuration (GST)
+        </button>
 
-          <button
-            onClick={() => setActiveTab('security')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 whitespace-nowrap ${
-              activeTab === 'security'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <ShieldCheck className={`w-4 h-4 ${activeTab === 'security' ? 'text-white' : 'text-red-400'}`} />
-            <span>Security & Sessions</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setActiveTab('security')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
+            activeTab === 'security'
+              ? 'bg-brand-600 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          Security & Sessions
+        </button>
       </div>
 
       {/* Settings Form Container */}

@@ -322,61 +322,51 @@ export default function MaintenancePage() {
         </div>
       </div>
 
-      {/* Tabs - Glassmorphism Design */}
-      <div className="flex items-center justify-between overflow-x-auto py-1 gap-4">
-        <div className="flex items-center gap-1.5 p-1.5 rounded-2xl glass-tab-container border border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl shadow-xl">
-          <button
-            onClick={() => setActiveTab('kanban')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 whitespace-nowrap ${
-              activeTab === 'kanban'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Layers className={`w-4 h-4 ${activeTab === 'kanban' ? 'text-white' : 'text-red-400'}`} />
-            <span>Kanban Board</span>
-          </button>
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
+        <button
+          onClick={() => setActiveTab('kanban')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+            activeTab === 'kanban' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          Kanban Board
+        </button>
 
-          <button
-            onClick={() => setActiveTab('tickets')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 whitespace-nowrap ${
-              activeTab === 'tickets'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Wrench className={`w-4 h-4 ${activeTab === 'tickets' ? 'text-white' : 'text-red-400'}`} />
-            <span>Ticket Register ({tickets.length})</span>
-          </button>
+        <button
+          onClick={() => setActiveTab('tickets')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+            activeTab === 'tickets' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Wrench className="w-4 h-4" />
+          Ticket Register ({tickets.length})
+        </button>
 
-          <button
-            onClick={() => setActiveTab('assets')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 whitespace-nowrap ${
-              activeTab === 'assets'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <HardDrive className={`w-4 h-4 ${activeTab === 'assets' ? 'text-white' : 'text-red-400'}`} />
-            <span>Asset Register ({assets.length})</span>
-          </button>
+        <button
+          onClick={() => setActiveTab('assets')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+            activeTab === 'assets' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <HardDrive className="w-4 h-4" />
+          Asset Register ({assets.length})
+        </button>
 
-          <button
-            onClick={() => setActiveTab('preventive')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 whitespace-nowrap ${
-              activeTab === 'preventive'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Calendar className={`w-4 h-4 ${activeTab === 'preventive' ? 'text-white' : 'text-red-400'}`} />
-            <span>Preventive Schedules ({preventivePlans.length})</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setActiveTab('preventive')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+            activeTab === 'preventive' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          Preventive Schedules ({preventivePlans.length})
+        </button>
 
         <button
           onClick={fetchData}
-          className="p-2.5 rounded-xl border border-zinc-800/80 bg-zinc-950/60 backdrop-blur-md text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all shadow-md shrink-0"
+          className="ml-auto p-2 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100"
           title="Refresh board"
         >
           <RefreshCw className="w-4 h-4" />

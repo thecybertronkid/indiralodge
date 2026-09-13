@@ -266,7 +266,7 @@
 }
 
 /* Glassmorphic Navigation Tabs */
-.glass-tab-container {
+.theme-ayan .glass-tab-container {
   background: rgba(9, 9, 11, 0.85);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -276,7 +276,7 @@
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7);
 }
 
-.glass-tab-active {
+.theme-ayan .glass-tab-active {
   background: linear-gradient(135deg, #dc2626 0%, #be123c 100%) !important;
   color: #ffffff !important;
   font-weight: 800 !important;
@@ -285,14 +285,14 @@
   border-radius: 0.75rem !important;
 }
 
-.glass-tab-inactive {
+.theme-ayan .glass-tab-inactive {
   color: #a1a1aa !important;
   border: 1px solid transparent !important;
   border-radius: 0.75rem !important;
   transition: all 0.2s ease !important;
 }
 
-.glass-tab-inactive:hover {
+.theme-ayan .glass-tab-inactive:hover {
   color: #ffffff !important;
   background: rgba(255, 255, 255, 0.08) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;

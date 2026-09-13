@@ -77,11 +77,11 @@ export default function ReservationsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <CalendarDays className="w-6 h-6 text-red-500" />
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+            <CalendarDays className="w-6 h-6 text-brand-600" />
             Reservation Management
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Master booking register, rate calculations, room assignment, and availability
           </p>
         </div>
@@ -89,14 +89,14 @@ export default function ReservationsPage() {
         <div className="flex items-center gap-2.5">
           <Link
             href="/reservations/calendar"
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700/80 font-bold text-xs rounded-xl shadow-md transition-all hover:scale-105"
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all"
           >
-            <CalendarIcon className="w-4 h-4 text-zinc-400" />
+            <CalendarIcon className="w-4 h-4 text-brand-600" />
             Availability Grid
           </Link>
           <Link
             href="/reservations/new"
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-red-600/30 transition-all hover:scale-105"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
           >
             <Plus className="w-4 h-4" />
             New Reservation
@@ -105,7 +105,7 @@ export default function ReservationsPage() {
       </div>
 
       {/* Filters Bar */}
-      <div className="pmfs-card p-4 rounded-2xl border border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl shadow-xl flex flex-col lg:flex-row gap-3 items-center justify-between">
+      <div className="pmfs-card p-4 flex flex-col lg:flex-row gap-3 items-center justify-between">
         <div className="relative w-full lg:w-80">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input

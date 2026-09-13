@@ -458,11 +458,11 @@ export default function RoomsPage() {
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <BedDouble className="w-6 h-6 text-red-500" />
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+            <BedDouble className="w-6 h-6 text-brand-600" />
             Rooms & Inventory Management
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Visual room map matrix, housekeeping queue, Single/Double/Triple bed capacities, and physical inventory controls
           </p>
         </div>
@@ -470,7 +470,7 @@ export default function RoomsPage() {
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => setIsAddRoomOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-red-600/30 transition-all hover:scale-105"
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
           >
             <Plus className="w-4 h-4" />
             Add Room Number
@@ -478,59 +478,49 @@ export default function RoomsPage() {
 
           <button
             onClick={() => setIsAddTypeOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700/80 font-bold text-xs rounded-xl shadow-md transition-all hover:scale-105"
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md transition-all"
           >
-            <Layers className="w-4 h-4 text-zinc-400" />
+            <Layers className="w-4 h-4" />
             Create Category
           </button>
         </div>
       </div>
 
-      {/* Navigation Tabs - Glassmorphism Design */}
-      <div className="flex items-center justify-between overflow-x-auto py-1 gap-4">
-        <div className="flex items-center gap-1.5 p-1.5 rounded-2xl glass-tab-container border border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl shadow-xl">
+      {/* Navigation Tabs */}
+      <div className="flex items-center justify-between border-b border-slate-200 overflow-x-auto pb-1">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab('map')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 ${
-              activeTab === 'map'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+              activeTab === 'map' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <Sparkles className={`w-4 h-4 ${activeTab === 'map' ? 'text-white' : 'text-red-400'}`} />
-            <span>Visual Room Map Matrix</span>
+            <Sparkles className="w-4 h-4" />
+            Visual Room Map Matrix
           </button>
 
           <button
             onClick={() => setActiveTab('inventory')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 ${
-              activeTab === 'inventory'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+              activeTab === 'inventory' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <BedDouble className={`w-4 h-4 ${activeTab === 'inventory' ? 'text-white' : 'text-red-400'}`} />
-            <span>Inventory List ({rooms.length})</span>
+            <BedDouble className="w-4 h-4" />
+            Inventory List ({rooms.length})
           </button>
 
           <button
             onClick={() => setActiveTab('types')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 ${
-              activeTab === 'types'
-                ? 'glass-tab-active bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-lg shadow-red-600/30'
-                : 'glass-tab-inactive text-zinc-400 hover:text-white hover:bg-white/5'
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors ${
+              activeTab === 'types' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <Layers className={`w-4 h-4 ${activeTab === 'types' ? 'text-white' : 'text-red-400'}`} />
-            <span>Room Categories ({roomTypes.length})</span>
+            <Layers className="w-4 h-4" />
+            Room Categories ({roomTypes.length})
           </button>
         </div>
 
-        <button
-          onClick={fetchData}
-          className="p-2.5 rounded-xl border border-zinc-800/80 bg-zinc-950/60 backdrop-blur-md text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all shadow-md shrink-0"
-          title="Refresh Room Matrix"
-        >
+        <button onClick={fetchData} className="p-2 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100">
           <RefreshCw className="w-4 h-4" />
         </button>
       </div>
@@ -538,50 +528,46 @@ export default function RoomsPage() {
       {/* TAB 1: VISUAL ROOM MAP */}
       {activeTab === 'map' && (
         <div className="space-y-6">
-          {/* Status Color Legend - Glassmorphism Design */}
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 p-4 rounded-2xl border border-zinc-800/80 bg-zinc-950/75 backdrop-blur-xl text-xs font-semibold shadow-xl">
-            <span className="text-zinc-400 uppercase tracking-wider text-[11px] font-extrabold flex items-center gap-1.5">
-              <span className="w-1.5 h-3.5 bg-red-600 rounded-full inline-block" />
-              Room Matrix Legend:
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-              <span className="text-emerald-300 font-bold">Available</span>
+          {/* Status Color Legend */}
+          <div className="flex flex-wrap items-center gap-4 p-3.5 bg-white rounded-xl border border-slate-200 text-xs font-semibold shadow-xs">
+            <span className="text-slate-500 uppercase tracking-wider text-[11px] font-bold">Room Matrix Legend:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-xs" />
+              <span className="text-slate-700 font-bold">Available</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.8)] animate-pulse" />
-              <span className="text-red-400 font-bold">Occupied (Guest In-House)</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-rose-600 shadow-xs animate-pulse" />
+              <span className="text-rose-700 font-bold">Occupied (Guest In-House)</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
-              <span className="text-blue-400 font-bold">Reserved (Confirmed Booking)</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-blue-600 shadow-xs" />
+              <span className="text-blue-700 font-bold">Reserved (Confirmed Booking)</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-              <span className="text-amber-400 font-bold">Dirty (Housekeeping Needed)</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-amber-500 shadow-xs" />
+              <span className="text-amber-700 font-bold">Dirty (Housekeeping Needed)</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-zinc-500 shadow-xs" />
-              <span className="text-zinc-400 font-bold">Maintenance / Blocked</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-slate-500 shadow-xs" />
+              <span className="text-slate-700 font-bold">Maintenance / Blocked</span>
             </div>
           </div>
 
           {loading ? (
-            <div className="py-16 text-center text-xs text-zinc-400">
-              <Loader2 className="w-6 h-6 animate-spin text-red-500 mx-auto mb-2" />
+            <div className="py-16 text-center text-xs text-slate-500">
+              <Loader2 className="w-6 h-6 animate-spin text-brand-600 mx-auto mb-2" />
               Loading room matrix...
             </div>
           ) : Object.keys(groupedByFloor).length === 0 ? (
-            <div className="pmfs-card p-12 text-center text-xs text-zinc-400">
+            <div className="pmfs-card p-12 text-center text-xs text-slate-500">
               No rooms added to inventory yet. Click "Add Room Number" above.
             </div>
           ) : (
             Object.entries(groupedByFloor).map(([floor, floorRooms]: [string, any]) => {
               return (
-                <div key={floor} className="pmfs-card p-5 space-y-4 rounded-3xl border border-zinc-800/80 bg-zinc-950/80 backdrop-blur-2xl shadow-xl">
-                  <h3 className="text-xs font-extrabold text-zinc-300 uppercase tracking-wider border-b border-zinc-800/80 pb-2.5 flex items-center justify-between">
-                    <span>{floor} ({floorRooms.length} Rooms)</span>
-                    <span className="text-[10px] text-zinc-500 font-mono font-normal">FLOOR GRID</span>
+                <div key={floor} className="pmfs-card p-5 space-y-3">
+                  <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
+                    {floor} ({floorRooms.length} Rooms)
                   </h3>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -592,25 +578,25 @@ export default function RoomsPage() {
                       const isBlocked = r.availabilityStatus === 'BLOCKED' || r.maintenanceStatus !== 'OPERATIONAL';
                       const isDirty = !isOccupied && r.housekeepingStatus === 'DIRTY';
 
-                      let cardBorderBg = 'bg-zinc-900/80 backdrop-blur-md border border-emerald-500/40 hover:border-emerald-400 text-white shadow-md shadow-emerald-950/20';
-                      let statusBadgeClass = 'text-emerald-300 bg-emerald-950/70 border border-emerald-500/40 font-bold';
+                      let cardBorderBg = 'bg-emerald-50/80 border-emerald-300 hover:border-emerald-500 text-emerald-950';
+                      let statusBadgeClass = 'text-emerald-800 bg-emerald-100 border-emerald-200';
                       let statusText = 'AVAILABLE';
 
                       if (isBlocked) {
-                        cardBorderBg = 'bg-zinc-900/60 backdrop-blur-md border border-zinc-700/50 hover:border-zinc-500 text-zinc-300';
-                        statusBadgeClass = 'text-zinc-400 bg-zinc-800/80 border border-zinc-700/60';
+                        cardBorderBg = 'bg-slate-100/90 border-slate-300 hover:border-slate-500 text-slate-900';
+                        statusBadgeClass = 'text-slate-700 bg-slate-200 border-slate-300';
                         statusText = 'BLOCKED';
                       } else if (isOccupied) {
-                        cardBorderBg = 'bg-gradient-to-br from-red-950/60 via-zinc-950/90 to-zinc-900/90 backdrop-blur-md border border-red-500/70 hover:border-red-400 text-white shadow-lg shadow-red-950/50';
-                        statusBadgeClass = 'text-red-300 bg-red-950/90 border border-red-600/70 font-extrabold animate-pulse';
+                        cardBorderBg = 'bg-rose-50/90 border-rose-300 hover:border-rose-500 text-rose-950 shadow-sm';
+                        statusBadgeClass = 'text-rose-800 bg-rose-100 border-rose-300 font-extrabold animate-pulse';
                         statusText = 'OCCUPIED';
                       } else if (isReserved) {
-                        cardBorderBg = 'bg-zinc-900/80 backdrop-blur-md border border-blue-500/50 hover:border-blue-400 text-white shadow-md shadow-blue-950/30';
-                        statusBadgeClass = 'text-blue-300 bg-blue-950/70 border border-blue-500/40 font-bold';
+                        cardBorderBg = 'bg-blue-50/90 border-blue-300 hover:border-blue-500 text-blue-950';
+                        statusBadgeClass = 'text-blue-800 bg-blue-100 border-blue-200 font-bold';
                         statusText = 'RESERVED';
                       } else if (isDirty) {
-                        cardBorderBg = 'bg-zinc-900/80 backdrop-blur-md border border-amber-500/50 hover:border-amber-400 text-white shadow-md shadow-amber-950/30';
-                        statusBadgeClass = 'text-amber-300 bg-amber-950/70 border border-amber-500/40 font-bold';
+                        cardBorderBg = 'bg-amber-50/90 border-amber-300 hover:border-amber-500 text-amber-950';
+                        statusBadgeClass = 'text-amber-800 bg-amber-100 border-amber-200 font-bold';
                         statusText = 'DIRTY';
                       }
 
@@ -618,36 +604,36 @@ export default function RoomsPage() {
                         <div
                           key={r.id}
                           onClick={() => setSelectedRoom(r)}
-                          className={`p-3.5 rounded-2xl transition-all duration-200 cursor-pointer hover:scale-[1.02] ${cardBorderBg}`}
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer hover:shadow-md ${cardBorderBg}`}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-white text-sm tracking-tight">Room {r.roomNumber}</span>
-                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-800/90 border border-zinc-700/60 text-zinc-300 shadow-sm">
+                            <span className="font-extrabold text-slate-900 text-sm">Room {r.roomNumber}</span>
+                            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white text-slate-700 shadow-2xs">
                               {r.roomType?.code}
                             </span>
                           </div>
 
-                          <div className="mt-2.5 space-y-1.5 text-[11px]">
+                          <div className="mt-2.5 space-y-1 text-[11px]">
                             <div className="flex items-center justify-between">
-                              <span className="text-zinc-400 text-[10px] uppercase font-semibold">Occupancy</span>
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] ${statusBadgeClass}`}>
+                              <span className="text-slate-500">Occupancy:</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold border ${statusBadgeClass}`}>
                                 {statusText}
                               </span>
                             </div>
 
                             <div className="flex items-center justify-between">
-                              <span className="text-zinc-400 text-[10px] uppercase font-semibold">Housekeeping</span>
-                              <span className={`font-bold text-[10px] ${isDirty ? 'text-amber-400' : 'text-zinc-300'}`}>
+                              <span className="text-slate-500">Housekeeping:</span>
+                              <span className={`font-bold ${isDirty ? 'text-amber-700' : 'text-slate-700'}`}>
                                 {r.housekeepingStatus}
                               </span>
                             </div>
 
                             {activeStay?.guest && (
-                              <div className={`pt-1.5 mt-1.5 border-t border-zinc-800/80 flex items-center justify-between ${
-                                isOccupied ? 'text-red-300' : 'text-blue-300'
+                              <div className={`pt-1.5 mt-1.5 border-t flex items-center justify-between ${
+                                isOccupied ? 'border-rose-200/80 text-rose-900' : 'border-blue-200/80 text-blue-900'
                               }`}>
-                                <span className="text-[10px] text-zinc-400 font-semibold uppercase">Guest</span>
-                                <span className="font-extrabold text-[11px] truncate max-w-[95px] text-white">
+                                <span className="text-[10px] text-slate-500 font-medium">Guest:</span>
+                                <span className="font-bold text-[11px] truncate max-w-[95px]">
                                   {activeStay.guest.displayName}
                                 </span>
                               </div>
