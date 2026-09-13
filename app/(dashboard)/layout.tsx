@@ -9,7 +9,6 @@ import { Loader2 } from 'lucide-react';
 
 import { AyanWelcomeSplash } from '@/components/ayan/AyanWelcomeSplash';
 import { AyanWaveBackground } from '@/components/ayan/AyanWaveBackground';
-import { AyanCyberCursor } from '@/components/ayan/AyanCyberCursor';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -82,7 +81,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {isAyan && (
         <>
           <AyanWaveBackground />
-          <AyanCyberCursor />
           <div className="fixed top-0 left-64 w-[500px] h-[500px] bg-red-600/10 rounded-full blur-[160px] pointer-events-none z-0" />
           <div className="fixed bottom-0 right-10 w-[600px] h-[600px] bg-rose-900/10 rounded-full blur-[180px] pointer-events-none z-0" />
         </>
