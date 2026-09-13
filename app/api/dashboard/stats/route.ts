@@ -7,135 +7,108 @@ export async function GET() {
     const session = await getCurrentUser();
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const propertyId = session.propertyId || (await db.property.findFirst({ where: { organizationId: session.organizationId } }))?.id;
-
-    const totalUsers = await db.user.count({
-      where: { organizationId: session.organizationId },
-    });
-
-    const activeUsers = await db.user.count({
-      where: { organizationId: session.organizationId, status: 'ACTIVE' },
-    });
-
-    const totalProperties = await db.property.count({
-      where: { organizationId: session.organizationId },
-    });
-
-    const totalAuditLogs = await db.auditLog.count({
-      where: { organizationId: session.organizationId },
-    });
-
-    // 1. Dynamic Room Status Reconciliation
-    if (propertyId) {
-      const allRooms = await db.room.findMany({
-        where: { propertyId, isActive: true },
-        include: {
-          reservations: {
-            where: { status: { in: ['CONFIRMED', 'CHECKED_IN'] } },
-            take: 1,
-          },
-        },
-      });
-
-      for (const r of allRooms) {
-        const activeRes = r.reservations[0];
-        let expectedStatus = 'AVAILABLE';
-
-        if (r.maintenanceStatus !== 'OPERATIONAL' || r.availabilityStatus === 'BLOCKED') {
-          expectedStatus = 'BLOCKED';
-        } else if (activeRes?.status === 'CHECKED_IN') {
-          expectedStatus = 'OCCUPIED';
-        } else if (activeRes?.status === 'CONFIRMED') {
-          expectedStatus = 'RESERVED';
-        }
-
-        if (r.availabilityStatus !== expectedStatus) {
-          await db.room.update({
-            where: { id: r.id },
-            data: { availabilityStatus: expectedStatus },
-          });
-        }
-      }
+    let propertyId = session.propertyId;
+    if (!propertyId) {
+      const prop = await db.property.findFirst({ where: { organizationId: session.organizationId }, select: { id: true } });
+      propertyId = prop?.id || null;
     }
 
-    // Real Operational Metrics
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
     const endOfDay = new Date(today.setHours(23, 59, 59, 999));
 
-    const totalRooms = propertyId ? await db.room.count({ where: { propertyId, isActive: true } }) : 0;
-    const occupiedRooms = propertyId ? await db.room.count({ where: { propertyId, isActive: true, availabilityStatus: 'OCCUPIED' } }) : 0;
-    const reservedRooms = propertyId ? await db.room.count({ where: { propertyId, isActive: true, availabilityStatus: 'RESERVED' } }) : 0;
-    const availableRooms = propertyId ? await db.room.count({ where: { propertyId, isActive: true, availabilityStatus: 'AVAILABLE' } }) : 0;
-    const dirtyRooms = propertyId ? await db.room.count({ where: { propertyId, isActive: true, housekeepingStatus: 'DIRTY' } }) : 0;
-    const cleaningRooms = propertyId ? await db.room.count({ where: { propertyId, isActive: true, housekeepingStatus: 'CLEANING' } }) : 0;
-    const maintenanceRooms = propertyId ? await db.room.count({ where: { propertyId, isActive: true, maintenanceStatus: 'UNDER_MAINTENANCE' } }) : 0;
-    const outOfOrderRooms = propertyId ? await db.room.count({ where: { propertyId, isActive: true, availabilityStatus: 'BLOCKED' } }) : 0;
+    // Parallelize all dashboard queries concurrently
+    const [
+      totalUsers,
+      activeUsers,
+      totalProperties,
+      totalAuditLogs,
+      totalRooms,
+      occupiedRooms,
+      reservedRooms,
+      availableRooms,
+      dirtyRooms,
+      cleaningRooms,
+      maintenanceRooms,
+      outOfOrderRooms,
+      todayArrivals,
+      todayDepartures,
+      todayPaymentsAgg,
+      roomsList,
+      recentActivity,
+    ] = await Promise.all([
+      db.user.count({ where: { organizationId: session.organizationId } }),
+      db.user.count({ where: { organizationId: session.organizationId, status: 'ACTIVE' } }),
+      db.property.count({ where: { organizationId: session.organizationId } }),
+      db.auditLog.count({ where: { organizationId: session.organizationId } }),
+      propertyId ? db.room.count({ where: { propertyId, isActive: true } }) : Promise.resolve(0),
+      propertyId ? db.room.count({ where: { propertyId, isActive: true, availabilityStatus: 'OCCUPIED' } }) : Promise.resolve(0),
+      propertyId ? db.room.count({ where: { propertyId, isActive: true, availabilityStatus: 'RESERVED' } }) : Promise.resolve(0),
+      propertyId ? db.room.count({ where: { propertyId, isActive: true, availabilityStatus: 'AVAILABLE' } }) : Promise.resolve(0),
+      propertyId ? db.room.count({ where: { propertyId, isActive: true, housekeepingStatus: 'DIRTY' } }) : Promise.resolve(0),
+      propertyId ? db.room.count({ where: { propertyId, isActive: true, housekeepingStatus: 'CLEANING' } }) : Promise.resolve(0),
+      propertyId ? db.room.count({ where: { propertyId, isActive: true, maintenanceStatus: 'UNDER_MAINTENANCE' } }) : Promise.resolve(0),
+      propertyId ? db.room.count({ where: { propertyId, isActive: true, availabilityStatus: 'BLOCKED' } }) : Promise.resolve(0),
+      propertyId
+        ? db.reservation.count({
+            where: {
+              propertyId,
+              arrivalDate: { gte: startOfDay, lte: endOfDay },
+              status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+            },
+          })
+        : Promise.resolve(0),
+      propertyId
+        ? db.reservation.count({
+            where: {
+              propertyId,
+              departureDate: { gte: startOfDay, lte: endOfDay },
+              status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
+            },
+          })
+        : Promise.resolve(0),
+      propertyId
+        ? db.payment.aggregate({
+            where: {
+              propertyId,
+              date: { gte: startOfDay, lte: endOfDay },
+            },
+            _sum: { amount: true },
+          })
+        : Promise.resolve({ _sum: { amount: 0 } }),
+      propertyId
+        ? db.room.findMany({
+            where: { propertyId, isActive: true },
+            select: {
+              id: true,
+              roomNumber: true,
+              floor: true,
+              availabilityStatus: true,
+              housekeepingStatus: true,
+              maintenanceStatus: true,
+              roomType: { select: { code: true, name: true } },
+              reservations: {
+                where: { status: 'CHECKED_IN' },
+                select: { guest: { select: { displayName: true } } },
+                take: 1,
+              },
+            },
+            orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }],
+            take: 12,
+          })
+        : Promise.resolve([]),
+      db.auditLog.findMany({
+        where: { organizationId: session.organizationId },
+        include: {
+          user: { select: { fullName: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+      }),
+    ]);
 
     const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
-
-    const todayArrivals = propertyId
-      ? await db.reservation.count({
-          where: {
-            propertyId,
-            arrivalDate: { gte: startOfDay, lte: endOfDay },
-            status: { in: ['CONFIRMED', 'CHECKED_IN'] },
-          },
-        })
-      : 0;
-
-    const todayDepartures = propertyId
-      ? await db.reservation.count({
-          where: {
-            propertyId,
-            departureDate: { gte: startOfDay, lte: endOfDay },
-            status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
-          },
-        })
-      : 0;
-
-    const todayPaymentsAgg = propertyId
-      ? await db.payment.aggregate({
-          where: {
-            propertyId,
-            date: { gte: startOfDay, lte: endOfDay },
-          },
-          _sum: { amount: true },
-        })
-      : { _sum: { amount: 0 } };
-
     const todayRevenue = todayPaymentsAgg._sum.amount || 0;
-
-    const roomsList = propertyId
-      ? await db.room.findMany({
-          where: { propertyId, isActive: true },
-          select: {
-            id: true,
-            roomNumber: true,
-            floor: true,
-            availabilityStatus: true,
-            housekeepingStatus: true,
-            maintenanceStatus: true,
-            roomType: { select: { code: true, name: true } },
-            reservations: {
-              where: { status: 'CHECKED_IN' },
-              select: { guest: { select: { displayName: true } } },
-              take: 1,
-            },
-          },
-          orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }],
-          take: 12,
-        })
-      : [];
-
-    const recentActivity = await db.auditLog.findMany({
-      where: { organizationId: session.organizationId },
-      include: {
-        user: { select: { fullName: true, email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 8,
-    });
 
     const systemAlerts = [];
     if (totalUsers === 1) {

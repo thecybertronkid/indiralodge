@@ -9,7 +9,11 @@ export async function GET() {
     const session = await getCurrentUser();
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const propertyId = session.propertyId || (await db.property.findFirst({ where: { organizationId: session.organizationId } }))?.id;
+    let propertyId = session.propertyId;
+    if (!propertyId) {
+      const prop = await db.property.findFirst({ where: { organizationId: session.organizationId }, select: { id: true } });
+      propertyId = prop?.id || null;
+    }
     if (!propertyId) return NextResponse.json({ error: 'No active property found' }, { status: 400 });
 
     const roomTypes = await db.roomType.findMany({

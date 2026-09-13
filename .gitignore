@@ -32,3 +32,7 @@ next-env.d.ts
 # SQLite Database journal
 prisma/*.db-journal
 prisma/*.db
+
+# Database export seeds
+supabase_seed.sql
+

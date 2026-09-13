@@ -40,23 +40,22 @@ export default function DashboardPage() {
     else if (hour < 17) setGreeting('Good afternoon');
     else setGreeting('Good evening');
 
-    const loadUserData = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const res = await fetch('/api/auth/me');
-        if (res.ok) {
-          const uData = await res.json();
+        const [resAuth, resStats] = await Promise.all([
+          fetch('/api/auth/me'),
+          fetch('/api/dashboard/stats'),
+        ]);
+
+        if (resAuth.ok) {
+          const uData = await resAuth.json();
           if (uData.user?.fullName) {
             setUserName(uData.user.fullName);
           }
         }
-      } catch (e) {}
-    };
 
-    const fetchStats = async () => {
-      try {
-        const res = await fetch('/api/dashboard/stats');
-        if (res.ok) {
-          const result = await res.json();
+        if (resStats.ok) {
+          const result = await resStats.json();
           setData(result);
         }
       } catch (e) {
@@ -66,8 +65,7 @@ export default function DashboardPage() {
       }
     };
 
-    loadUserData();
-    fetchStats();
+    fetchDashboardData();
   }, [showToast]);
 
   const kpiCards = [
