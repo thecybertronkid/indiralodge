@@ -420,5 +420,89 @@
   color: #fca5a5 !important;
 }
 
+/* Global Hover Inversion Rules for Table Rows & Fields */
+.theme-ayan tr:hover,
+.theme-ayan tbody tr:hover,
+.theme-ayan .pmfs-table-td:hover,
+.theme-ayan tr:hover .pmfs-table-td,
+.theme-ayan tr:hover td {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.theme-ayan tr:hover td *,
+.theme-ayan tr:hover th *,
+.theme-ayan tr:hover .text-slate-900,
+.theme-ayan tr:hover .text-slate-800,
+.theme-ayan tr:hover .text-slate-700,
+.theme-ayan tr:hover .text-slate-600,
+.theme-ayan tr:hover .text-slate-500,
+.theme-ayan tr:hover .text-slate-400,
+.theme-ayan tr:hover .text-gray-900,
+.theme-ayan tr:hover .text-gray-800,
+.theme-ayan tr:hover .text-gray-700,
+.theme-ayan tr:hover .text-gray-600,
+.theme-ayan tr:hover .text-gray-500,
+.theme-ayan tr:hover .text-gray-400,
+.theme-ayan tr:hover .text-zinc-900,
+.theme-ayan tr:hover .text-zinc-800,
+.theme-ayan tr:hover .text-zinc-700,
+.theme-ayan tr:hover .text-zinc-600,
+.theme-ayan tr:hover .text-zinc-500,
+.theme-ayan tr:hover .text-zinc-400,
+.theme-ayan tr:hover .text-white,
+.theme-ayan tr:hover span,
+.theme-ayan tr:hover div,
+.theme-ayan tr:hover p,
+.theme-ayan tr:hover strong,
+.theme-ayan tr:hover b {
+  color: #000000 !important;
+}
+
+.theme-ayan tr:hover span.bg-brand-50,
+.theme-ayan tr:hover .bg-brand-50,
+.theme-ayan tr:hover [class*="bg-brand-50"] {
+  background-color: #fee2e2 !important;
+  border-color: #ef4444 !important;
+  color: #991b1b !important;
+}
+
+.theme-ayan tr:hover .text-rose-600,
+.theme-ayan tr:hover .text-rose-700,
+.theme-ayan tr:hover .text-red-600,
+.theme-ayan tr:hover .text-red-700 {
+  color: #dc2626 !important;
+  font-weight: 800 !important;
+}
+
+.theme-ayan tr:hover .text-emerald-600,
+.theme-ayan tr:hover .text-emerald-700,
+.theme-ayan tr:hover .text-emerald-800 {
+  color: #059669 !important;
+  font-weight: 800 !important;
+}
+
+.theme-ayan .hover\:bg-white:hover,
+.theme-ayan .hover\:bg-slate-50:hover,
+.theme-ayan .hover\:bg-slate-100:hover,
+.theme-ayan .hover\:bg-gray-50:hover,
+.theme-ayan .hover\:bg-gray-100:hover,
+.theme-ayan .hover\:bg-zinc-50:hover,
+.theme-ayan .hover\:bg-zinc-100:hover {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.theme-ayan .hover\:bg-white:hover *,
+.theme-ayan .hover\:bg-slate-50:hover *,
+.theme-ayan .hover\:bg-slate-100:hover *,
+.theme-ayan .hover\:bg-gray-50:hover *,
+.theme-ayan .hover\:bg-gray-100:hover *,
+.theme-ayan .hover\:bg-zinc-50:hover *,
+.theme-ayan .hover\:bg-zinc-100:hover * {
+  color: #000000 !important;
+}
+
+
 
 
