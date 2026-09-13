@@ -2012,19 +2012,11 @@ export default function FrontOfficePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
               <div className="space-y-1.5">
                 <div className="flex justify-between text-slate-300">
-                  <span>Nightly Tariff ({selectedWalkinRoomType?.name}):</span>
+                  <span>Standard Tariff ({selectedWalkinRoomType?.name}):</span>
                   <span className="font-mono font-bold">₹{walkinPricePerNight} / night</span>
                 </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>Stay Duration:</span>
-                  <span className="font-mono font-bold">{walkinDaysStayed} Night(s)</span>
-                </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>Room Subtotal:</span>
-                  <span className="font-mono font-bold">₹{walkinRoomSubtotal.toFixed(2)}</span>
-                </div>
                 <div className="flex justify-between items-center text-rose-300">
-                  <span>Discount Applied (₹):</span>
+                  <span>Discount Given (₹):</span>
                   <input
                     type="number"
                     min="0"
@@ -2032,6 +2024,20 @@ export default function FrontOfficePage() {
                     onChange={(e) => setWalkinForm({ ...walkinForm, discountAmount: e.target.value })}
                     className="w-24 px-2 py-1 bg-slate-800 border border-slate-600 rounded text-right font-mono text-white text-xs"
                   />
+                </div>
+                {walkinDiscountVal > 0 && (
+                  <div className="flex justify-between text-emerald-300 font-semibold bg-emerald-950/50 px-2 py-1 rounded border border-emerald-700/50 text-[11px]">
+                    <span>Effective Base Price:</span>
+                    <span className="font-mono font-bold">₹{(walkinTotalPrice / walkinDaysStayed).toFixed(2)} / night</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-slate-300">
+                  <span>Stay Duration:</span>
+                  <span className="font-mono font-bold">{walkinDaysStayed} Night(s)</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Room Tariff Total:</span>
+                  <span className="font-mono font-bold">₹{walkinTotalPrice.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-400/90 text-[11px]">
                   <span>GST Tax (5%):</span>

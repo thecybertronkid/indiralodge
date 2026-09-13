@@ -114,12 +114,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // Action: Update Booking Details Before Billing
     if (action === 'update_booking') {
       const { discountAmount, specialRequests, roomRate } = body;
+      let newRoomRate = roomRate !== undefined ? parseFloat(roomRate || '0') : reservation.roomRate;
+      const discountVal = discountAmount !== undefined ? parseFloat(discountAmount || '0') : 0;
+      
+      if (discountVal > 0 && reservation.nights > 0) {
+        const totalTariff = Math.max(0, (newRoomRate * reservation.nights) - discountVal);
+        newRoomRate = Math.round((totalTariff / reservation.nights) * 100) / 100;
+      }
+
+      const totalAmount = newRoomRate * reservation.nights;
+      const balanceAmount = Math.max(0, totalAmount - reservation.paidAmount);
+
       const updated = await db.reservation.update({
         where: { id: reservationId },
         data: {
-          ...(discountAmount !== undefined ? { discountAmount: parseFloat(discountAmount || '0') } : {}),
+          roomRate: newRoomRate,
+          discountAmount: 0,
+          totalAmount,
+          balanceAmount,
           ...(specialRequests !== undefined ? { specialRequests: specialRequests ? specialRequests.trim() : null } : {}),
-          ...(roomRate !== undefined ? { roomRate: parseFloat(roomRate || '0') } : {}),
         },
       });
 

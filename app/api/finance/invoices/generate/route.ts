@@ -111,11 +111,15 @@ export async function POST(req: Request) {
     ) || [];
 
     // Calculate Financial Breakdown (Room rates are GST-inclusive)
-    const roomCharges = reservation.roomRate * reservation.nights;
+    // If a discount was attached to the reservation, absorb it into the effective nightly base rate so the discounted price becomes the base price on the bill
+    const rawDiscount = reservation.discountAmount || 0;
+    const effectiveTotalRoomTariff = Math.max(0, (reservation.roomRate * reservation.nights) - rawDiscount);
+    const effectiveNightlyRate = reservation.nights > 0 ? Math.round((effectiveTotalRoomTariff / reservation.nights) * 100) / 100 : reservation.roomRate;
+    const roomCharges = effectiveNightlyRate * reservation.nights;
     const extraChargesTotal = extraCharges.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
     const grossSubtotal = roomCharges + extraChargesTotal;
-    const discount = reservation.discountAmount || 0;
-    const netTotal = Math.max(0, grossSubtotal - discount);
+    const discount = 0; // Discounted rate is now the base price
+    const netTotal = grossSubtotal;
 
     let cgstAmount = 0;
     let sgstAmount = 0;
@@ -141,7 +145,7 @@ export async function POST(req: Request) {
         description: `Accommodation Charges (${reservation.roomType.name} - Room ${reservation.assignedRoom?.roomNumber || 'N/A'}) x ${reservation.nights} Night${reservation.nights > 1 ? 's' : ''}`,
         hsnSacCode: '996311',
         quantity: reservation.nights,
-        unitPrice: reservation.roomRate,
+        unitPrice: effectiveNightlyRate,
         taxableAmount: isGst ? Math.round((roomCharges / 1.05) * 100) / 100 : roomCharges,
         cgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.05) * 100) / 100) / 2) * 100) / 100 : 0,
         sgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.05) * 100) / 100) / 2) * 100) / 100 : 0,
@@ -210,6 +214,8 @@ export async function POST(req: Request) {
         billType: isGst ? 'GST' : 'NON_GST',
         billedAt: new Date(),
         billedInvoiceId: invoice.id,
+        roomRate: effectiveNightlyRate,
+        discountAmount: 0,
         taxAmount: cgstAmount + sgstAmount,
         totalAmount,
       },

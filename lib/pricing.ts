@@ -54,13 +54,15 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
     roomType.baseRate
   );
 
-  const baseRate = input.customRoomRate != null ? input.customRoomRate : calculatedNightlyRate;
+  const standardNightlyRate = input.customRoomRate != null ? input.customRoomRate : calculatedNightlyRate;
+  const rawSubtotal = standardNightlyRate * nights;
+  const rawDiscount = input.discountAmount ? Math.min(rawSubtotal, Math.max(0, input.discountAmount)) : 0;
+  const totalAmount = Math.max(0, rawSubtotal - rawDiscount);
 
-  const roomTotal = baseRate * nights;
-  const subtotal = roomTotal;
-
-  const discountAmount = input.discountAmount ? Math.min(subtotal, Math.max(0, input.discountAmount)) : 0;
-  const totalAmount = Math.max(0, subtotal - discountAmount);
+  // When a discounted price is given during check-in or booking, that discounted price becomes the base price for this stay
+  const baseRate = nights > 0 ? Math.round((totalAmount / nights) * 100) / 100 : standardNightlyRate;
+  const subtotal = baseRate * nights;
+  const discountAmount = 0;
 
   // Since room rates are GST-inclusive, taxable base and GST are extracted from the total
   const taxableAmount = Math.round((totalAmount / (1 + taxRate / 100)) * 100) / 100;
