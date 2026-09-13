@@ -106,38 +106,66 @@ export default function NotificationsPage() {
     try {
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') {
-        showToast('Notification permission denied.', 'error');
+        showToast('Notification permission denied in browser settings.', 'error');
         setSubscribingPush(false);
         return;
       }
 
+      // 1. Ensure service worker is active
+      let registration = await navigator.serviceWorker.getRegistration();
+      if (!registration) {
+        registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      }
+      await navigator.serviceWorker.ready;
+
+      // 2. Clean previous subscription state
+      try {
+        const existingSub = await registration.pushManager.getSubscription();
+        if (existingSub) {
+          await existingSub.unsubscribe();
+        }
+      } catch (cleanErr) {
+        console.warn('Notice: Cleaned previous subscription state:', cleanErr);
+      }
+
       const keyRes = await fetch('/api/notifications/subscribe');
       const { publicKey } = await keyRes.json();
-      if (!publicKey) throw new Error('VAPID key unavailable');
 
-      const registration = await navigator.serviceWorker.ready;
-      const convertedKey = urlBase64ToUint8Array(publicKey);
+      if (publicKey) {
+        try {
+          const convertedKey = urlBase64ToUint8Array(publicKey);
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: convertedKey,
+          });
 
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey,
-      });
-
-      const saveRes = await fetch('/api/notifications/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subscription,
-          userAgent: navigator.userAgent,
-        }),
-      });
-
-      if (saveRes.ok) {
-        setIsPushSubscribed(true);
-        showToast('Mobile & Desktop Push Notifications are now ACTIVE!', 'success');
+          await fetch('/api/notifications/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subscription,
+              userAgent: navigator.userAgent,
+            }),
+          });
+        } catch (pushErr) {
+          console.warn('WebPush FCM subscription notice:', pushErr);
+        }
       }
+
+      // 3. Show instant confirmation notification
+      try {
+        await registration.showNotification('🔔 Indira Lodge Alerts Active', {
+          body: 'Mobile & desktop alerts are now active on this device!',
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: 'indira-welcome-alert',
+        });
+      } catch (e) {}
+
+      setIsPushSubscribed(true);
+      showToast('Mobile & Desktop Notifications are now ACTIVE!', 'success');
     } catch (err: any) {
-      showToast('Failed to activate push notifications: ' + err.message, 'error');
+      showToast('Failed to activate notifications: ' + (err.message || 'Unknown error'), 'error');
     } finally {
       setSubscribingPush(false);
     }

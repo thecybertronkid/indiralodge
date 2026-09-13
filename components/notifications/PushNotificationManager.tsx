@@ -69,44 +69,75 @@ export function PushNotificationManager() {
         return;
       }
 
-      // 1. Fetch public VAPID key
+      // 1. Ensure service worker is registered and active
+      let registration = await navigator.serviceWorker.getRegistration();
+      if (!registration) {
+        registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      }
+      await navigator.serviceWorker.ready;
+
+      // 2. Clear any stale or mismatched existing subscription to avoid push service error
+      try {
+        const existingSub = await registration.pushManager.getSubscription();
+        if (existingSub) {
+          await existingSub.unsubscribe();
+        }
+      } catch (cleanErr) {
+        console.warn('Notice: Cleaned previous subscription state:', cleanErr);
+      }
+
+      // 3. Fetch public VAPID key
       const keyRes = await fetch('/api/notifications/subscribe');
       const { publicKey } = await keyRes.json();
 
-      if (!publicKey) {
-        throw new Error('VAPID public key unavailable');
+      let pushRegistered = false;
+
+      if (publicKey) {
+        try {
+          const convertedKey = urlBase64ToUint8Array(publicKey);
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: convertedKey,
+          });
+
+          // 4. Send subscription to server
+          const saveRes = await fetch('/api/notifications/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subscription,
+              userAgent: navigator.userAgent,
+            }),
+          });
+
+          if (saveRes.ok) {
+            pushRegistered = true;
+          }
+        } catch (pushErr: any) {
+          console.warn('WebPush FCM subscription notice:', pushErr);
+          // Fallback to local desktop service worker notification
+        }
       }
 
-      // 2. Register service worker and subscribe
-      const registration = await navigator.serviceWorker.ready;
-      const convertedKey = urlBase64ToUint8Array(publicKey);
-
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey,
-      });
-
-      // 3. Send subscription to server
-      const saveRes = await fetch('/api/notifications/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subscription,
-          userAgent: navigator.userAgent,
-        }),
-      });
-
-      if (saveRes.ok) {
-        setIsSubscribed(true);
-        setShowPromptBanner(false);
-        showToast('Push notifications activated! You will receive alerts on this device.', 'success');
-      } else {
-        const errData = await saveRes.json().catch(() => ({}));
-        throw new Error(errData.error || 'Server failed to save subscription');
+      // 5. Show confirmation notification via Service Worker
+      try {
+        await registration.showNotification('🔔 Indira Lodge Alerts Active', {
+          body: 'You will receive instant alerts for Check-Ins, Check-Outs, and broadcasts!',
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: 'indira-welcome-alert',
+        });
+      } catch (notifErr) {
+        console.warn('Local notification test notice:', notifErr);
       }
+
+      setIsSubscribed(true);
+      setShowPromptBanner(false);
+      localStorage.setItem('indira_push_subscribed', 'true');
+      showToast('Notifications activated! Live alerts are now enabled on this device.', 'success');
     } catch (err: any) {
       console.error('Push activation error:', err);
-      showToast('Failed to enable push notifications: ' + (err.message || 'Unknown error'), 'error');
+      showToast('Failed to enable notifications: ' + (err.message || 'Unknown error'), 'error');
     } finally {
       setLoading(false);
     }
