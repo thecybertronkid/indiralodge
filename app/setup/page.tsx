@@ -16,14 +16,14 @@ export default function SetupPage() {
   // Form State
   const [form, setForm] = useState({
     hotelName: 'Indira Lodge',
-    address: 'GS Road, Dispur',
-    city: 'Guwahati',
+    address: 'Solicitor Lodge, Near ASTC, Malow Ali',
+    city: 'Jorhat',
     state: 'Assam',
     country: 'India',
     zipCode: '781005',
-    phone: '+91 98765 43210',
+    phone: '+91 70028 90165',
     email: 'info@indiralodge.com',
-    gstin: '18AABCI1234H1Z5',
+    gstin: '18AOIPB2857A1ZB',
     currency: 'INR',
     timezone: 'Asia/Kolkata',
     adminFullName: '',

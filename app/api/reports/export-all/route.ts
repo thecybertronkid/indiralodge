@@ -96,9 +96,10 @@ export async function GET(req: Request) {
       const textBill = `
 ================================================================
 INDIRA LODGE - ${inv.invoiceType === 'GST' ? 'TAX INVOICE' : 'HOTEL RECEIPT'}
+Address: Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005
+Phone: +91 70028 90165 | Property GSTIN: 18AOIPB2857A1ZB
 Ref: ${inv.invoiceRef} | Date: ${new Date(inv.invoiceDate).toLocaleDateString('en-IN')}
 ================================================================
-Property GSTIN: 18AABCU9603R1ZM
 Customer Name : ${inv.guest?.displayName || 'Guest'}
 Phone Number  : ${inv.guest?.phone || 'N/A'}
 Guest GSTIN   : ${inv.customerGstin || 'Unregistered / B2C'}
@@ -106,7 +107,7 @@ Guest GSTIN   : ${inv.customerGstin || 'Unregistered / B2C'}
 Subtotal Amount  : INR ${inv.subtotal.toFixed(2)}
 Discount Applied : - INR ${inv.discount.toFixed(2)}
 Taxable Subtotal : INR ${(inv.subtotal - inv.discount).toFixed(2)}
-${inv.invoiceType === 'GST' ? `CGST Rate (9%)   : INR ${inv.cgstAmount.toFixed(2)}\nSGST Rate (9%)   : INR ${inv.sgstAmount.toFixed(2)}` : 'Tax Status       : Non-GST / Tax Exempt Receipt'}
+${inv.invoiceType === 'GST' ? `CGST Rate (2.5%) : INR ${inv.cgstAmount.toFixed(2)}\nSGST Rate (2.5%) : INR ${inv.sgstAmount.toFixed(2)}` : 'Tax Status       : Non-GST / Tax Exempt Receipt'}
 ----------------------------------------------------------------
 GRAND TOTAL      : INR ${inv.totalAmount.toFixed(2)}
 ================================================================

@@ -24,20 +24,20 @@ export default function SettingsPage() {
 
   const [form, setForm] = useState({
     name: 'Indira Lodge',
-    address: 'GS Road, Dispur',
-    city: 'Guwahati',
+    address: 'Solicitor Lodge, Near ASTC, Malow Ali',
+    city: 'Jorhat',
     state: 'Assam',
     country: 'India',
     zipCode: '781005',
-    phone: '+91 98765 43210',
+    phone: '+91 70028 90165',
     email: 'info@indiralodge.com',
-    gstin: '18AABCI1234H1Z5',
+    gstin: '18AOIPB2857A1ZB',
     currency: 'INR',
     timezone: 'Asia/Kolkata',
     dateFormat: 'DD/MM/YYYY',
     timeFormat: '12H',
     taxInclusive: false,
-    defaultTaxRate: 18.0,
+    defaultTaxRate: 5.0,
   });
 
   useEffect(() => {
