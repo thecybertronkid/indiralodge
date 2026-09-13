@@ -143,40 +143,109 @@
   background: #dc2626;
 }
 
-.theme-ayan .pmfs-card {
-  background-color: rgba(9, 9, 11, 0.95) !important;
-  border-color: rgba(39, 39, 42, 0.8) !important;
+/* Crystal Clear High-Contrast Typography */
+.theme-ayan h1,
+.theme-ayan h2,
+.theme-ayan h3,
+.theme-ayan h4,
+.theme-ayan h5,
+.theme-ayan h6 {
   color: #ffffff !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+.theme-ayan .text-slate-900,
+.theme-ayan .text-slate-800,
+.theme-ayan .text-slate-700,
+.theme-ayan .text-gray-900,
+.theme-ayan .text-gray-800,
+.theme-ayan .text-gray-700,
+.theme-ayan .text-zinc-900,
+.theme-ayan .text-zinc-800 {
+  color: #ffffff !important;
+}
+
+.theme-ayan .text-slate-600,
+.theme-ayan .text-slate-500,
+.theme-ayan .text-gray-600,
+.theme-ayan .text-gray-500 {
+  color: #d4d4d8 !important;
+}
+
+.theme-ayan .text-slate-400,
+.theme-ayan .text-gray-400 {
+  color: #a1a1aa !important;
+}
+
+.theme-ayan .text-brand-600,
+.theme-ayan .text-brand-700 {
+  color: #f87171 !important;
+}
+
+/* Stunning Glassmorphic Cards & Panels */
+.theme-ayan .bg-white {
+  background-color: rgba(9, 9, 11, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-color: rgba(63, 63, 70, 0.6) !important;
+  color: #ffffff !important;
+}
+
+.theme-ayan .bg-slate-50,
+.theme-ayan .bg-slate-100,
+.theme-ayan .bg-gray-50,
+.theme-ayan .bg-gray-100 {
+  background-color: rgba(18, 18, 22, 0.75) !important;
+  backdrop-filter: blur(16px) !important;
+  border-color: rgba(63, 63, 70, 0.5) !important;
+  color: #ffffff !important;
+}
+
+.theme-ayan .border-slate-100,
+.theme-ayan .border-slate-200,
+.theme-ayan .border-slate-300,
+.theme-ayan .border-gray-100,
+.theme-ayan .border-gray-200 {
+  border-color: rgba(63, 63, 70, 0.5) !important;
+}
+
+.theme-ayan .pmfs-card {
+  background-color: rgba(9, 9, 11, 0.88) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border-color: rgba(63, 63, 70, 0.6) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
 }
 
 .theme-ayan .pmfs-card:hover {
-  border-color: rgba(220, 38, 38, 0.5) !important;
-  box-shadow: 0 10px 30px rgba(220, 38, 38, 0.15) !important;
+  border-color: rgba(220, 38, 38, 0.6) !important;
+  box-shadow: 0 15px 35px rgba(220, 38, 38, 0.2) !important;
 }
 
 .theme-ayan .pmfs-card-static {
-  background-color: rgba(9, 9, 11, 0.95) !important;
-  border-color: rgba(39, 39, 42, 0.8) !important;
+  background-color: rgba(9, 9, 11, 0.88) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border-color: rgba(63, 63, 70, 0.6) !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
 }
 
 .theme-ayan .pmfs-table-th {
-  background-color: rgba(9, 9, 11, 0.98) !important;
-  border-color: rgba(39, 39, 42, 0.9) !important;
-  color: #f43f5e !important;
+  background-color: rgba(12, 12, 15, 0.95) !important;
+  border-color: rgba(63, 63, 70, 0.8) !important;
+  color: #f87171 !important;
 }
 
 .theme-ayan .pmfs-table-td {
-  border-color: rgba(24, 24, 27, 0.9) !important;
+  border-color: rgba(39, 39, 42, 0.8) !important;
   color: #e4e4e7 !important;
 }
 
 .theme-ayan input:not([type="checkbox"]):not([type="radio"]),
 .theme-ayan select,
 .theme-ayan textarea {
-  background-color: rgba(18, 18, 20, 0.9) !important;
+  background-color: rgba(18, 18, 22, 0.9) !important;
   border-color: rgba(63, 63, 70, 0.7) !important;
   color: #ffffff !important;
 }
@@ -185,13 +254,48 @@
 .theme-ayan select:focus,
 .theme-ayan textarea:focus {
   border-color: #dc2626 !important;
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.25) !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3) !important;
 }
 
 .theme-ayan .glass-panel {
-  background-color: rgba(9, 9, 11, 0.85) !important;
-  border-color: rgba(63, 63, 70, 0.4) !important;
+  background-color: rgba(9, 9, 11, 0.8) !important;
+  backdrop-filter: blur(24px) !important;
+  border-color: rgba(63, 63, 70, 0.5) !important;
   color: #ffffff !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8) !important;
 }
+
+/* Glassmorphic Navigation Tabs */
+.glass-tab-container {
+  background: rgba(9, 9, 11, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(63, 63, 70, 0.6);
+  border-radius: 1rem;
+  padding: 0.35rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+}
+
+.glass-tab-active {
+  background: linear-gradient(135deg, #dc2626 0%, #be123c 100%) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  border-radius: 0.75rem !important;
+}
+
+.glass-tab-inactive {
+  color: #a1a1aa !important;
+  border: 1px solid transparent !important;
+  border-radius: 0.75rem !important;
+  transition: all 0.2s ease !important;
+}
+
+.glass-tab-inactive:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
 
