@@ -353,14 +353,14 @@ export default function NewReservationPage() {
               />
             </div>
 
-            {/* 3. Email ID */}
+            {/* 3. Email ID (Optional) */}
             <div>
-              <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Email Address</label>
+              <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Email Address (Optional)</label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="rahul@example.com"
+                placeholder="e.g. guest@example.com (Optional)"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>

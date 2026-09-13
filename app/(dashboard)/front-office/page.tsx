@@ -101,6 +101,8 @@ export default function FrontOfficePage() {
     arrivalDate: new Date().toISOString().split('T')[0],
     // 6. Arrival Time
     arrivalTime: getCurrentTimeString(),
+    // AC Preference: 'NON_AC' | 'AC'
+    acPreference: 'NON_AC' as 'NON_AC' | 'AC',
     // 7. Room Type
     roomTypeId: '',
     // 8. Room No (Physical Room ID)
@@ -154,6 +156,60 @@ export default function FrontOfficePage() {
   const [matchedGuests, setMatchedGuests] = useState<any[]>([]);
   const [selectedGuestProfile, setSelectedGuestProfile] = useState<any>(null);
 
+  // Helper to detect if a room type is AC or Non-AC
+  const isAcRoomType = (rt: any) => {
+    const code = (rt?.code || '').toUpperCase().trim();
+    const name = (rt?.name || '').toUpperCase().trim();
+    if (
+      code.includes('-NAC') ||
+      code.includes('NON') ||
+      name.includes('NON-AC') ||
+      name.includes('NON AC') ||
+      name.includes('NON-AIR') ||
+      name.includes('NON AIR')
+    ) {
+      return false;
+    }
+    if (
+      code.includes('-AC') ||
+      code.endsWith('AC') ||
+      name.includes(' AC') ||
+      name.includes('(AC)') ||
+      name.includes('AIR CONDITION')
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  // Helper to toggle AC / Non-AC and instantly auto-select the best matching room type
+  const handleAcPreferenceToggle = (pref: 'NON_AC' | 'AC') => {
+    const wantAc = pref === 'AC';
+    const candidateTypes = roomTypes.filter((rt) => (wantAc ? isAcRoomType(rt) : !isAcRoomType(rt)));
+    const pool = candidateTypes.length > 0 ? candidateTypes : roomTypes;
+
+    const nAdults = parseInt(walkinForm.adults || '1', 10);
+    const nChildren = parseInt(walkinForm.children || '0', 10);
+    let preferredBedType = 'Single Bed';
+    if (nAdults >= 3 || (nAdults === 2 && nChildren >= 3) || nAdults + nChildren > 4) {
+      preferredBedType = 'Triple Bed';
+    } else if (nAdults === 2 || (nAdults === 1 && nChildren >= 2) || nAdults + nChildren > 2) {
+      preferredBedType = 'Double Bed';
+    }
+
+    const matchedType =
+      pool.find((rt) => rt.bedType === preferredBedType) ||
+      pool.find((rt) => (rt.adultsCapacity || 2) >= nAdults) ||
+      pool[0];
+
+    setWalkinForm((prev) => ({
+      ...prev,
+      acPreference: pref,
+      roomTypeId: matchedType?.id || prev.roomTypeId,
+      roomId: '',
+    }));
+  };
+
   // Phone number formatter (+91 XXXXX XXXXX)
   const handleWalkinPhoneChange = (val: string) => {
     let clean = val;
@@ -191,7 +247,7 @@ export default function FrontOfficePage() {
     fetchRoomTypes();
   }, []);
 
-  // Smart Bed Category Auto-Selection based on Adults & Children
+  // Smart Bed Category & AC Preference Auto-Selection based on Adults, Children, and AC Toggle
   useEffect(() => {
     if (!roomTypes || roomTypes.length === 0 || !isWalkinOpen) return;
 
@@ -199,21 +255,25 @@ export default function FrontOfficePage() {
     const nChildren = parseInt(walkinForm.children || '0', 10);
 
     let preferredBedType = 'Single Bed';
-    if (nAdults >= 3 || (nAdults === 2 && nChildren >= 3) || (nAdults + nChildren) > 4) {
+    if (nAdults >= 3 || (nAdults === 2 && nChildren >= 3) || nAdults + nChildren > 4) {
       preferredBedType = 'Triple Bed';
-    } else if (nAdults === 2 || (nAdults === 1 && nChildren >= 2) || (nAdults + nChildren) > 2) {
+    } else if (nAdults === 2 || (nAdults === 1 && nChildren >= 2) || nAdults + nChildren > 2) {
       preferredBedType = 'Double Bed';
     }
 
+    const wantAc = walkinForm.acPreference === 'AC';
+    const candidateTypes = roomTypes.filter((rt) => (wantAc ? isAcRoomType(rt) : !isAcRoomType(rt)));
+    const pool = candidateTypes.length > 0 ? candidateTypes : roomTypes;
+
     const matchedType =
-      roomTypes.find((rt) => rt.bedType === preferredBedType) ||
-      roomTypes.find((rt) => (rt.adultsCapacity || 2) >= nAdults) ||
-      roomTypes[0];
+      pool.find((rt) => rt.bedType === preferredBedType) ||
+      pool.find((rt) => (rt.adultsCapacity || 2) >= nAdults) ||
+      pool[0];
 
     if (matchedType && matchedType.id !== walkinForm.roomTypeId) {
       setWalkinForm((prev) => ({ ...prev, roomTypeId: matchedType.id, roomId: '' }));
     }
-  }, [walkinForm.adults, walkinForm.children, roomTypes, isWalkinOpen]);
+  }, [walkinForm.adults, walkinForm.children, walkinForm.acPreference, roomTypes, isWalkinOpen]);
 
   // Fetch Available Rooms & Auto-allocate Physical Room Number for Walk-in
   useEffect(() => {
@@ -561,6 +621,7 @@ export default function FrontOfficePage() {
       state: '',
       arrivalDate: todayStr,
       arrivalTime: getCurrentTimeString(),
+      acPreference: 'NON_AC',
       roomTypeId: initialRoomTypeId,
       roomId: '',
       departureDate: tomorrowStr,
@@ -1613,14 +1674,14 @@ export default function FrontOfficePage() {
                 />
               </div>
 
-              {/* 3. Email ID */}
+              {/* 3. Email ID (Optional) */}
               <div>
-                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Email ID</label>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Email ID (Optional)</label>
                 <input
                   type="email"
                   value={walkinForm.email}
                   onChange={(e) => setWalkinForm({ ...walkinForm, email: e.target.value })}
-                  placeholder="guest@example.com"
+                  placeholder="guest@example.com (Optional)"
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
@@ -1720,6 +1781,43 @@ export default function FrontOfficePage() {
               <BedDouble className="w-4 h-4 text-brand-600" />
               2. Stay Schedule & Room Allocation
             </h4>
+
+            {/* AC / Non-AC Comfort Preference Quick Toggle */}
+            <div className="p-3 bg-gradient-to-r from-slate-100 via-brand-50/50 to-slate-100 border border-slate-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div>
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                  Room Comfort Preference (AC / Non-AC)
+                </span>
+                <span className="text-[11px] text-slate-500 block">
+                  Automatically allocates suitable {walkinForm.acPreference === 'AC' ? 'Air Conditioned (AC)' : 'Standard Non-AC'} room for {walkinAdults} Adult{walkinAdults > 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="inline-flex rounded-lg p-1 bg-white border border-slate-200 shadow-xs self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleAcPreferenceToggle('NON_AC')}
+                  className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    walkinForm.acPreference === 'NON_AC'
+                      ? 'bg-slate-800 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>🌀 Non-AC</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAcPreferenceToggle('AC')}
+                  className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    walkinForm.acPreference === 'AC'
+                      ? 'bg-cyan-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>❄️ AC Room</span>
+                </button>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
               {/* 5. Arrival Date */}

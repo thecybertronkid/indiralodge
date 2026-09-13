@@ -64,16 +64,28 @@ export async function GET(req: Request) {
       db.reservation.findMany({
         where: {
           propertyId,
-          departureDate: { gte: startOfDay, lte: endOfDay },
-          status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
+          OR: [
+            {
+              departureDate: { gte: startOfDay, lte: endOfDay },
+              status: { in: ['CHECKED_IN', 'CONFIRMED'] },
+            },
+            {
+              actualCheckOutAt: { gte: startOfDay, lte: endOfDay },
+              status: 'CHECKED_OUT',
+            },
+            {
+              departureDate: { gte: startOfDay, lte: endOfDay },
+              status: 'CHECKED_OUT',
+            },
+          ],
         },
         include: {
-          guest: { select: { displayName: true, phone: true, guestRef: true } },
+          guest: { select: { displayName: true, phone: true, guestRef: true, gstin: true } },
           roomType: { select: { name: true, code: true } },
-          assignedRoom: { select: { roomNumber: true } },
-          folios: { select: { balanceAmount: true } },
+          assignedRoom: { select: { id: true, roomNumber: true } },
+          folios: { select: { id: true, folioNumber: true, balanceAmount: true, totalCharges: true, totalPayments: true } },
         },
-        orderBy: { departureDate: 'asc' },
+        orderBy: [{ actualCheckOutAt: 'desc' }, { departureDate: 'asc' }],
       }),
       db.reservation.findMany({
         where: {

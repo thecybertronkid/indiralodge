@@ -62,8 +62,20 @@ export async function GET() {
         ? db.reservation.count({
             where: {
               propertyId,
-              departureDate: { gte: startOfDay, lte: endOfDay },
-              status: { in: ['CHECKED_IN', 'CHECKED_OUT'] },
+              OR: [
+                {
+                  departureDate: { gte: startOfDay, lte: endOfDay },
+                  status: { in: ['CHECKED_IN', 'CONFIRMED'] },
+                },
+                {
+                  actualCheckOutAt: { gte: startOfDay, lte: endOfDay },
+                  status: 'CHECKED_OUT',
+                },
+                {
+                  departureDate: { gte: startOfDay, lte: endOfDay },
+                  status: 'CHECKED_OUT',
+                },
+              ],
             },
           })
         : Promise.resolve(0),
