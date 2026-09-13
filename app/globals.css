@@ -267,20 +267,20 @@
 
 /* Glassmorphic Navigation Tabs */
 .glass-tab-container {
-  background: rgba(9, 9, 11, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(9, 9, 11, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(63, 63, 70, 0.6);
   border-radius: 1rem;
   padding: 0.35rem;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7);
 }
 
 .glass-tab-active {
   background: linear-gradient(135deg, #dc2626 0%, #be123c 100%) !important;
   color: #ffffff !important;
   font-weight: 800 !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
   box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
   border-radius: 0.75rem !important;
 }
@@ -297,5 +297,128 @@
   background: rgba(255, 255, 255, 0.08) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
+
+/* Glassmorphic Colored Component Overrides */
+.theme-ayan .bg-emerald-50,
+.theme-ayan [class*="bg-emerald-50"] {
+  background-color: rgba(6, 78, 59, 0.28) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  color: #ffffff !important;
+}
+
+.theme-ayan .bg-rose-50,
+.theme-ayan .bg-red-50,
+.theme-ayan [class*="bg-rose-50"],
+.theme-ayan [class*="bg-red-50"] {
+  background-color: rgba(153, 27, 27, 0.28) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  color: #ffffff !important;
+}
+
+.theme-ayan .bg-blue-50,
+.theme-ayan [class*="bg-blue-50"] {
+  background-color: rgba(30, 58, 138, 0.28) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(59, 130, 246, 0.45) !important;
+  color: #ffffff !important;
+}
+
+.theme-ayan .bg-amber-50,
+.theme-ayan [class*="bg-amber-50"] {
+  background-color: rgba(120, 53, 15, 0.28) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(245, 158, 11, 0.45) !important;
+  color: #ffffff !important;
+}
+
+.theme-ayan .bg-purple-50,
+.theme-ayan [class*="bg-purple-50"] {
+  background-color: rgba(88, 28, 135, 0.28) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(168, 85, 247, 0.45) !important;
+  color: #ffffff !important;
+}
+
+.theme-ayan .bg-indigo-50,
+.theme-ayan .bg-teal-50,
+.theme-ayan [class*="bg-indigo-50"],
+.theme-ayan [class*="bg-teal-50"] {
+  background-color: rgba(49, 46, 129, 0.28) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(99, 102, 241, 0.45) !important;
+  color: #ffffff !important;
+}
+
+/* Colored Text High-Visibility Adaptations */
+.theme-ayan .text-emerald-950,
+.theme-ayan .text-emerald-900,
+.theme-ayan .text-emerald-800,
+.theme-ayan .text-emerald-700 {
+  color: #34d399 !important;
+}
+
+.theme-ayan .text-rose-950,
+.theme-ayan .text-rose-900,
+.theme-ayan .text-rose-800,
+.theme-ayan .text-rose-700,
+.theme-ayan .text-red-950,
+.theme-ayan .text-red-900,
+.theme-ayan .text-red-800,
+.theme-ayan .text-red-700 {
+  color: #f87171 !important;
+}
+
+.theme-ayan .text-blue-950,
+.theme-ayan .text-blue-900,
+.theme-ayan .text-blue-800,
+.theme-ayan .text-blue-700 {
+  color: #60a5fa !important;
+}
+
+.theme-ayan .text-amber-950,
+.theme-ayan .text-amber-900,
+.theme-ayan .text-amber-800,
+.theme-ayan .text-amber-700 {
+  color: #fbbf24 !important;
+}
+
+.theme-ayan .text-purple-950,
+.theme-ayan .text-purple-900,
+.theme-ayan .text-purple-800,
+.theme-ayan .text-purple-700 {
+  color: #c084fc !important;
+}
+
+/* Brand Buttons to Fiery Crimson Gradient */
+.theme-ayan .bg-brand-600,
+.theme-ayan button.bg-brand-600,
+.theme-ayan a.bg-brand-600 {
+  background-image: linear-gradient(135deg, #dc2626 0%, #be123c 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4) !important;
+}
+
+.theme-ayan .bg-brand-600:hover,
+.theme-ayan button.bg-brand-600:hover,
+.theme-ayan a.bg-brand-600:hover {
+  background-image: linear-gradient(135deg, #ef4444 0%, #e11d48 100%) !important;
+}
+
+.theme-ayan .bg-brand-50,
+.theme-ayan .bg-brand-100 {
+  background-color: rgba(153, 27, 27, 0.3) !important;
+  border-color: rgba(220, 38, 38, 0.45) !important;
+  color: #fca5a5 !important;
+}
+
 
 
