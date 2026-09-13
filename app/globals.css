@@ -121,3 +121,77 @@
 .glass-panel {
   @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-lg;
 }
+
+/* ==========================================================================
+   AMOLED Black + Red Gradient + White Luxury Theme for Ayan (@ayan@indiralodge)
+   ========================================================================== */
+.theme-ayan {
+  background-color: #000000 !important;
+  color: #ffffff;
+}
+
+.theme-ayan ::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+.theme-ayan ::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 9999px;
+}
+
+.theme-ayan ::-webkit-scrollbar-thumb:hover {
+  background: #dc2626;
+}
+
+.theme-ayan .pmfs-card {
+  background-color: rgba(9, 9, 11, 0.95) !important;
+  border-color: rgba(39, 39, 42, 0.8) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+.theme-ayan .pmfs-card:hover {
+  border-color: rgba(220, 38, 38, 0.5) !important;
+  box-shadow: 0 10px 30px rgba(220, 38, 38, 0.15) !important;
+}
+
+.theme-ayan .pmfs-card-static {
+  background-color: rgba(9, 9, 11, 0.95) !important;
+  border-color: rgba(39, 39, 42, 0.8) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+.theme-ayan .pmfs-table-th {
+  background-color: rgba(9, 9, 11, 0.98) !important;
+  border-color: rgba(39, 39, 42, 0.9) !important;
+  color: #f43f5e !important;
+}
+
+.theme-ayan .pmfs-table-td {
+  border-color: rgba(24, 24, 27, 0.9) !important;
+  color: #e4e4e7 !important;
+}
+
+.theme-ayan input:not([type="checkbox"]):not([type="radio"]),
+.theme-ayan select,
+.theme-ayan textarea {
+  background-color: rgba(18, 18, 20, 0.9) !important;
+  border-color: rgba(63, 63, 70, 0.7) !important;
+  color: #ffffff !important;
+}
+
+.theme-ayan input:focus,
+.theme-ayan select:focus,
+.theme-ayan textarea:focus {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.25) !important;
+}
+
+.theme-ayan .glass-panel {
+  background-color: rgba(9, 9, 11, 0.85) !important;
+  border-color: rgba(63, 63, 70, 0.4) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
+}
+

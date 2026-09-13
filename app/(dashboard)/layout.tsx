@@ -7,6 +7,8 @@ import { Header } from '@/components/layout/Header';
 import { PushNotificationManager } from '@/components/notifications/PushNotificationManager';
 import { Loader2 } from 'lucide-react';
 
+import { AyanWelcomeSplash } from '@/components/ayan/AyanWelcomeSplash';
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
@@ -58,10 +60,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const propertyName = userData.property?.name || 'Indira Lodge';
   const userFullName = userData.user?.fullName || 'Hotel Staff';
+  const userEmail = userData.user?.email || '';
   const userRole = userData.roles.length > 0 ? userData.roles[0] : 'Staff';
 
+  const isAyan =
+    userEmail === 'ayan@indiralodge' ||
+    userEmail === 'ayan@indiralodge.com' ||
+    userFullName?.toLowerCase().includes('ayan');
+
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div
+      className={`min-h-screen flex ${
+        isAyan
+          ? 'theme-ayan bg-black text-white selection:bg-red-600 selection:text-white relative'
+          : 'bg-slate-50 text-slate-900'
+      }`}
+    >
+      {/* Ambient Red Glows for Ayan Theme */}
+      {isAyan && (
+        <>
+          <div className="fixed top-0 left-64 w-[500px] h-[500px] bg-red-600/10 rounded-full blur-[160px] pointer-events-none z-0" />
+          <div className="fixed bottom-0 right-10 w-[600px] h-[600px] bg-rose-900/10 rounded-full blur-[180px] pointer-events-none z-0" />
+        </>
+      )}
+
       {/* Responsive Left Sidebar */}
       <Sidebar
         propertyName={propertyName}
@@ -73,11 +95,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setIsMobileOpen={setIsMobileOpen}
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
+        isAyan={isAyan}
       />
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 relative z-10 ${
           isCollapsed ? 'lg:pl-20' : 'lg:pl-64'
         }`}
       >
@@ -85,7 +108,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Header
           propertyName={propertyName}
           userFullName={userFullName}
-          userEmail={userData.user?.email}
+          userEmail={userEmail}
           userRole={userRole}
           availableProperties={userData.availableProperties}
           onMenuClick={() => setIsMobileOpen(true)}
@@ -97,6 +120,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+
+      {/* Welcome Splash Screen for Ayan */}
+      {isAyan && (
+        <AyanWelcomeSplash
+          userFullName={userFullName}
+          userEmail={userEmail}
+          propertyName={propertyName}
+        />
+      )}
 
       {/* Global Push Notification Manager */}
       <PushNotificationManager />

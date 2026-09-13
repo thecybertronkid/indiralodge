@@ -54,6 +54,14 @@ export default function LoginPage() {
         return;
       }
 
+      if (
+        data.user?.email === 'ayan@indiralodge' ||
+        data.user?.email === 'ayan@indiralodge.com' ||
+        data.user?.fullName?.toLowerCase().includes('ayan')
+      ) {
+        sessionStorage.setItem('ayan_just_logged_in', 'true');
+      }
+
       showToast(`Welcome back, ${data.user.fullName}!`, 'success');
       router.push('/dashboard');
       router.refresh();

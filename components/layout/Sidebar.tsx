@@ -41,6 +41,7 @@ interface SidebarProps {
   setIsMobileOpen: (open: boolean) => void;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
+  isAyan?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -53,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsMobileOpen,
   isCollapsed,
   setIsCollapsed,
+  isAyan = false,
 }) => {
   const pathname = usePathname();
   const router = useRouter();
@@ -131,24 +133,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 bg-slate-950 text-slate-300 flex flex-col transition-all duration-300 ease-in-out border-r border-slate-800/80 shadow-2xl ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col transition-all duration-300 ease-in-out shadow-2xl ${
+          isAyan
+            ? 'bg-black text-white border-r border-red-950/60 shadow-[5px_0_30px_rgba(0,0,0,0.9)]'
+            : 'bg-slate-950 text-slate-300 border-r border-slate-800/80'
+        } ${
           isCollapsed ? 'w-20' : 'w-64'
         } ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Brand Header */}
-        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/60 backdrop-blur-md">
+        <div
+          className={`h-16 px-4 flex items-center justify-between backdrop-blur-md border-b ${
+            isAyan
+              ? 'bg-black/90 border-red-950/60'
+              : 'bg-slate-950/60 border-slate-800/80'
+          }`}
+        >
           <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-blue-500 to-emerald-400 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-brand-500/20 flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform duration-300 ${
+                isAyan
+                  ? 'bg-gradient-to-tr from-red-600 via-rose-600 to-red-800 shadow-red-600/30'
+                  : 'bg-gradient-to-tr from-brand-600 via-blue-500 to-emerald-400 shadow-brand-500/20'
+              }`}
+            >
               <Building2 className="w-5 h-5 text-white" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col truncate">
-                <span className="font-extrabold text-white tracking-tight text-base truncate group-hover:text-brand-400 transition-colors">
+                <span
+                  className={`font-extrabold text-white tracking-tight text-base truncate transition-colors ${
+                    isAyan ? 'group-hover:text-red-400' : 'group-hover:text-brand-400'
+                  }`}
+                >
                   {propertyName}
                 </span>
-                <span className="text-[10px] text-emerald-400 font-extrabold tracking-wider uppercase">PMS Enterprise</span>
+                <span
+                  className={`text-[10px] font-extrabold tracking-wider uppercase ${
+                    isAyan ? 'text-red-400' : 'text-emerald-400'
+                  }`}
+                >
+                  {isAyan ? 'Super Admin Edition' : 'PMS Enterprise'}
+                </span>
               </div>
             )}
           </Link>
@@ -156,7 +184,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Desktop Collapse Toggle */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden lg:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all hover:scale-105"
+            className={`hidden lg:flex p-1.5 rounded-lg transition-all hover:scale-105 ${
+              isAyan
+                ? 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+            }`}
             title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -177,29 +209,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
             const Icon = item.icon;
 
+            const activeClass = isAyan
+              ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white font-bold shadow-lg shadow-red-600/30'
+              : 'bg-gradient-to-r from-brand-600 to-blue-600 text-white font-bold shadow-md shadow-brand-500/20';
+
+            const inactiveClass = isAyan
+              ? 'text-zinc-400 hover:text-white hover:bg-zinc-900/90 hover:translate-x-1'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900/80 hover:translate-x-1';
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsMobileOpen(false)}
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 group relative ${
-                  isActive
-                    ? 'bg-gradient-to-r from-brand-600 to-blue-600 text-white font-bold shadow-md shadow-brand-500/20'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900/80 hover:translate-x-1'
+                  isActive ? activeClass : inactiveClass
                 }`}
                 title={isCollapsed ? item.label : undefined}
               >
                 {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-400 rounded-r-full shadow-glow" />
+                  <div
+                    className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full shadow-glow ${
+                      isAyan ? 'bg-white' : 'bg-emerald-400'
+                    }`}
+                  />
                 )}
 
-                <Icon className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-brand-400'}`} />
-                
+                <Icon
+                  className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+                    isActive
+                      ? 'text-white'
+                      : isAyan
+                      ? 'text-zinc-400 group-hover:text-red-400'
+                      : 'text-slate-400 group-hover:text-brand-400'
+                  }`}
+                />
+
                 {!isCollapsed && (
                   <div className="flex items-center justify-between w-full truncate">
                     <span className="truncate">{item.label}</span>
                     {!item.isReady && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-800/80 text-slate-400 font-semibold ml-2 flex-shrink-0 uppercase">
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ml-2 flex-shrink-0 uppercase ${
+                          isAyan
+                            ? 'bg-zinc-900 text-zinc-400'
+                            : 'bg-slate-800/80 text-slate-400'
+                        }`}
+                      >
                         Soon
                       </span>
                     )}
@@ -211,33 +267,64 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Bottom User & Logout Section */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/80 backdrop-blur-md space-y-2">
+        <div
+          className={`p-3 border-t backdrop-blur-md space-y-2 ${
+            isAyan
+              ? 'border-red-950/60 bg-black/90'
+              : 'border-slate-800/80 bg-slate-950/80'
+          }`}
+        >
           {!isCollapsed && (
-            <div className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-2.5">
+            <div
+              className={`px-3 py-2 rounded-xl flex items-center justify-between gap-2.5 border ${
+                isAyan
+                  ? 'bg-zinc-950/90 border-red-900/40 shadow-inner'
+                  : 'bg-slate-900/80 border-slate-800'
+              }`}
+            >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-slate-700 bg-slate-800 flex items-center justify-center text-slate-200 font-bold text-xs">
-                  {userFullName?.toLowerCase().includes('ayan') ? (
+                <div
+                  className={`w-8 h-8 rounded-full overflow-hidden shrink-0 border flex items-center justify-center font-bold text-xs ${
+                    isAyan
+                      ? 'border-red-500/80 bg-zinc-900 text-red-300'
+                      : 'border-slate-700 bg-slate-800 text-slate-200'
+                  }`}
+                >
+                  {isAyan || userFullName?.toLowerCase().includes('ayan') ? (
                     <img src="/avatars/ayan.png" alt={userFullName} className="w-full h-full object-cover" />
                   ) : (
                     userFullName.charAt(0).toUpperCase()
                   )}
                 </div>
                 <div className="flex flex-col truncate">
-                  <span className="text-xs font-bold text-slate-200 truncate">{userFullName}</span>
-                  <span className="text-[10px] text-slate-400 truncate">{userRole}</span>
+                  <span className="text-xs font-bold text-white truncate">{userFullName}</span>
+                  <span className={`text-[10px] truncate ${isAyan ? 'text-red-300' : 'text-slate-400'}`}>
+                    {userRole}
+                  </span>
                 </div>
               </div>
-              <Badge variant="success" className="text-[9px] py-0.5 px-2 font-bold animate-pulse">Online</Badge>
+              <Badge
+                variant={isAyan ? 'error' : 'success'}
+                className={`text-[9px] py-0.5 px-2 font-bold animate-pulse ${
+                  isAyan ? 'bg-red-950/80 text-red-400 border-red-800/60' : ''
+                }`}
+              >
+                Online
+              </Badge>
             </div>
           )}
 
           <div className="flex items-center gap-1">
             <Link
               href="/settings"
-              className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-900 transition-colors"
+              className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                isAyan
+                  ? 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
               title="Help & Support"
             >
-              <HelpCircle className="w-4 h-4 flex-shrink-0 text-brand-400" />
+              <HelpCircle className={`w-4 h-4 flex-shrink-0 ${isAyan ? 'text-red-400' : 'text-brand-400'}`} />
               {!isCollapsed && <span>Support</span>}
             </Link>
 
