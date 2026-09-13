@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, message: 'Push subscription registered successfully.' });
   } catch (error: any) {
     console.error('Push subscribe error:', error);
-    return NextResponse.json({ error: 'Failed to register push subscription' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Failed to register push subscription' }, { status: 500 });
   }
 }
 

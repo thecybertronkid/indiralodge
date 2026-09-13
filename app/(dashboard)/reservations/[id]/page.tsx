@@ -939,7 +939,7 @@ export default function ReservationDetailPage() {
                 <div>
                   <h2 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">INDIRA LODGE</h2>
                   <p className="text-xs text-slate-500">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
-                  <p className="text-[11px] text-slate-500">Contact: +91 70028 90165 • info@indiralodge.com</p>
+                  <p className="text-[11px] text-slate-500">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
                   <p className="text-[11px] font-mono text-slate-700 font-bold mt-1">Property GSTIN: 18AOIPB2857A1ZB</p>
                 </div>
                 <div className="text-right space-y-1">

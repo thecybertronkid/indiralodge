@@ -2622,7 +2622,7 @@ export default function FrontOfficePage() {
                 <div>
                   <h2 className="text-xl font-black text-slate-900 tracking-tight">INDIRA LODGE</h2>
                   <p className="text-slate-500 font-medium">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
-                  <p className="text-slate-500 font-medium">Contact: +91 70028 90165 • info@indiralodge.com</p>
+                  <p className="text-slate-500 font-medium">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
                   <p className="text-slate-700 font-bold mt-1">
                     GSTIN: <span className="font-mono">18AOIPB2857A1ZB</span> • State Code: 18
                   </p>

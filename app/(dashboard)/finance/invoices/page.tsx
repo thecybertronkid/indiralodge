@@ -263,7 +263,7 @@ export default function TaxInvoicesPage() {
             <div>
               <h2 className="text-lg font-black text-slate-900">INDIRA LODGE</h2>
               <p className="text-slate-500">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
-              <p className="text-slate-500">Contact: +91 70028 90165 • GSTIN: 18AOIPB2857A1ZB</p>
+              <p className="text-slate-500">Contact: +91 70028 90165 • indiralodge@gmail.com • GSTIN: 18AOIPB2857A1ZB</p>
             </div>
             <div className="text-right">
               <span className="text-base font-extrabold text-emerald-700">TAX INVOICE</span>

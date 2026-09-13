@@ -22,7 +22,7 @@ export default function SetupPage() {
     country: 'India',
     zipCode: '781005',
     phone: '+91 70028 90165',
-    email: 'info@indiralodge.com',
+    email: 'indiralodge@gmail.com',
     gstin: '18AOIPB2857A1ZB',
     currency: 'INR',
     timezone: 'Asia/Kolkata',

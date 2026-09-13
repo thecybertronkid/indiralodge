@@ -101,7 +101,8 @@ export function PushNotificationManager() {
         setShowPromptBanner(false);
         showToast('Push notifications activated! You will receive alerts on this device.', 'success');
       } else {
-        throw new Error('Server failed to save subscription');
+        const errData = await saveRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Server failed to save subscription');
       }
     } catch (err: any) {
       console.error('Push activation error:', err);
