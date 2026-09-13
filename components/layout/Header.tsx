@@ -78,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch Notifications
+  // Fetch Notifications & Real-Time Polling
   useEffect(() => {
     const fetchNotifs = async () => {
       try {
@@ -91,6 +91,8 @@ export const Header: React.FC<HeaderProps> = ({
       } catch (e) {}
     };
     fetchNotifs();
+    const interval = setInterval(fetchNotifs, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   // Search Autocomplete Handler
@@ -268,36 +270,73 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {isNotifOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Notifications
-                  </h4>
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Alerts & Notifications
+                    </h4>
+                    {unreadCount > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-extrabold">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </div>
                   {unreadCount > 0 && (
                     <button
                       onClick={markNotificationsRead}
-                      className="text-[11px] text-brand-600 hover:underline font-medium"
+                      className="text-[11px] text-brand-600 hover:text-brand-700 hover:underline font-semibold"
                     >
-                      Mark all as read
+                      Mark all read
                     </button>
                   )}
                 </div>
                 <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                   {notifications.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-slate-500">
-                      No recent notifications
+                    <div className="p-8 text-center text-xs text-slate-500 space-y-1">
+                      <Bell className="w-6 h-6 text-slate-300 mx-auto mb-1" />
+                      <p className="font-semibold text-slate-700">All caught up!</p>
+                      <p className="text-[11px]">No unread alerts or notifications.</p>
                     </div>
                   ) : (
                     notifications.map((n) => (
-                      <div key={n.id} className={`p-3 text-xs ${n.isRead ? 'bg-white' : 'bg-blue-50/50'}`}>
-                        <div className="font-semibold text-slate-800">{n.title}</div>
-                        <div className="text-slate-600 mt-0.5">{n.message}</div>
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <div
+                        key={n.id}
+                        onClick={() => {
+                          setIsNotifOpen(false);
+                          if (n.module === 'front_office' || n.module === 'reservations') {
+                            router.push(n.entityId ? `/reservations/${n.entityId}` : '/front-office');
+                          } else if (n.module === 'housekeeping') {
+                            router.push('/housekeeping');
+                          } else {
+                            router.push('/notifications');
+                          }
+                        }}
+                        className={`p-3.5 text-xs hover:bg-slate-50 cursor-pointer transition-colors ${
+                          n.isRead ? 'bg-white' : 'bg-brand-50/40 border-l-4 border-l-brand-600'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            {n.title}
+                          </div>
+                          <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                            {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
                         </div>
+                        <div className="text-slate-600 mt-1 text-[11px] leading-relaxed">{n.message}</div>
                       </div>
                     ))
                   )}
+                </div>
+                <div className="p-2.5 bg-slate-50 border-t border-slate-100 text-center">
+                  <Link
+                    href="/notifications"
+                    onClick={() => setIsNotifOpen(false)}
+                    className="text-xs font-bold text-brand-600 hover:text-brand-700 hover:underline block"
+                  >
+                    View All Notifications & Broadcasts →
+                  </Link>
                 </div>
               </div>
             )}

@@ -6,6 +6,7 @@ import { generateReferenceNumber } from '@/lib/refGenerator';
 import { calculateReservationPricing } from '@/lib/pricing';
 import { isRoomAvailable } from '@/lib/availability';
 import { logAuditEvent } from '@/lib/audit';
+import { notifyAllStaff } from '@/lib/notifications';
 
 export async function POST(req: Request) {
   try {
@@ -250,6 +251,19 @@ export async function POST(req: Request) {
       module: 'front_office',
       entityId: reservation.id,
       afterData: { resRef, roomNumber: room.roomNumber, deposit },
+    });
+
+    const guestFullName = `${firstName?.trim() || ''} ${lastName?.trim() || ''}`.trim() || 'Guest';
+
+    await notifyAllStaff({
+      propertyId,
+      title: '🛎️ Walk-In Guest Checked In',
+      message: `${guestFullName} checked in to Room ${room.roomNumber}.`,
+      type: 'SUCCESS',
+      priority: 'HIGH',
+      module: 'front_office',
+      entityId: reservation.id,
+      url: `/reservations/${reservation.id}`,
     });
 
     return NextResponse.json({ success: true, reservation, folio });

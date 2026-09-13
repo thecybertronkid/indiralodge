@@ -46,6 +46,7 @@ model Property {
   userRoles         UserRole[]
   auditLogs         AuditLog[]
   notifications     Notification[]
+  pushSubscriptions PushSubscription[]
   activityLogs      ActivityLog[]
   refCounters       ReferenceCounter[]
   roomTypes         RoomType[]
@@ -153,6 +154,7 @@ model User {
 
   // Phase 5 BI Relations
   savedReports        SavedReport[]               @relation("ReportOwner")
+  pushSubscriptions   PushSubscription[]
 
   createdAt           DateTime                    @default(now())
   updatedAt           DateTime                    @updatedAt
@@ -257,6 +259,19 @@ model NotificationPreference {
   emailAlerts Boolean  @default(true)
   inAppAlerts Boolean  @default(true)
   updatedAt   DateTime @updatedAt
+}
+
+model PushSubscription {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
 }
 
 model SystemSettings {

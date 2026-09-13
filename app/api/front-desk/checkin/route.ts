@@ -6,6 +6,7 @@ import { generateReferenceNumber } from '@/lib/refGenerator';
 import { isRoomAvailable } from '@/lib/availability';
 import { postRoomChargeJournal, postPaymentJournal } from '@/lib/accountingPosting';
 import { logAuditEvent } from '@/lib/audit';
+import { notifyAllStaff } from '@/lib/notifications';
 
 export async function POST(req: Request) {
   try {
@@ -155,7 +156,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4. Log Audit & System Notification
+    // 4. Log Audit & Broadcast Real-Time Alert to All Staff
     await logAuditEvent({
       organizationId: session.organizationId,
       propertyId: reservation.propertyId,
@@ -166,16 +167,18 @@ export async function POST(req: Request) {
       afterData: { guestName: reservation.guest.displayName, roomId: targetRoomId, folioNumber: folio.folioNumber },
     });
 
-    await db.notification.create({
-      data: {
-        propertyId: reservation.propertyId,
-        userId: session.userId,
-        title: 'Guest Checked In',
-        message: `${reservation.guest.displayName} checked in to Room ${targetRoomId}`,
-        type: 'SUCCESS',
-        module: 'front_office',
-        entityId: reservationId,
-      },
+    const roomInfo = await db.room.findUnique({ where: { id: targetRoomId }, select: { roomNumber: true } });
+    const roomNo = roomInfo?.roomNumber ? `Room ${roomInfo.roomNumber}` : 'assigned room';
+
+    await notifyAllStaff({
+      propertyId: reservation.propertyId,
+      title: '🛎️ Guest Checked In',
+      message: `${reservation.guest.displayName} checked in to ${roomNo}.`,
+      type: 'SUCCESS',
+      priority: 'HIGH',
+      module: 'front_office',
+      entityId: reservationId,
+      url: `/reservations/${reservationId}`,
     });
 
     return NextResponse.json({ success: true, reservation: updatedRes, folio });

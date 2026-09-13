@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { hasPermission } from '@/lib/permissions';
 import { generateReferenceNumber } from '@/lib/refGenerator';
-import { createNotification } from '@/lib/notifications';
+import { createNotification, notifyAllStaff } from '@/lib/notifications';
 import { logAuditEvent } from '@/lib/audit';
 
 export async function POST(req: Request) {
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 5. Log Audit Event
+    // 5. Log Audit Event & Broadcast Real-time Alert to All Staff
     await logAuditEvent({
       organizationId: session.organizationId,
       propertyId: reservation.propertyId,
@@ -137,6 +137,19 @@ export async function POST(req: Request) {
         overrideBalance: !!overrideBalance,
         overrideReason: overrideReason || null,
       },
+    });
+
+    const roomNumber = reservation.assignedRoom?.roomNumber ? `Room ${reservation.assignedRoom.roomNumber}` : 'assigned room';
+
+    await notifyAllStaff({
+      propertyId: reservation.propertyId,
+      title: '🚪 Guest Checked Out',
+      message: `${reservation.guest.displayName} checked out from ${roomNumber}. Room marked dirty for cleaning.`,
+      type: 'INFO',
+      priority: 'HIGH',
+      module: 'front_office',
+      entityId: reservationId,
+      url: `/reservations/${reservationId}`,
     });
 
     return NextResponse.json({ success: true, reservation: updatedRes });
