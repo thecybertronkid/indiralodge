@@ -70,6 +70,7 @@ export default function FrontOfficePage() {
   // Bill Generation & Finalized Bill Viewer State
   const [isBillViewerOpen, setIsBillViewerOpen] = useState(false);
   const [billType, setBillType] = useState<'GST' | 'NON_GST'>('GST');
+  const [companyName, setCompanyName] = useState('');
   const [customerGstin, setCustomerGstin] = useState('');
   const [generatingBill, setGeneratingBill] = useState(false);
   const [generatedInvoice, setGeneratedInvoice] = useState<any>(null);
@@ -514,7 +515,7 @@ export default function FrontOfficePage() {
     }
   };
 
-  const handleGenerateBill = async (reservationId: string, type: 'GST' | 'NON_GST', gstin?: string) => {
+  const handleGenerateBill = async (reservationId: string, type: 'GST' | 'NON_GST', gstin?: string, company?: string) => {
     setGeneratingBill(true);
     try {
       const res = await fetch('/api/finance/invoices/generate', {
@@ -524,6 +525,7 @@ export default function FrontOfficePage() {
           reservationId,
           invoiceType: type,
           customerGstin: gstin ? gstin.trim().toUpperCase() : undefined,
+          companyName: company ? company.trim() : undefined,
         }),
       });
 
@@ -566,6 +568,7 @@ export default function FrontOfficePage() {
     setOverrideBalance(false);
     setOverrideReason('');
     setBillType(resItem.billType === 'NON_GST' ? 'NON_GST' : 'GST');
+    setCompanyName(resItem.guest?.company || '');
     setCustomerGstin(resItem.guest?.gstin || '');
     setIsCheckoutOpen(true);
   };
@@ -801,6 +804,7 @@ export default function FrontOfficePage() {
     setPayAmount(bal > 0 ? String(bal) : '0');
     setPayMethod('CASH');
     setBillType(resItem.billType === 'NON_GST' ? 'NON_GST' : 'GST');
+    setCompanyName(resItem.guest?.company || '');
     setCustomerGstin(resItem.guest?.gstin || '');
     setRecordPaymentWithBill(false);
     setIsPaymentOpen(true);
@@ -833,7 +837,7 @@ export default function FrontOfficePage() {
       setIsPaymentOpen(false);
 
       if (recordPaymentWithBill && !selectedRes.isBilled) {
-        await handleGenerateBill(selectedRes.id, billType, customerGstin);
+        await handleGenerateBill(selectedRes.id, billType, customerGstin, companyName);
       } else {
         fetchFrontDeskData();
       }
@@ -1494,23 +1498,37 @@ export default function FrontOfficePage() {
                     </div>
 
                     {billType === 'GST' && (
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">
-                          Customer GSTIN (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          value={customerGstin}
-                          onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
-                          placeholder="e.g. 27AAAAA0000A1Z5"
-                          className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs text-slate-900 font-mono focus:ring-2 focus:ring-indigo-500"
-                        />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">
+                            Company Name (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={companyName}
+                            onChange={(e) => setCompanyName(e.target.value)}
+                            placeholder="e.g. Acme Corp / Tata Sons"
+                            className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 uppercase mb-1">
+                            Customer GSTIN (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={customerGstin}
+                            onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
+                            placeholder="e.g. 18AOIPB2857A1ZB"
+                            className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-xs text-slate-900 font-mono focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
                       </div>
                     )}
 
                     <button
                       type="button"
-                      onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin)}
+                      onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin, companyName)}
                       disabled={generatingBill}
                       className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-50"
                     >
@@ -2305,17 +2323,31 @@ export default function FrontOfficePage() {
               </div>
 
               {billType === 'GST' && (
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-                    Customer GSTIN (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={customerGstin}
-                    onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
-                    placeholder="e.g. 27AAAAA0000A1Z5"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-mono"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                      Company Name (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="e.g. Acme Corp / Tata Sons"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                      Customer GSTIN (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={customerGstin}
+                      onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
+                      placeholder="e.g. 18AOIPB2857A1ZB"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-mono focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -2332,7 +2364,7 @@ export default function FrontOfficePage() {
 
                 <button
                   type="button"
-                  onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin)}
+                  onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin, companyName)}
                   disabled={generatingBill}
                   className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50"
                 >
@@ -2629,11 +2661,16 @@ export default function FrontOfficePage() {
               {/* Guest & Stay Meta Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px]">
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Guest Name</span>
-                  <span className="font-extrabold text-slate-900 text-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Guest / Billed To</span>
+                  <span className="font-extrabold text-slate-900 text-xs block">
                     {generatedInvoice.guest?.displayName || 'Guest'}
                   </span>
-                  <span className="block text-slate-500 text-[10px]">{generatedInvoice.guest?.phone || '—'}</span>
+                  {(generatedInvoice.guest?.company || companyName) && (
+                    <span className="font-bold text-indigo-700 text-[11px] block mt-0.5">
+                      🏢 {generatedInvoice.guest?.company || companyName}
+                    </span>
+                  )}
+                  <span className="block text-slate-500 text-[10px] mt-0.5">{generatedInvoice.guest?.phone || '—'}</span>
                 </div>
 
                 <div>

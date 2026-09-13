@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { reservationId, invoiceType, customerGstin } = body; // invoiceType: 'GST' | 'NON_GST'
+    const { reservationId, invoiceType, customerGstin, companyName } = body; // invoiceType: 'GST' | 'NON_GST'
 
     if (!reservationId || !invoiceType) {
       return NextResponse.json({ error: 'Reservation ID and invoice type (GST or NON_GST) are required.' }, { status: 400 });
@@ -71,6 +71,17 @@ export async function POST(req: Request) {
 
     if (!reservation) {
       return NextResponse.json({ error: 'Reservation not found' }, { status: 404 });
+    }
+
+    // Sync guest company or gstin if updated during bill generation
+    if (reservation.guestId && (companyName !== undefined || customerGstin !== undefined)) {
+      await db.guest.update({
+        where: { id: reservation.guestId },
+        data: {
+          ...(companyName !== undefined ? { company: companyName.trim() || null } : {}),
+          ...(customerGstin !== undefined ? { gstin: customerGstin.trim().toUpperCase() || null } : {}),
+        },
+      });
     }
 
     // If already billed, return existing invoice for printing

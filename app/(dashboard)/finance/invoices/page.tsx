@@ -26,6 +26,7 @@ export default function TaxInvoicesPage() {
   const [isPrintOpen, setIsPrintOpen] = useState(false);
 
   const [guestId, setGuestId] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [customerGstin, setCustomerGstin] = useState('');
   const [placeOfSupply, setPlaceOfSupply] = useState('State');
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +43,11 @@ export default function TaxInvoicesPage() {
       if (gRes.ok) {
         const d = await gRes.json();
         setGuests(d.guests || []);
-        if (d.guests?.length > 0 && !guestId) setGuestId(d.guests[0].id);
+        if (d.guests?.length > 0 && !guestId) {
+          setGuestId(d.guests[0].id);
+          setCompanyName(d.guests[0].company || '');
+          setCustomerGstin(d.guests[0].gstin || '');
+        }
       }
     } catch (e) {
       showToast('Failed to load tax invoices', 'error');
@@ -65,6 +70,7 @@ export default function TaxInvoicesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           guestId,
+          companyName,
           customerGstin,
           placeOfSupply,
         }),
@@ -179,7 +185,15 @@ export default function TaxInvoicesPage() {
             <select
               required
               value={guestId}
-              onChange={(e) => setGuestId(e.target.value)}
+              onChange={(e) => {
+                const id = e.target.value;
+                setGuestId(id);
+                const g = guests.find((x) => x.id === id);
+                if (g) {
+                  setCompanyName(g.company || '');
+                  setCustomerGstin(g.gstin || '');
+                }
+              }}
               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900"
             >
               {guests.map((g) => (
@@ -190,26 +204,37 @@ export default function TaxInvoicesPage() {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Company Name (Optional)</label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="e.g. Acme Corp / Tata Sons"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900"
+              />
+            </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Customer GSTIN (Optional)</label>
               <input
                 type="text"
                 value={customerGstin}
-                onChange={(e) => setCustomerGstin(e.target.value)}
-                placeholder="27AAAAA0000A1Z5"
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900"
+                onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
+                placeholder="18AOIPB2857A1ZB"
+                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 font-mono"
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Place of Supply</label>
-              <input
-                type="text"
-                value={placeOfSupply}
-                onChange={(e) => setPlaceOfSupply(e.target.value)}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900"
-              />
-            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Place of Supply</label>
+            <input
+              type="text"
+              value={placeOfSupply}
+              onChange={(e) => setPlaceOfSupply(e.target.value)}
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900"
+            />
           </div>
 
           <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
@@ -251,8 +276,11 @@ export default function TaxInvoicesPage() {
             <div>
               <span className="font-bold text-slate-700 uppercase">Billed To:</span>
               <div className="font-bold text-slate-900 text-sm mt-0.5">{selectedInvoice?.guest?.displayName}</div>
+              {selectedInvoice?.guest?.company && (
+                <div className="font-bold text-indigo-700 text-xs mt-0.5">🏢 {selectedInvoice.guest.company}</div>
+              )}
               <div>Phone: {selectedInvoice?.guest?.phone}</div>
-              <div>GSTIN: {selectedInvoice?.customerGstin || 'Unregistered'}</div>
+              <div>GSTIN: {selectedInvoice?.customerGstin || selectedInvoice?.guest?.gstin || 'Unregistered'}</div>
             </div>
             <div className="text-right">
               <span className="font-bold text-slate-700 uppercase">Place of Supply:</span>

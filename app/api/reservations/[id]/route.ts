@@ -91,7 +91,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     // Action: Update Guest Details Before Billing
     if (action === 'update_guest') {
-      const { firstName, lastName, displayName, phone, email, gstin, address, city, state } = body;
+      const { firstName, lastName, displayName, phone, email, company, gstin, address, city, state } = body;
       await db.guest.update({
         where: { id: reservation.guestId },
         data: {
@@ -100,7 +100,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           ...(displayName ? { displayName: displayName.trim() } : {}),
           ...(phone ? { phone: phone.trim() } : {}),
           ...(email ? { email: email.trim().toLowerCase() } : {}),
-          ...(gstin !== undefined ? { gstin: gstin ? gstin.trim() : null } : {}),
+          ...(company !== undefined ? { company: company ? company.trim() : null } : {}),
+          ...(gstin !== undefined ? { gstin: gstin ? gstin.trim().toUpperCase() : null } : {}),
           ...(address !== undefined ? { address: address ? address.trim() : null } : {}),
           ...(city !== undefined ? { city: city ? city.trim() : null } : {}),
           ...(state !== undefined ? { state: state ? state.trim() : null } : {}),

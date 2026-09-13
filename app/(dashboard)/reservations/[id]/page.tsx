@@ -51,6 +51,7 @@ export default function ReservationDetailPage() {
     displayName: '',
     phone: '',
     email: '',
+    company: '',
     gstin: '',
     address: '',
     city: '',
@@ -63,6 +64,7 @@ export default function ReservationDetailPage() {
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
   const [activeInvoice, setActiveInvoice] = useState<any>(null);
   const [billingType, setBillingType] = useState<'GST' | 'NON_GST'>('GST');
+  const [companyNameInput, setCompanyNameInput] = useState('');
   const [customerGstinInput, setCustomerGstinInput] = useState('');
   const [generatingBill, setGeneratingBill] = useState(false);
 
@@ -92,6 +94,7 @@ export default function ReservationDetailPage() {
             displayName: g.displayName || '',
             phone: g.phone || '',
             email: g.email || '',
+            company: g.company || '',
             gstin: g.gstin || '',
             address: g.address || '',
             city: g.city || '',
@@ -99,6 +102,7 @@ export default function ReservationDetailPage() {
             discountAmount: String(result.reservation.discountAmount || 0),
             specialRequests: result.reservation.specialRequests || '',
           });
+          setCompanyNameInput(g.company || '');
           setCustomerGstinInput(g.gstin || '');
         }
       } else {
@@ -203,6 +207,7 @@ export default function ReservationDetailPage() {
           reservationId,
           invoiceType: type,
           customerGstin: customerGstinInput,
+          companyName: companyNameInput,
         }),
       });
 
@@ -503,6 +508,9 @@ export default function ReservationDetailPage() {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                 <span className="text-slate-500 font-bold uppercase text-[10px]">Guest Information</span>
                 <div className="font-bold text-slate-900 text-sm">{res.guest?.displayName}</div>
+                {res.guest?.company && (
+                  <div className="font-bold text-indigo-700 text-xs">🏢 {res.guest.company}</div>
+                )}
                 <div className="text-slate-600">Phone: {res.guest?.phone}</div>
                 <div className="text-slate-600">Email: {res.guest?.email || 'N/A'}</div>
                 <div className="text-slate-600 font-mono">GSTIN: {res.guest?.gstin || 'Unregistered / General Guest'}</div>
@@ -567,7 +575,35 @@ export default function ReservationDetailPage() {
 
             {/* Quick Bill Trigger Buttons */}
             {!isBilled && (
-              <div className="pt-3 border-t border-slate-100 space-y-2">
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                    GST Billing Details (Optional)
+                  </span>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-600 uppercase mb-0.5">Company Name</label>
+                      <input
+                        type="text"
+                        value={companyNameInput}
+                        onChange={(e) => setCompanyNameInput(e.target.value)}
+                        placeholder="e.g. Acme Corp / Tata Sons"
+                        className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:ring-1 focus:ring-brand-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-600 uppercase mb-0.5">Guest GSTIN</label>
+                      <input
+                        type="text"
+                        value={customerGstinInput}
+                        onChange={(e) => setCustomerGstinInput(e.target.value.toUpperCase())}
+                        placeholder="e.g. 18AOIPB2857A1ZB"
+                        className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-mono focus:ring-1 focus:ring-brand-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <button
                   onClick={() => handleGenerateBill('GST')}
                   className="w-full py-2.5 px-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2"
@@ -787,7 +823,17 @@ export default function ReservationDetailPage() {
                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
               />
             </div>
-            <div className="sm:col-span-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Company / Organization</label>
+              <input
+                type="text"
+                value={editForm.company}
+                onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
+                placeholder="e.g. Acme Corp / Tata Sons"
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+              />
+            </div>
+            <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Guest GSTIN (If corporate / tax billing)</label>
               <input
                 type="text"
@@ -910,8 +956,11 @@ export default function ReservationDetailPage() {
               {/* Guest & Stay Info Table */}
               <div className="grid grid-cols-2 gap-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <h4 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500">Billed To (Guest)</h4>
+                  <h4 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500">Billed To (Guest / Company)</h4>
                   <div className="font-bold text-slate-900 text-sm mt-0.5">{activeInvoice.guest?.displayName}</div>
+                  {(activeInvoice.guest?.company || companyNameInput) && (
+                    <div className="font-bold text-indigo-700 text-xs mt-0.5">🏢 {activeInvoice.guest?.company || companyNameInput}</div>
+                  )}
                   <div>Phone: {activeInvoice.guest?.phone}</div>
                   <div>Email: {activeInvoice.guest?.email || 'N/A'}</div>
                   {activeInvoice.customerGstin && (

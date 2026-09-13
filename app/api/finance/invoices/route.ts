@@ -36,10 +36,20 @@ export async function POST(req: Request) {
     if (!propertyId) return NextResponse.json({ error: 'No active property found' }, { status: 400 });
 
     const body = await req.json();
-    const { folioId, reservationId, guestId, customerGstin, placeOfSupply } = body;
+    const { folioId, reservationId, guestId, customerGstin, companyName, placeOfSupply } = body;
 
     if (!guestId) {
       return NextResponse.json({ error: 'Guest ID is required to issue a tax invoice.' }, { status: 400 });
+    }
+
+    if (companyName !== undefined || customerGstin !== undefined) {
+      await db.guest.update({
+        where: { id: guestId },
+        data: {
+          ...(companyName !== undefined ? { company: companyName.trim() || null } : {}),
+          ...(customerGstin !== undefined ? { gstin: customerGstin.trim().toUpperCase() || null } : {}),
+        },
+      });
     }
 
     let subtotal = 0;
