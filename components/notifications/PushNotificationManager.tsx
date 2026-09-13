@@ -117,7 +117,23 @@ export function PushNotificationManager() {
     localStorage.setItem('indira_push_dismissed', 'true');
   };
 
-  if (!showPromptBanner || isSubscribed) return null;
+  if (isSubscribed || !isSupported) return null;
+
+  if (!showPromptBanner) {
+    return (
+      <button
+        onClick={() => setShowPromptBanner(true)}
+        className="fixed bottom-4 right-4 z-50 px-3.5 py-2 bg-slate-900/95 hover:bg-slate-800 text-white rounded-full shadow-2xl border border-brand-500/50 text-xs font-bold flex items-center gap-2 backdrop-blur-md transition-all hover:scale-105 animate-in fade-in duration-200"
+        title="Enable Push Alerts for Check-Ins and Broadcasts"
+      >
+        <div className="relative flex items-center justify-center">
+          <BellRing className="w-4 h-4 text-brand-400 animate-pulse" />
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-brand-500 rounded-full animate-ping" />
+        </div>
+        <span>🔔 Enable Phone Alerts</span>
+      </button>
+    );
+  }
 
   return (
     <aside aria-label="Push notifications" className="fixed bottom-4 right-4 z-50 max-w-sm w-full p-4 bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl border border-slate-700/80 animate-in fade-in slide-in-from-bottom-5 duration-300">
