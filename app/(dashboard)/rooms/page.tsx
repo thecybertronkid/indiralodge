@@ -297,7 +297,7 @@ export default function RoomsPage() {
         setPostingCharge(false);
         return;
       }
-      showToast(data.message || 'Room charge posted successfully!', 'success');
+      showToast('Room charge posted successfully!', 'success');
       setIsRoomServiceOpen(false);
       setServiceForm({
         description: 'Packaged Drinking Water Bottle (1L)',
@@ -328,6 +328,30 @@ export default function RoomsPage() {
       showToast('Error posting room charge', 'error');
     } finally {
       setPostingCharge(false);
+    }
+  };
+
+  const handleDeleteRoomCharge = async (transactionId: string, description: string) => {
+    if (!confirm(`Are you sure you want to delete the room order "${description}"? This will reverse the charge.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/front-desk/room-charges?transactionId=${transactionId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to delete room order', 'error');
+        return;
+      }
+      showToast(data.message || 'Room order deleted successfully!', 'success');
+      if (selectedRoom?.id) {
+        loadRoomCharges(selectedRoom.id);
+      }
+      fetchData();
+    } catch {
+      showToast('Error deleting room order', 'error');
     }
   };
 
@@ -888,12 +912,24 @@ export default function RoomsPage() {
                         </div>
                         <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
                           {roomExtraCharges.map((c: any) => (
-                            <div key={c.id} className="p-1.5 rounded-lg bg-white/90 border border-blue-200/70 flex items-center justify-between text-[11px]">
+                            <div key={c.id} className="p-1.5 rounded-lg bg-white/90 border border-blue-200/70 flex items-center justify-between text-[11px] group">
                               <div className="truncate mr-2">
                                 <span className="font-bold text-slate-900 block truncate">{c.description}</span>
                                 <span className="text-[10px] text-slate-500">{c.quantity}x @ ₹{c.unitPrice}</span>
                               </div>
-                              <span className="font-mono font-bold text-slate-900 shrink-0">₹{c.amount.toFixed(2)}</span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="font-mono font-bold text-slate-900">₹{c.amount.toFixed(2)}</span>
+                                {!res.isBilled && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteRoomCharge(c.id, c.description)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                                    title="Delete this room order"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>

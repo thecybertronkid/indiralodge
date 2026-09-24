@@ -17,20 +17,24 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || '';
+    const cleanSearch = search.trim();
+    const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+    const searchConditions: any[] = [
+      { fullName: { contains: cleanSearch, mode: 'insensitive' } },
+      { email: { contains: cleanSearch, mode: 'insensitive' } },
+      { phone: { contains: cleanSearch, mode: 'insensitive' } },
+    ];
+
+    if (digitsOnly.length >= 3) {
+      searchConditions.push({ phone: { contains: digitsOnly } });
+    }
 
     const users = await db.user.findMany({
       where: {
         organizationId: session.organizationId,
         ...(status ? { status } : {}),
-        ...(search
-          ? {
-              OR: [
-                { fullName: { contains: search } },
-                { email: { contains: search } },
-                { phone: { contains: search } },
-              ],
-            }
-          : {}),
+        ...(cleanSearch ? { OR: searchConditions } : {}),
       },
       select: {
         id: true,

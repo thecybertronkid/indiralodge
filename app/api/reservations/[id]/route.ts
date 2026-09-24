@@ -114,26 +114,85 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // Action: Update Booking Details Before Billing
     if (action === 'update_booking') {
       const { discountAmount, specialRequests, roomRate } = body;
-      let newRoomRate = roomRate !== undefined ? parseFloat(roomRate || '0') : reservation.roomRate;
-      const discountVal = discountAmount !== undefined ? parseFloat(discountAmount || '0') : 0;
+      const prevRate = reservation.roomRate;
+      let newRoomRate = roomRate !== undefined && roomRate !== '' ? parseFloat(String(roomRate)) : reservation.roomRate;
+      if (isNaN(newRoomRate) || newRoomRate < 0) newRoomRate = 0;
+
+      const discountVal = discountAmount !== undefined && discountAmount !== '' ? parseFloat(String(discountAmount)) : 0;
       
       if (discountVal > 0 && reservation.nights > 0) {
         const totalTariff = Math.max(0, (newRoomRate * reservation.nights) - discountVal);
         newRoomRate = Math.round((totalTariff / reservation.nights) * 100) / 100;
       }
 
-      const totalAmount = newRoomRate * reservation.nights;
-      const balanceAmount = Math.max(0, totalAmount - reservation.paidAmount);
+      const totalRoomCharge = Math.round((newRoomRate * reservation.nights) * 100) / 100;
+
+      // Find any folios attached to this reservation
+      const folios = await db.folio.findMany({
+        where: { reservationId },
+        include: { transactions: true },
+      });
+
+      let calculatedTotal = totalRoomCharge;
+
+      if (folios.length > 0) {
+        for (const folio of folios) {
+          // Find the ROOM_CHARGE transaction
+          const roomChargeTx = folio.transactions.find((t) => t.category === 'ROOM_CHARGE');
+          if (roomChargeTx) {
+            await db.folioTransaction.update({
+              where: { id: roomChargeTx.id },
+              data: {
+                unitPrice: newRoomRate,
+                quantity: reservation.nights,
+                amount: totalRoomCharge,
+                description: `Room charge for ${reservation.nights} night(s) @ ₹${newRoomRate}/night`,
+              },
+            });
+          }
+
+          // Recalculate folio total charges from transactions
+          const otherDebits = folio.transactions
+            .filter((t) => t.id !== (roomChargeTx?.id || '') && t.type === 'DEBIT')
+            .reduce((sum, t) => sum + t.amount, 0);
+
+          const newTotalCharges = totalRoomCharge + otherDebits;
+          const newBalance = Math.max(0, newTotalCharges - folio.totalPayments);
+
+          await db.folio.update({
+            where: { id: folio.id },
+            data: {
+              totalCharges: newTotalCharges,
+              balanceAmount: newBalance,
+            },
+          });
+
+          calculatedTotal = newTotalCharges;
+        }
+      }
+
+      const balanceAmount = Math.max(0, calculatedTotal - reservation.paidAmount);
 
       const updated = await db.reservation.update({
         where: { id: reservationId },
         data: {
           roomRate: newRoomRate,
           discountAmount: 0,
-          totalAmount,
+          totalAmount: calculatedTotal,
           balanceAmount,
           ...(specialRequests !== undefined ? { specialRequests: specialRequests ? specialRequests.trim() : null } : {}),
         },
+      });
+
+      await logAuditEvent({
+        organizationId: session.organizationId,
+        propertyId: reservation.propertyId,
+        userId: session.userId,
+        action: 'RESERVATION_DETAILS_UPDATED',
+        module: 'reservations',
+        entityId: reservationId,
+        beforeData: { roomRate: prevRate, totalAmount: reservation.totalAmount, balanceAmount: reservation.balanceAmount },
+        afterData: { roomRate: newRoomRate, totalAmount: calculatedTotal, balanceAmount, specialRequests },
       });
 
       return NextResponse.json({ success: true, reservation: updated });

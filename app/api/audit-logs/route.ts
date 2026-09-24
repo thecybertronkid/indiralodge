@@ -14,33 +14,75 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const module = searchParams.get('module') || '';
-    const search = searchParams.get('search') || '';
+    const action = searchParams.get('action') || '';
+    const search = (searchParams.get('search') || '').trim();
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') || '50', 10)));
+    const skip = (page - 1) * limit;
 
-    const auditLogs = await db.auditLog.findMany({
-      where: {
-        organizationId: session.organizationId,
-        ...(module ? { module } : {}),
-        ...(search
-          ? {
-              OR: [
-                { action: { contains: search } },
-                { module: { contains: search } },
-                { entityId: { contains: search } },
-                { user: { fullName: { contains: search } } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        user: { select: { fullName: true, email: true } },
-        property: { select: { name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+    // Build Date Filter
+    let createdAtFilter: any = undefined;
+    if (startDate || endDate) {
+      createdAtFilter = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        createdAtFilter.gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        createdAtFilter.lte = end;
+      }
+    }
+
+    const where: any = {
+      organizationId: session.organizationId,
+      ...(module ? { module: { equals: module, mode: 'insensitive' } } : {}),
+      ...(action ? { action: { contains: action, mode: 'insensitive' } } : {}),
+      ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
+      ...(search
+        ? {
+            OR: [
+              { action: { contains: search, mode: 'insensitive' } },
+              { module: { contains: search, mode: 'insensitive' } },
+              { entityId: { contains: search, mode: 'insensitive' } },
+              { beforeData: { contains: search, mode: 'insensitive' } },
+              { afterData: { contains: search, mode: 'insensitive' } },
+              { user: { fullName: { contains: search, mode: 'insensitive' } } },
+              { user: { email: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, auditLogs] = await Promise.all([
+      db.auditLog.count({ where }),
+      db.auditLog.findMany({
+        where,
+        include: {
+          user: { select: { fullName: true, email: true } },
+          property: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return NextResponse.json({
+      auditLogs,
+      total,
+      page,
+      limit,
+      totalPages,
     });
-
-    return NextResponse.json({ auditLogs });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Audit logs fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch audit logs' }, { status: 500 });
   }
 }

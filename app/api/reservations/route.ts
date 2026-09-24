@@ -28,21 +28,30 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get('limit') || '30', 10);
     const skip = (page - 1) * limit;
 
+    const cleanSearch = search.trim();
+    const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+    const searchConditions: any[] = [
+      { reservationRef: { contains: cleanSearch, mode: 'insensitive' } },
+      { guest: { displayName: { contains: cleanSearch, mode: 'insensitive' } } },
+      { guest: { phone: { contains: cleanSearch, mode: 'insensitive' } } },
+      { guest: { email: { contains: cleanSearch, mode: 'insensitive' } } },
+      { guest: { company: { contains: cleanSearch, mode: 'insensitive' } } },
+      { guest: { guestRef: { contains: cleanSearch, mode: 'insensitive' } } },
+      { assignedRoom: { roomNumber: { contains: cleanSearch, mode: 'insensitive' } } },
+    ];
+
+    if (digitsOnly.length >= 3) {
+      searchConditions.push({ guest: { phone: { contains: digitsOnly } } });
+      searchConditions.push({ guest: { alternatePhone: { contains: digitsOnly } } });
+    }
+
     const where: any = {
       propertyId,
       ...(status ? { status } : {}),
       ...(sourceId ? { bookingSourceId: sourceId } : {}),
       ...(roomTypeId ? { roomTypeId } : {}),
-      ...(search
-        ? {
-            OR: [
-              { reservationRef: { contains: search } },
-              { guest: { displayName: { contains: search } } },
-              { guest: { phone: { contains: search } } },
-              { assignedRoom: { roomNumber: { contains: search } } },
-            ],
-          }
-        : {}),
+      ...(cleanSearch ? { OR: searchConditions } : {}),
     };
 
     const reservations = await db.reservation.findMany({

@@ -23,6 +23,7 @@ import {
   Building,
   UtensilsCrossed,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -56,6 +57,7 @@ export default function ReservationDetailPage() {
     address: '',
     city: '',
     state: '',
+    roomRate: '0',
     discountAmount: '0',
     specialRequests: '',
   });
@@ -99,6 +101,7 @@ export default function ReservationDetailPage() {
             address: g.address || '',
             city: g.city || '',
             state: g.state || '',
+            roomRate: String(result.reservation.roomRate || 0),
             discountAmount: String(result.reservation.discountAmount || 0),
             specialRequests: result.reservation.specialRequests || '',
           });
@@ -118,6 +121,27 @@ export default function ReservationDetailPage() {
   useEffect(() => {
     if (reservationId) fetchDetails();
   }, [reservationId]);
+
+  const handleDeleteRoomCharge = async (transactionId: string, description: string) => {
+    if (!confirm(`Are you sure you want to delete "${description}"?\n\nThis will remove the charge from the guest folio ledger and recalculate balances.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/front-desk/room-charges?transactionId=${transactionId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Room order / charge deleted successfully!', 'success');
+        fetchDetails();
+      } else {
+        showToast(data.error || 'Failed to delete room charge', 'error');
+      }
+    } catch {
+      showToast('Network error deleting room charge', 'error');
+    }
+  };
 
   const handleCancelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,12 +191,13 @@ export default function ReservationDetailPage() {
         return;
       }
 
-      // 2. Update Booking Info (Discount, Special Requests)
+      // 2. Update Booking Info (Rate, Discount, Special Requests)
       const resBooking = await fetch(`/api/reservations/${reservationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_booking',
+          roomRate: editForm.roomRate,
           discountAmount: editForm.discountAmount,
           specialRequests: editForm.specialRequests,
         }),
@@ -517,10 +542,21 @@ export default function ReservationDetailPage() {
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-slate-500 font-bold uppercase text-[10px]">Room & Rate Category</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-bold uppercase text-[10px]">Room & Rate Category</span>
+                  {!isBilled && (
+                    <button
+                      onClick={() => setIsEditOpen(true)}
+                      className="text-[10px] text-brand-600 hover:text-brand-700 font-bold underline flex items-center gap-0.5"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                      Change Tariff
+                    </button>
+                  )}
+                </div>
                 <div className="font-bold text-slate-900 text-sm">{res.roomType?.name}</div>
                 <div className="text-slate-600">Assigned Room: {res.assignedRoom?.roomNumber ? `Room ${res.assignedRoom.roomNumber}` : 'Unassigned'}</div>
-                <div className="text-slate-600">Base Room Rate: ₹{res.roomRate}/night</div>
+                <div className="text-slate-700 font-semibold">Room Tariff: <span className="font-bold text-brand-700">₹{res.roomRate}</span>/night</div>
               </div>
             </div>
 
@@ -658,12 +694,13 @@ export default function ReservationDetailPage() {
                   <th className="pmfs-table-th">Debit (Charges)</th>
                   <th className="pmfs-table-th">Credit (Payments)</th>
                   <th className="pmfs-table-th">Posted By</th>
+                  <th className="pmfs-table-th text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {transactions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-8 text-xs text-slate-500">
+                    <td colSpan={8} className="text-center py-8 text-xs text-slate-500">
                       No transactions posted to folio yet.
                     </td>
                   </tr>
@@ -687,6 +724,20 @@ export default function ReservationDetailPage() {
                         {t.type === 'CREDIT' ? `₹${t.amount.toFixed(2)}` : '—'}
                       </td>
                       <td className="pmfs-table-td text-xs text-slate-600">{t.postedBy?.fullName || 'System'}</td>
+                      <td className="pmfs-table-td text-right">
+                        {t.category !== 'ROOM_CHARGE' && t.category !== 'PAYMENT' && !isBilled ? (
+                          <button
+                            onClick={() => handleDeleteRoomCharge(t.id, t.description)}
+                            title="Delete item / charge added by mistake"
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors inline-flex items-center gap-1 text-[11px] font-semibold"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Delete</span>
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -841,6 +892,18 @@ export default function ReservationDetailPage() {
                 onChange={(e) => setEditForm({ ...editForm, gstin: e.target.value })}
                 placeholder="e.g. 18AABCU9603R1ZM"
                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Room Tariff / Rate per Night (₹) *</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                required
+                value={editForm.roomRate}
+                onChange={(e) => setEditForm({ ...editForm, roomRate: e.target.value })}
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-semibold"
               />
             </div>
             <div>

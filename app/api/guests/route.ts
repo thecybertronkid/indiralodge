@@ -20,21 +20,44 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get('limit') || '20', 10);
     const skip = (page - 1) * limit;
 
+    const cleanSearch = search.trim();
+    const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+    const searchConditions: any[] = [
+      { firstName: { contains: cleanSearch, mode: 'insensitive' } },
+      { lastName: { contains: cleanSearch, mode: 'insensitive' } },
+      { displayName: { contains: cleanSearch, mode: 'insensitive' } },
+      { phone: { contains: cleanSearch, mode: 'insensitive' } },
+      { alternatePhone: { contains: cleanSearch, mode: 'insensitive' } },
+      { email: { contains: cleanSearch, mode: 'insensitive' } },
+      { guestRef: { contains: cleanSearch, mode: 'insensitive' } },
+      { company: { contains: cleanSearch, mode: 'insensitive' } },
+      { gstin: { contains: cleanSearch, mode: 'insensitive' } },
+      { city: { contains: cleanSearch, mode: 'insensitive' } },
+    ];
+
+    if (digitsOnly.length >= 3) {
+      searchConditions.push({ phone: { contains: digitsOnly } });
+      searchConditions.push({ alternatePhone: { contains: digitsOnly } });
+    }
+
+    // Split words in search query (e.g. "John Doe")
+    const words = cleanSearch.split(/\s+/).filter(Boolean);
+    if (words.length > 1) {
+      searchConditions.push({
+        AND: words.map((w) => ({
+          OR: [
+            { firstName: { contains: w, mode: 'insensitive' } },
+            { lastName: { contains: w, mode: 'insensitive' } },
+            { displayName: { contains: w, mode: 'insensitive' } },
+          ],
+        })),
+      });
+    }
+
     const where: any = {
       organizationId: session.organizationId,
-      ...(search
-        ? {
-            OR: [
-              { firstName: { contains: search } },
-              { lastName: { contains: search } },
-              { displayName: { contains: search } },
-              { phone: { contains: search } },
-              { email: { contains: search } },
-              { guestRef: { contains: search } },
-              { company: { contains: search } },
-            ],
-          }
-        : {}),
+      ...(cleanSearch ? { OR: searchConditions } : {}),
     };
 
     const guests = await db.guest.findMany({

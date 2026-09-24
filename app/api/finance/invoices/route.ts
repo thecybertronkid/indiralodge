@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { generateReferenceNumber } from '@/lib/refGenerator';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getCurrentUser();
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -11,8 +11,31 @@ export async function GET() {
     const propertyId = session.propertyId || (await db.property.findFirst({ where: { organizationId: session.organizationId } }))?.id;
     if (!propertyId) return NextResponse.json({ error: 'No active property found' }, { status: 400 });
 
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get('search') || '';
+    const cleanSearch = search.trim();
+    const digitsOnly = cleanSearch.replace(/\D/g, '');
+
+    const searchConditions: any[] = [
+      { invoiceRef: { contains: cleanSearch, mode: 'insensitive' } },
+      { customerGstin: { contains: cleanSearch, mode: 'insensitive' } },
+      { guest: { company: { contains: cleanSearch, mode: 'insensitive' } } },
+      { guest: { displayName: { contains: cleanSearch, mode: 'insensitive' } } },
+      { guest: { phone: { contains: cleanSearch, mode: 'insensitive' } } },
+      { reservation: { reservationRef: { contains: cleanSearch, mode: 'insensitive' } } },
+    ];
+
+    if (digitsOnly.length >= 3) {
+      searchConditions.push({ guest: { phone: { contains: digitsOnly } } });
+    }
+
+    const where: any = {
+      propertyId,
+      ...(cleanSearch ? { OR: searchConditions } : {}),
+    };
+
     const invoices = await db.taxInvoice.findMany({
-      where: { propertyId },
+      where,
       include: {
         guest: { select: { displayName: true, phone: true, gstin: true } },
         reservation: { select: { reservationRef: true } },
