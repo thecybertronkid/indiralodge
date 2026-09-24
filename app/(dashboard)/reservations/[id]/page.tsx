@@ -221,6 +221,15 @@ export default function ReservationDetailPage() {
   };
 
   const handleGenerateBill = async (type: 'GST' | 'NON_GST') => {
+    if (!isBilled) {
+      const guestName = res?.guest?.displayName || 'this guest';
+      const billTitle = type === 'GST' ? 'GST Tax Invoice' : 'Non-GST Bill';
+      const confirmed = window.confirm(
+        `Are you sure you want to generate a ${billTitle} for ${guestName}?\n\n⚠️ IMPORTANT: Generating the bill will officially finalize and lock this reservation and all billing details against further modifications.\n\nClick OK to proceed or Cancel to return.`
+      );
+      if (!confirmed) return;
+    }
+
     setGeneratingBill(true);
     setBillingType(type);
 

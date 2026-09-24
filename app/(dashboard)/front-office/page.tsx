@@ -516,6 +516,16 @@ export default function FrontOfficePage() {
   };
 
   const handleGenerateBill = async (reservationId: string, type: 'GST' | 'NON_GST', gstin?: string, company?: string) => {
+    const isAlreadyBilled = selectedRes?.isBilled || false;
+    if (!isAlreadyBilled) {
+      const guestName = selectedRes?.guest?.displayName || 'this guest';
+      const billTitle = type === 'GST' ? 'GST Tax Invoice' : 'Non-GST Bill';
+      const confirmed = window.confirm(
+        `Are you sure you want to generate a ${billTitle} for ${guestName}?\n\n⚠️ IMPORTANT: Generating the bill will officially finalize and lock this reservation and all billing details against further modifications.\n\nClick OK to proceed or Cancel to return.`
+      );
+      if (!confirmed) return;
+    }
+
     setGeneratingBill(true);
     try {
       const res = await fetch('/api/finance/invoices/generate', {
