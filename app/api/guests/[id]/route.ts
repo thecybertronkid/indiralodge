@@ -40,12 +40,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     }
 
     // Calculate Real Guest Statistics
-    const totalStays = guest.reservations.filter((r) => r.status === 'CHECKED_OUT' || r.status === 'CHECKED_IN').length;
-    const totalNights = guest.reservations
-      .filter((r) => r.status === 'CHECKED_OUT' || r.status === 'CHECKED_IN')
-      .reduce((sum, r) => sum + r.nights, 0);
+    const validReservations = guest.reservations.filter(
+      (r) => r.status !== 'CANCELLED' && r.status !== 'NO_SHOW'
+    );
+    const totalStays = validReservations.length;
+    const totalNights = validReservations.reduce((sum, r) => sum + r.nights, 0);
 
-    const totalSpend = guest.payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalSpend = validReservations.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
     const avgStayNights = totalStays > 0 ? (totalNights / totalStays).toFixed(1) : '0';
 
     const completedStays = guest.reservations.filter((r) => r.status === 'CHECKED_OUT');

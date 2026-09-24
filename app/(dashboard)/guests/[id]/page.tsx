@@ -221,7 +221,7 @@ export default function GuestProfilePage() {
         </div>
         <div className="pmfs-card p-3.5">
           <span className="text-[11px] font-semibold text-slate-500 uppercase">Total Spend</span>
-          <div className="text-xl font-extrabold text-emerald-600 mt-1">\u20b9{stats.totalSpend}</div>
+          <div className="text-xl font-extrabold text-emerald-600 mt-1">₹{Number(stats.totalSpend || 0).toLocaleString('en-IN')}</div>
         </div>
         <div className="pmfs-card p-3.5">
           <span className="text-[11px] font-semibold text-slate-500 uppercase">Avg Stay</span>
@@ -529,7 +529,7 @@ export default function GuestProfilePage() {
                   <th className="pmfs-table-th">Booking Ref</th>
                   <th className="pmfs-table-th">Room Type</th>
                   <th className="pmfs-table-th">Room</th>
-                  <th className="pmfs-table-th">Arrival \u2192 Departure</th>
+                  <th className="pmfs-table-th">Arrival → Departure</th>
                   <th className="pmfs-table-th">Total Amount</th>
                   <th className="pmfs-table-th">Status</th>
                 </tr>
@@ -546,9 +546,9 @@ export default function GuestProfilePage() {
                       <td className="pmfs-table-td">{r.roomType?.name}</td>
                       <td className="pmfs-table-td">Room {r.assignedRoom?.roomNumber || 'Unassigned'}</td>
                       <td className="pmfs-table-td text-xs text-slate-600">
-                        {new Date(r.arrivalDate).toLocaleDateString()} \u2192 {new Date(r.departureDate).toLocaleDateString()}
+                        {new Date(r.arrivalDate).toLocaleDateString()} → {new Date(r.departureDate).toLocaleDateString()}
                       </td>
-                      <td className="pmfs-table-td font-semibold text-slate-900">\u20b9{r.totalAmount}</td>
+                      <td className="pmfs-table-td font-semibold text-slate-900">₹{Number(r.totalAmount || 0).toLocaleString('en-IN')}</td>
                       <td className="pmfs-table-td"><Badge variant={r.status === 'CHECKED_IN' ? 'success' : 'info'}>{r.status}</Badge></td>
                     </tr>
                   ))
@@ -612,7 +612,7 @@ export default function GuestProfilePage() {
                       <td className="pmfs-table-td font-mono font-bold text-emerald-700">{p.paymentRef}</td>
                       <td className="pmfs-table-td text-xs text-slate-500">{new Date(p.date).toLocaleString()}</td>
                       <td className="pmfs-table-td font-semibold text-slate-800">{p.method}</td>
-                      <td className="pmfs-table-td font-extrabold text-emerald-600">\u20b9{p.amount.toFixed(2)}</td>
+                      <td className="pmfs-table-td font-extrabold text-emerald-600">₹{Number(p.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     </tr>
                   ))
                 )}
