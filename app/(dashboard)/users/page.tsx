@@ -20,6 +20,7 @@ import {
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
+import { getUserAvatar } from '@/lib/avatar';
 
 export default function UsersPage() {
   const { showToast } = useToast();
@@ -297,12 +298,12 @@ export default function UsersPage() {
                     <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="pmfs-table-td">
                         {(() => {
-                          const isAyan = u.email === 'ayan@indiralodge' || u.email === 'ayan@indiralodge.com' || u.fullName?.toLowerCase().includes('ayan');
+                          const avatarSrc = getUserAvatar(u.email, u.fullName);
                           return (
                             <div className="flex items-center gap-3">
                               <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-brand-200 bg-brand-100 text-brand-700 font-bold text-xs flex items-center justify-center shadow-xs">
-                                {isAyan ? (
-                                  <img src="/avatars/ayan.png" alt={u.fullName} className="w-full h-full object-cover" />
+                                {avatarSrc ? (
+                                  <img src={avatarSrc} alt={u.fullName} className="w-full h-full object-cover" />
                                 ) : (
                                   u.fullName.charAt(0).toUpperCase()
                                 )}

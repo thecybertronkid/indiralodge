@@ -16,6 +16,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
+import { getUserAvatar } from '@/lib/avatar';
 
 interface HeaderProps {
   propertyName?: string;
@@ -61,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
     userEmail === 'ayan@indiralodge' ||
     userEmail === 'ayan@indiralodge.com' ||
     userFullName?.toLowerCase().includes('ayan');
-  const avatarSrc = userAvatar || (isAyan ? '/avatars/ayan.png' : null);
+  const avatarSrc = userAvatar || getUserAvatar(userEmail, userFullName);
 
   // Hotel Timezone Clock
   const [currentTime, setCurrentTime] = useState<string>('');

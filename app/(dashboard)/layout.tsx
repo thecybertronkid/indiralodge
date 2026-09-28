@@ -90,6 +90,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar
         propertyName={propertyName}
         userFullName={userFullName}
+        userEmail={userEmail}
         userRole={userRole}
         userRoles={userData.roles}
         permissions={userData.permissions}

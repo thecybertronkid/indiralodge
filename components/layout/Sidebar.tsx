@@ -30,10 +30,12 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
+import { getUserAvatar } from '@/lib/avatar';
 
 interface SidebarProps {
   propertyName?: string;
   userFullName?: string;
+  userEmail?: string;
   userRole?: string;
   userRoles?: string[];
   permissions?: string[];
@@ -47,6 +49,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   propertyName = 'Indira Lodge',
   userFullName = 'Hotel Staff',
+  userEmail = '',
   userRole = 'Staff',
   userRoles = [],
   permissions = [],
@@ -290,11 +293,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : 'border-slate-700 bg-slate-800 text-slate-200'
                   }`}
                 >
-                  {isAyan || userFullName?.toLowerCase().includes('ayan') ? (
-                    <img src="/avatars/ayan.png" alt={userFullName} className="w-full h-full object-cover" />
-                  ) : (
-                    userFullName.charAt(0).toUpperCase()
-                  )}
+                  {(() => {
+                    const avatarSrc = getUserAvatar(userEmail, userFullName);
+                    return avatarSrc ? (
+                      <img src={avatarSrc} alt={userFullName} className="w-full h-full object-cover" />
+                    ) : (
+                      userFullName.charAt(0).toUpperCase()
+                    );
+                  })()}
                 </div>
                 <div className="flex flex-col truncate">
                   <span className="text-xs font-bold text-white truncate">{userFullName}</span>
