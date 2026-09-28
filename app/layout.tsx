@@ -5,6 +5,11 @@ import { ToastProvider } from '@/components/ui/Toast';
 export const metadata: Metadata = {
   title: 'Indira Lodge | Hotel Property Management & Financial System',
   description: 'Production-ready Hotel PMFS for modern hospitality operations.',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

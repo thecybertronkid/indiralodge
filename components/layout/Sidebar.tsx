@@ -156,13 +156,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden group">
             <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform duration-300 ${
+              className={`w-10 h-10 rounded-xl overflow-hidden shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform duration-300 p-0.5 border ${
                 isAyan
-                  ? 'bg-gradient-to-tr from-red-600 via-rose-600 to-red-800 shadow-red-600/30'
-                  : 'bg-gradient-to-tr from-brand-600 via-blue-500 to-emerald-400 shadow-brand-500/20'
+                  ? 'border-red-500/50 bg-white shadow-red-600/30'
+                  : 'border-white/20 bg-white shadow-brand-500/20'
               }`}
             >
-              <Building2 className="w-5 h-5 text-white" />
+              <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain rounded-lg" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col truncate">

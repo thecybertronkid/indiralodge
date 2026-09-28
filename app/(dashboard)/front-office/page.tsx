@@ -2635,13 +2635,18 @@ export default function FrontOfficePage() {
             >
               {/* Hotel Header */}
               <div className="flex items-start justify-between border-b border-slate-200 pb-4">
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight">INDIRA LODGE</h2>
-                  <p className="text-slate-500 font-medium">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
-                  <p className="text-slate-500 font-medium">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
-                  <p className="text-slate-700 font-bold mt-1">
-                    GSTIN: <span className="font-mono">18AOIPB2857A1ZB</span> • State Code: 18
-                  </p>
+                <div className="flex items-start gap-3.5">
+                  <div className="w-14 h-14 rounded-xl overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
+                    <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight">INDIRA LODGE</h2>
+                    <p className="text-slate-500 font-medium">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
+                    <p className="text-slate-500 font-medium">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
+                    <p className="text-slate-700 font-bold mt-1">
+                      GSTIN: <span className="font-mono">18AOIPB2857A1ZB</span> • State Code: 18
+                    </p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <div

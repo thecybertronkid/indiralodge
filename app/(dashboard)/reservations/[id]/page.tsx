@@ -1008,11 +1008,16 @@ export default function ReservationDetailPage() {
             <div id="printable-bill" className="p-8 bg-white border border-slate-300 rounded-xl space-y-6 text-slate-900 font-sans text-xs">
               {/* Invoice Header */}
               <div className="flex items-start justify-between border-b border-slate-200 pb-4">
-                <div>
-                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">INDIRA LODGE</h2>
-                  <p className="text-xs text-slate-500">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
-                  <p className="text-[11px] text-slate-500">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
-                  <p className="text-[11px] font-mono text-slate-700 font-bold mt-1">Property GSTIN: 18AOIPB2857A1ZB</p>
+                <div className="flex items-start gap-3.5">
+                  <div className="w-14 h-14 rounded-xl overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
+                    <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">INDIRA LODGE</h2>
+                    <p className="text-xs text-slate-500">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
+                    <p className="text-[11px] text-slate-500">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
+                    <p className="text-[11px] font-mono text-slate-700 font-bold mt-1">Property GSTIN: 18AOIPB2857A1ZB</p>
+                  </div>
                 </div>
                 <div className="text-right space-y-1">
                   <div className="inline-block px-3 py-1 bg-slate-900 text-white font-extrabold text-xs uppercase rounded">

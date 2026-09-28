@@ -260,10 +260,15 @@ export default function TaxInvoicesPage() {
       <Modal isOpen={isPrintOpen} onClose={() => setIsPrintOpen(false)} title={`Tax Invoice: ${selectedInvoice?.invoiceRef}`} maxWidth="lg">
         <div className="p-6 bg-white border border-slate-200 rounded-2xl space-y-6 text-xs" id="printable-invoice">
           <div className="flex items-start justify-between border-b pb-4">
-            <div>
-              <h2 className="text-lg font-black text-slate-900">INDIRA LODGE</h2>
-              <p className="text-slate-500">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
-              <p className="text-slate-500">Contact: +91 70028 90165 • indiralodge@gmail.com • GSTIN: 18AOIPB2857A1ZB</p>
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
+                <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-slate-900">INDIRA LODGE</h2>
+                <p className="text-slate-500">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
+                <p className="text-slate-500">Contact: +91 70028 90165 • indiralodge@gmail.com • GSTIN: 18AOIPB2857A1ZB</p>
+              </div>
             </div>
             <div className="text-right">
               <span className="text-base font-extrabold text-emerald-700">TAX INVOICE</span>

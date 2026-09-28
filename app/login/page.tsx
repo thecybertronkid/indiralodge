@@ -89,8 +89,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md z-10">
         {/* Brand Logo & Name */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-brand-600 to-blue-500 text-white shadow-xl shadow-brand-500/20 mb-4">
-            <Building2 className="w-8 h-8" />
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white shadow-2xl p-2 mb-4 border border-white/40 ring-4 ring-black/20">
+            <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain rounded-xl" />
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
             {propertyName}
