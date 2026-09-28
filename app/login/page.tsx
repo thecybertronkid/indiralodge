@@ -72,10 +72,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4 relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
+      {/* Background Building Photo with 50% Opacity */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-50 pointer-events-none"
+        style={{ backgroundImage: "url('/login-bg.png')" }}
+      />
+
+      {/* Dark tint gradient overlay for optimal readability & contrast */}
+      <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px] pointer-events-none" />
+
+      {/* Ambient Glow Accents */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-600/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md z-10">
         {/* Brand Logo & Name */}
