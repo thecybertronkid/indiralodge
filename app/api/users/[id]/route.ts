@@ -16,7 +16,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const userId = params.id;
     const body = await req.json();
-    const { fullName, phone, status, roleId, newPassword } = body;
+    const { fullName, phone, email, status, roleId, newPassword } = body;
 
     const existingUser = await db.user.findUnique({
       where: { id: userId },
@@ -29,7 +29,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const updateData: any = {};
     if (fullName) updateData.fullName = fullName.trim();
-    if (phone !== undefined) updateData.phone = phone;
+    if (phone !== undefined) updateData.phone = phone ? phone.trim() : null;
+    if (email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const duplicate = await db.user.findFirst({
+        where: { email: cleanEmail, NOT: { id: userId } },
+      });
+      if (duplicate) {
+        return NextResponse.json({ error: 'Username / Email is already in use by another user' }, { status: 400 });
+      }
+      updateData.email = cleanEmail;
+    }
     if (status) updateData.status = status;
     if (newPassword) {
       if (newPassword.length < 8) {

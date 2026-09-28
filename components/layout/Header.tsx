@@ -541,7 +541,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
                 <div className="py-1">
                   <Link
-                    href="/settings"
+                    href="/settings?tab=profile"
                     onClick={() => setIsProfileOpen(false)}
                     className={`flex items-center gap-2.5 px-3 py-2 text-xs rounded-xl transition-colors ${
                       isAyan
@@ -553,7 +553,7 @@ export const Header: React.FC<HeaderProps> = ({
                     Profile Details
                   </Link>
                   <Link
-                    href="/settings"
+                    href="/settings?tab=general"
                     onClick={() => setIsProfileOpen(false)}
                     className={`flex items-center gap-2.5 px-3 py-2 text-xs rounded-xl transition-colors ${
                       isAyan
