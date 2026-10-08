@@ -37,8 +37,21 @@ export async function GET(req: Request) {
     const invoices = await db.taxInvoice.findMany({
       where,
       include: {
-        guest: { select: { displayName: true, phone: true, gstin: true } },
-        reservation: { select: { reservationRef: true } },
+        guest: { select: { displayName: true, phone: true, gstin: true, company: true } },
+        reservation: {
+          select: {
+            reservationRef: true,
+            arrivalDate: true,
+            departureDate: true,
+            actualCheckInAt: true,
+            actualCheckOutAt: true,
+            arrivalTime: true,
+            departureTime: true,
+            nights: true,
+            assignedRoom: { select: { roomNumber: true } },
+            roomType: { select: { name: true } },
+          },
+        },
         lines: true,
       },
       orderBy: { invoiceDate: 'desc' },
@@ -90,20 +103,19 @@ export async function POST(req: Request) {
         lineItemsData = folio.transactions
           .filter((t) => t.type === 'DEBIT')
           .map((t) => {
-            const taxBase = Math.round((t.amount / 1.05) * 100) / 100;
-            const gst = Math.round((t.amount - taxBase) * 100) / 100;
-            const cgst = Math.round((gst / 2) * 100) / 100;
-            const sgst = Math.round((gst - cgst) * 100) / 100;
+            const taxBase = t.amount;
+            const cgst = Math.round((taxBase * 0.025) * 100) / 100;
+            const sgst = Math.round((taxBase * 0.025) * 100) / 100;
             return {
               description: t.description,
               hsnSacCode: '996311', // Hotel lodging SAC
-              quantity: t.quantity,
-              unitPrice: t.unitPrice,
+              quantity: t.quantity || 1,
+              unitPrice: t.unitPrice || t.amount,
               taxableAmount: taxBase,
               cgstAmount: cgst,
               sgstAmount: sgst,
               igstAmount: 0,
-              totalAmount: t.amount,
+              totalAmount: taxBase + cgst + sgst,
             };
           });
       }
@@ -112,10 +124,9 @@ export async function POST(req: Request) {
     if (lineItemsData.length === 0) {
       // Default line item
       subtotal = 2500.0;
-      const taxBase = Math.round((2500.0 / 1.05) * 100) / 100;
-      const gst = Math.round((2500.0 - taxBase) * 100) / 100;
-      const cgst = Math.round((gst / 2) * 100) / 100;
-      const sgst = Math.round((gst - cgst) * 100) / 100;
+      const taxBase = 2500.0;
+      const cgst = Math.round((taxBase * 0.025) * 100) / 100;
+      const sgst = Math.round((taxBase * 0.025) * 100) / 100;
       lineItemsData = [
         {
           description: 'Hotel Accommodation Stay Tariff',
@@ -126,7 +137,7 @@ export async function POST(req: Request) {
           cgstAmount: cgst,
           sgstAmount: sgst,
           igstAmount: 0,
-          totalAmount: 2500.0,
+          totalAmount: taxBase + cgst + sgst,
         },
       ];
     }
@@ -134,7 +145,7 @@ export async function POST(req: Request) {
     const cgstAmount = lineItemsData.reduce((sum, l) => sum + l.cgstAmount, 0);
     const sgstAmount = lineItemsData.reduce((sum, l) => sum + l.sgstAmount, 0);
     const igstAmount = lineItemsData.reduce((sum, l) => sum + l.igstAmount, 0);
-    const totalAmount = subtotal;
+    const totalAmount = subtotal + cgstAmount + sgstAmount;
 
     const invoiceRef = await generateReferenceNumber(propertyId, 'INV');
 

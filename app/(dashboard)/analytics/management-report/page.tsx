@@ -55,9 +55,9 @@ export default function MonthlyManagementReportPackPage() {
       <div className="pmfs-card p-8 space-y-8 bg-white border border-slate-300 shadow-lg">
         {/* Cover / Header */}
         <div className="border-b pb-6 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="w-14 h-14 rounded-2xl overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
-              <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
+              <img src="/logo.png" alt="Indira Lodge" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
             <div>
               <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide">INDIRA LODGE</h2>

@@ -28,6 +28,7 @@ import {
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
+import { formatStayDateTime, openPrintBillWindow } from '@/lib/billPrinter';
 
 export default function ReservationDetailPage() {
   const params = useParams();
@@ -310,7 +311,12 @@ export default function ReservationDetailPage() {
   };
 
   const handlePrintWindow = () => {
-    window.print();
+    if (!activeInvoice) return;
+    openPrintBillWindow({
+      invoice: activeInvoice,
+      reservation: res,
+      guest: activeInvoice.guest || res.guest,
+    });
   };
 
   if (loading) {
@@ -1005,23 +1011,31 @@ export default function ReservationDetailPage() {
 
           {/* Printable Invoice Container */}
           {activeInvoice && (
-            <div id="printable-bill" className="p-8 bg-white border border-slate-300 rounded-xl space-y-6 text-slate-900 font-sans text-xs">
+            <div id="printable-bill" className="p-6 bg-white border border-slate-200 rounded-2xl space-y-5 text-slate-900 font-sans text-xs shadow-sm">
               {/* Invoice Header */}
               <div className="flex items-start justify-between border-b border-slate-200 pb-4">
-                <div className="flex items-start gap-3.5">
-                  <div className="w-14 h-14 rounded-xl overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
                     <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">INDIRA LODGE</h2>
-                    <p className="text-xs text-slate-500">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
-                    <p className="text-[11px] text-slate-500">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
-                    <p className="text-[11px] font-mono text-slate-700 font-bold mt-1">Property GSTIN: 18AOIPB2857A1ZB</p>
+                    <h2 className="text-lg font-black text-slate-900 tracking-tight uppercase">INDIRA LODGE</h2>
+                    <p className="text-[11px] text-slate-500 font-medium">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
+                    <p className="text-[11px] text-slate-500 font-medium">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
+                    <p className="text-[11px] font-bold text-slate-700 mt-0.5">
+                      GSTIN: <span className="font-mono">18AOIPB2857A1ZB</span> • State Code: 18
+                    </p>
                   </div>
                 </div>
                 <div className="text-right space-y-1">
-                  <div className="inline-block px-3 py-1 bg-slate-900 text-white font-extrabold text-xs uppercase rounded">
-                    {activeInvoice.invoiceType === 'GST' ? 'TAX INVOICE (GST)' : 'HOTEL RECEIPT (NON-GST)'}
+                  <div
+                    className={`inline-block px-3 py-1 rounded text-xs font-extrabold uppercase tracking-wider ${
+                      activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-slate-900 text-white'
+                    }`}
+                  >
+                    {activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST' ? 'TAX INVOICE (GST)' : 'HOTEL RECEIPT (NON-GST)'}
                   </div>
                   <div className="font-mono font-bold text-sm text-slate-900 mt-1">{activeInvoice.invoiceRef}</div>
                   <div className="text-[11px] text-slate-500">
@@ -1031,80 +1045,130 @@ export default function ReservationDetailPage() {
               </div>
 
               {/* Guest & Stay Info Table */}
-              <div className="grid grid-cols-2 gap-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px]">
                 <div>
-                  <h4 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500">Billed To (Guest / Company)</h4>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{activeInvoice.guest?.displayName}</div>
+                  <h4 className="font-bold text-slate-500 uppercase text-[10px]">Guest / Billed To</h4>
+                  <div className="font-extrabold text-slate-900 text-xs mt-0.5">{activeInvoice.guest?.displayName}</div>
                   {(activeInvoice.guest?.company || companyNameInput) && (
-                    <div className="font-bold text-indigo-700 text-xs mt-0.5">🏢 {activeInvoice.guest?.company || companyNameInput}</div>
+                    <div className="font-bold text-indigo-700 text-[11px] mt-0.5">🏢 {activeInvoice.guest?.company || companyNameInput}</div>
                   )}
-                  <div>Phone: {activeInvoice.guest?.phone}</div>
-                  <div>Email: {activeInvoice.guest?.email || 'N/A'}</div>
-                  {activeInvoice.customerGstin && (
-                    <div className="font-mono font-bold text-slate-900 mt-0.5">Guest GSTIN: {activeInvoice.customerGstin}</div>
-                  )}
+                  <div className="text-slate-500 text-[10px] mt-0.5">Phone: {activeInvoice.guest?.phone || '—'}</div>
                 </div>
 
                 <div>
-                  <h4 className="font-bold text-slate-900 uppercase text-[10px] text-slate-500">Stay Particulars</h4>
-                  <div>Booking Ref: <strong>{res.reservationRef}</strong></div>
-                  <div>Room Category: <strong>{res.roomType?.name}</strong></div>
-                  <div>Assigned Room: <strong>Room {res.assignedRoom?.roomNumber || 'N/A'}</strong></div>
-                  <div>Stay Period: {new Date(res.arrivalDate).toLocaleDateString()} to {new Date(res.departureDate).toLocaleDateString()} ({res.nights} Nights)</div>
+                  <h4 className="font-bold text-slate-500 uppercase text-[10px]">Customer GSTIN</h4>
+                  <div className="font-mono font-bold text-slate-800 mt-0.5">
+                    {activeInvoice.customerGstin || (activeInvoice.isGstBill ? 'Unregistered / B2C' : 'N/A')}
+                  </div>
+                  <div className="text-slate-400 text-[10px]">Place of Supply: Assam (18)</div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-slate-500 uppercase text-[10px]">Room & Category</h4>
+                  <div className="font-extrabold text-slate-900 mt-0.5">Room {res.assignedRoom?.roomNumber || 'N/A'}</div>
+                  <div className="text-slate-500 text-[10px]">{res.roomType?.name}</div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-slate-500 uppercase text-[10px]">Booking Reference</h4>
+                  <div className="font-mono font-bold text-brand-700 mt-0.5">{res.reservationRef}</div>
+                  <div className="text-slate-500 text-[10px]">Stay: {res.nights} Night(s)</div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-slate-500 uppercase text-[10px]">Check-In Date & Time</h4>
+                  <div className="font-bold text-slate-800 mt-0.5">
+                    {formatStayDateTime(res.actualCheckInAt, res.arrivalTime || '14:00', res.arrivalDate)}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-slate-500 uppercase text-[10px]">Check-Out Date & Time</h4>
+                  <div className="font-bold text-slate-800 mt-0.5">
+                    {formatStayDateTime(res.actualCheckOutAt, res.departureTime || '11:00', res.departureDate)}
+                  </div>
                 </div>
               </div>
 
               {/* Line Items Table */}
-              <table className="w-full text-left border-collapse border border-slate-200">
+              <table className="w-full text-left border-collapse border border-slate-200 text-xs">
                 <thead>
                   <tr className="bg-slate-100 text-slate-700 uppercase text-[10px] font-bold">
-                    <th className="p-2 border border-slate-200">Description</th>
-                    <th className="p-2 border border-slate-200 text-center">HSN/SAC</th>
-                    <th className="p-2 border border-slate-200 text-center">Qty</th>
-                    <th className="p-2 border border-slate-200 text-right">Rate</th>
-                    <th className="p-2 border border-slate-200 text-right">Amount</th>
+                    <th className="p-2 border border-slate-200 text-center w-8">#</th>
+                    <th className="p-2 border border-slate-200">Particulars / Description</th>
+                    {activeInvoice.isGstBill && (
+                      <th className="p-2 border border-slate-200 text-center w-20">HSN/SAC</th>
+                    )}
+                    <th className="p-2 border border-slate-200 text-center w-12">Qty</th>
+                    <th className="p-2 border border-slate-200 text-right w-20">Rate (₹)</th>
+                    {activeInvoice.isGstBill && (
+                      <>
+                        <th className="p-2 border border-slate-200 text-right w-20">Taxable (₹)</th>
+                        <th className="p-2 border border-slate-200 text-right w-16">CGST (2.5%)</th>
+                        <th className="p-2 border border-slate-200 text-right w-16">SGST (2.5%)</th>
+                      </>
+                    )}
+                    <th className="p-2 border border-slate-200 text-right w-24">Amount (₹)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {activeInvoice.lines?.map((line: any) => (
-                    <tr key={line.id}>
-                      <td className="p-2 border border-slate-200 font-medium">{line.description}</td>
-                      <td className="p-2 border border-slate-200 text-center font-mono">{line.hsnSacCode}</td>
-                      <td className="p-2 border border-slate-200 text-center">{line.quantity}</td>
-                      <td className="p-2 border border-slate-200 text-right">₹{line.unitPrice.toFixed(2)}</td>
-                      <td className="p-2 border border-slate-200 text-right font-semibold">₹{(line.quantity * line.unitPrice).toFixed(2)}</td>
+                  {activeInvoice.lines?.map((line: any, idx: number) => (
+                    <tr key={line.id || idx}>
+                      <td className="p-2 border border-slate-200 text-center font-mono text-[11px] text-slate-400">{idx + 1}</td>
+                      <td className="p-2 border border-slate-200 font-semibold text-slate-900">{line.description}</td>
+                      {activeInvoice.isGstBill && (
+                        <td className="p-2 border border-slate-200 text-center font-mono text-slate-600">{line.hsnSacCode || '996311'}</td>
+                      )}
+                      <td className="p-2 border border-slate-200 text-center font-mono">{line.quantity || 1}</td>
+                      <td className="p-2 border border-slate-200 text-right font-mono">₹{Number(line.unitPrice || 0).toFixed(2)}</td>
+                      {activeInvoice.isGstBill && (
+                        <>
+                          <td className="p-2 border border-slate-200 text-right font-mono text-slate-700">₹{Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2)}</td>
+                          <td className="p-2 border border-slate-200 text-right font-mono text-slate-600">₹{Number(line.cgstAmount || 0).toFixed(2)}</td>
+                          <td className="p-2 border border-slate-200 text-right font-mono text-slate-600">₹{Number(line.sgstAmount || 0).toFixed(2)}</td>
+                        </>
+                      )}
+                      <td className="p-2 border border-slate-200 text-right font-bold text-slate-900 font-mono">₹{Number(line.totalAmount || 0).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
               {/* Financial Totals */}
-              <div className="flex justify-end pt-2">
-                <div className="w-64 space-y-1.5 text-xs">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end pt-2 gap-4">
+                <div className="text-[11px] text-slate-500 max-w-xs space-y-1">
+                  <div className="font-semibold text-slate-700">Terms & Conditions:</div>
+                  <p>1. Check-out time is 11:00 AM.</p>
+                  <p>2. This computer generated bill is final and acknowledged.</p>
+                </div>
+
+                <div className="w-full sm:w-72 bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-600">
-                    <span>{activeInvoice.isGstBill ? 'Room Charges (Incl. Tax):' : 'Room Charges:'}</span>
-                    <span>₹{activeInvoice.subtotal.toFixed(2)}</span>
+                    <span>Gross Subtotal:</span>
+                    <span className="font-mono font-bold">₹{Number(activeInvoice.subtotal || 0).toFixed(2)}</span>
                   </div>
-                  {activeInvoice.discount > 0 && (
+                  {Number(activeInvoice.discount || 0) > 0 && (
                     <div className="flex justify-between text-rose-600">
                       <span>Discount:</span>
-                      <span>- ₹{activeInvoice.discount.toFixed(2)}</span>
+                      <span className="font-mono font-bold">- ₹{Number(activeInvoice.discount || 0).toFixed(2)}</span>
                     </div>
                   )}
 
                   {activeInvoice.isGstBill ? (
                     <>
-                      <div className="flex justify-between text-slate-500 text-[11px] pt-1 border-t border-slate-200">
-                        <span>Taxable Value (Base):</span>
-                        <span>₹{(activeInvoice.totalAmount - activeInvoice.cgstAmount - activeInvoice.sgstAmount).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600">
+                      <div className="flex justify-between text-slate-600 text-[11px] pt-1 border-t border-slate-200">
                         <span>CGST (2.5%):</span>
-                        <span>₹{activeInvoice.cgstAmount.toFixed(2)}</span>
+                        <span className="font-mono">₹{Number(activeInvoice.cgstAmount || 0).toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between text-slate-600">
+                      <div className="flex justify-between text-slate-600 text-[11px]">
                         <span>SGST (2.5%):</span>
-                        <span>₹{activeInvoice.sgstAmount.toFixed(2)}</span>
+                        <span className="font-mono">₹{Number(activeInvoice.sgstAmount || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-700 font-bold text-[11px] border-t border-slate-200/60 pt-1">
+                        <span>Total GST (5%):</span>
+                        <span className="font-mono">
+                          ₹{(Number(activeInvoice.cgstAmount || 0) + Number(activeInvoice.sgstAmount || 0)).toFixed(2)}
+                        </span>
                       </div>
                     </>
                   ) : (
@@ -1113,9 +1177,9 @@ export default function ReservationDetailPage() {
                     </div>
                   )}
 
-                  <div className="flex justify-between border-t border-slate-900 pt-2 font-extrabold text-sm text-slate-900">
+                  <div className="flex justify-between border-t-2 border-slate-300 pt-2 font-black text-sm text-slate-900">
                     <span>Grand Total:</span>
-                    <span>₹{activeInvoice.totalAmount.toFixed(2)}</span>
+                    <span className="font-mono text-emerald-700">₹{Number(activeInvoice.totalAmount || 0).toFixed(2)}</span>
                   </div>
                 </div>
               </div>

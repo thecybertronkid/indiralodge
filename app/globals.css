@@ -682,6 +682,22 @@
   color: #000000 !important;
 }
 
+/* Print Specific Rules */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  img.bill-logo,
+  img[src*="logo.png"] {
+    max-width: 44px !important;
+    max-height: 44px !important;
+    width: 44px !important;
+    height: 44px !important;
+    object-fit: contain !important;
+  }
+}
+
 
 
 

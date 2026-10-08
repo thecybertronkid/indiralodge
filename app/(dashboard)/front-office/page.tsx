@@ -37,6 +37,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { calculateIndiraLodgeRoomRate } from '@/lib/roomRates';
+import { formatStayDateTime, openPrintBillWindow } from '@/lib/billPrinter';
 
 const getCurrentTimeString = () => {
   const now = new Date();
@@ -2635,15 +2636,15 @@ export default function FrontOfficePage() {
             >
               {/* Hotel Header */}
               <div className="flex items-start justify-between border-b border-slate-200 pb-4">
-                <div className="flex items-start gap-3.5">
-                  <div className="w-14 h-14 rounded-xl overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
                     <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight">INDIRA LODGE</h2>
-                    <p className="text-slate-500 font-medium">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
-                    <p className="text-slate-500 font-medium">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
-                    <p className="text-slate-700 font-bold mt-1">
+                    <h2 className="text-lg font-black text-slate-900 tracking-tight">INDIRA LODGE</h2>
+                    <p className="text-slate-500 font-medium text-[11px]">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
+                    <p className="text-slate-500 font-medium text-[11px]">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
+                    <p className="text-slate-700 font-bold text-[11px] mt-0.5">
                       GSTIN: <span className="font-mono">18AOIPB2857A1ZB</span> • State Code: 18
                     </p>
                   </div>
@@ -2680,7 +2681,7 @@ export default function FrontOfficePage() {
               </div>
 
               {/* Guest & Stay Meta Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px]">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px]">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-500 block">Guest / Billed To</span>
                   <span className="font-extrabold text-slate-900 text-xs block">
@@ -2702,6 +2703,7 @@ export default function FrontOfficePage() {
                         ? 'Unregistered / B2C'
                         : 'N/A')}
                   </span>
+                  <span className="block text-slate-400 text-[10px]">Place of Supply: Assam (18)</span>
                 </div>
 
                 <div>
@@ -2721,6 +2723,28 @@ export default function FrontOfficePage() {
                   </span>
                   <span className="block text-slate-500 text-[10px]">
                     Stay: {generatedInvoice.reservation?.nights || selectedRes?.nights || 1} Night(s)
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Check-In Date & Time</span>
+                  <span className="font-bold text-slate-800">
+                    {formatStayDateTime(
+                      generatedInvoice.reservation?.actualCheckInAt || selectedRes?.actualCheckInAt,
+                      generatedInvoice.reservation?.arrivalTime || selectedRes?.arrivalTime || '14:00',
+                      generatedInvoice.reservation?.arrivalDate || selectedRes?.arrivalDate
+                    )}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Check-Out Date & Time</span>
+                  <span className="font-bold text-slate-800">
+                    {formatStayDateTime(
+                      generatedInvoice.reservation?.actualCheckOutAt || selectedRes?.actualCheckOutAt,
+                      generatedInvoice.reservation?.departureTime || selectedRes?.departureTime || '11:00',
+                      generatedInvoice.reservation?.departureDate || selectedRes?.departureDate
+                    )}
                   </span>
                 </div>
               </div>
@@ -2864,49 +2888,11 @@ export default function FrontOfficePage() {
                 <button
                   type="button"
                   onClick={() => {
-                    const printContents = document.getElementById('printable-bill')?.innerHTML;
-                    if (!printContents) {
-                      window.print();
-                      return;
-                    }
-                    const printWindow = window.open('', '', 'height=700,width=900');
-                    if (printWindow) {
-                      printWindow.document.write(`
-                        <html>
-                          <head>
-                            <title>${generatedInvoice.invoiceRef} - Indira Lodge</title>
-                            <style>
-                              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #1e293b; }
-                              table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
-                              th, td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
-                              th { background: #f8fafc; font-weight: bold; text-transform: uppercase; font-size: 10px; }
-                              .text-right { text-align: right; }
-                              .text-center { text-align: center; }
-                              .font-mono { font-family: monospace; }
-                              .font-bold { font-weight: bold; }
-                              .border-b { border-bottom: 1px solid #e2e8f0; }
-                              .border-t { border-top: 1px solid #e2e8f0; }
-                              .text-xl { font-size: 20px; }
-                              .text-sm { font-size: 14px; }
-                              .text-xs { font-size: 12px; }
-                              .text-slate-500 { color: #64748b; }
-                              .bg-slate-50 { background: #f8fafc; }
-                              .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-                              @media print { body { padding: 0; } }
-                            </style>
-                          </head>
-                          <body>${printContents}</body>
-                        </html>
-                      `);
-                      printWindow.document.close();
-                      printWindow.focus();
-                      setTimeout(() => {
-                        printWindow.print();
-                        printWindow.close();
-                      }, 300);
-                    } else {
-                      window.print();
-                    }
+                    openPrintBillWindow({
+                      invoice: generatedInvoice,
+                      reservation: generatedInvoice.reservation || selectedRes,
+                      guest: generatedInvoice.guest || selectedRes?.guest,
+                    });
                   }}
                   className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
                 >

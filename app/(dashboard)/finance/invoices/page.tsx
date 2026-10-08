@@ -13,6 +13,7 @@ import {
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
+import { formatStayDateTime, openPrintBillWindow } from '@/lib/billPrinter';
 
 export default function TaxInvoicesPage() {
   const { showToast } = useToast();
@@ -257,84 +258,171 @@ export default function TaxInvoicesPage() {
       </Modal>
 
       {/* Modal: Printable Tax Invoice Layout */}
-      <Modal isOpen={isPrintOpen} onClose={() => setIsPrintOpen(false)} title={`Tax Invoice: ${selectedInvoice?.invoiceRef}`} maxWidth="lg">
-        <div className="p-6 bg-white border border-slate-200 rounded-2xl space-y-6 text-xs" id="printable-invoice">
-          <div className="flex items-start justify-between border-b pb-4">
-            <div className="flex items-start gap-3.5">
-              <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
-                <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain" />
+      <Modal isOpen={isPrintOpen} onClose={() => setIsPrintOpen(false)} title={`Tax Invoice: ${selectedInvoice?.invoiceRef}`} maxWidth="xl">
+        <div className="space-y-4">
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedInvoice) {
+                  openPrintBillWindow({
+                    invoice: selectedInvoice,
+                    reservation: selectedInvoice.reservation,
+                    guest: selectedInvoice.guest,
+                  });
+                }
+              }}
+              className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-1.5 transition-all"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Tax Invoice</span>
+            </button>
+          </div>
+
+          <div className="p-6 bg-white border border-slate-200 rounded-2xl space-y-5 text-xs text-slate-800 shadow-sm" id="printable-invoice">
+            <div className="flex items-start justify-between border-b pb-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-white p-1 flex-shrink-0 shadow-xs">
+                  <img src="/logo.png" alt="Indira Lodge" className="w-full h-full object-contain" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 tracking-tight">INDIRA LODGE</h2>
+                  <p className="text-slate-500 font-medium text-[11px]">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
+                  <p className="text-slate-500 font-medium text-[11px]">Contact: +91 70028 90165 • indiralodge@gmail.com</p>
+                  <p className="text-slate-700 font-bold text-[11px] mt-0.5">
+                    GSTIN: <span className="font-mono">18AOIPB2857A1ZB</span> • State Code: 18
+                  </p>
+                </div>
               </div>
+              <div className="text-right">
+                <span className="inline-block px-3 py-1 rounded text-xs font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  TAX INVOICE
+                </span>
+                <p className="font-mono font-bold text-sm text-slate-900 mt-1">{selectedInvoice?.invoiceRef}</p>
+                <p className="text-slate-500 text-[11px]">
+                  Date: {selectedInvoice?.invoiceDate ? new Date(selectedInvoice.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px]">
               <div>
-                <h2 className="text-lg font-black text-slate-900">INDIRA LODGE</h2>
-                <p className="text-slate-500">Solicitor Lodge, Near ASTC, Malow Ali, Jorhat, Assam - 781005</p>
-                <p className="text-slate-500">Contact: +91 70028 90165 • indiralodge@gmail.com • GSTIN: 18AOIPB2857A1ZB</p>
+                <span className="font-bold text-slate-500 uppercase text-[10px] block">Billed To</span>
+                <div className="font-bold text-slate-900 text-xs mt-0.5">{selectedInvoice?.guest?.displayName}</div>
+                {selectedInvoice?.guest?.company && (
+                  <div className="font-bold text-indigo-700 text-[11px] mt-0.5">🏢 {selectedInvoice.guest.company}</div>
+                )}
+                <div className="text-slate-500 text-[10px] mt-0.5">Phone: {selectedInvoice?.guest?.phone || '—'}</div>
               </div>
-            </div>
-            <div className="text-right">
-              <span className="text-base font-extrabold text-emerald-700">TAX INVOICE</span>
-              <p className="font-mono font-bold text-slate-800">{selectedInvoice?.invoiceRef}</p>
-              <p className="text-slate-500">Date: {selectedInvoice?.invoiceDate ? new Date(selectedInvoice.invoiceDate).toLocaleDateString() : ''}</p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4 p-3 bg-slate-50 rounded-xl">
-            <div>
-              <span className="font-bold text-slate-700 uppercase">Billed To:</span>
-              <div className="font-bold text-slate-900 text-sm mt-0.5">{selectedInvoice?.guest?.displayName}</div>
-              {selectedInvoice?.guest?.company && (
-                <div className="font-bold text-indigo-700 text-xs mt-0.5">🏢 {selectedInvoice.guest.company}</div>
-              )}
-              <div>Phone: {selectedInvoice?.guest?.phone}</div>
-              <div>GSTIN: {selectedInvoice?.customerGstin || selectedInvoice?.guest?.gstin || 'Unregistered'}</div>
-            </div>
-            <div className="text-right">
-              <span className="font-bold text-slate-700 uppercase">Place of Supply:</span>
-              <div className="font-bold text-slate-900 text-sm mt-0.5">{selectedInvoice?.placeOfSupply}</div>
-            </div>
-          </div>
+              <div>
+                <span className="font-bold text-slate-500 uppercase text-[10px] block">Customer GSTIN</span>
+                <div className="font-mono font-bold text-slate-800 mt-0.5">
+                  {selectedInvoice?.customerGstin || selectedInvoice?.guest?.gstin || 'Unregistered / B2C'}
+                </div>
+                <div className="text-slate-400 text-[10px]">Place of Supply: Assam (18)</div>
+              </div>
 
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-100 text-slate-800 font-bold border-b">
-                <th className="p-2 text-left">Description</th>
-                <th className="p-2 text-center">SAC Code</th>
-                <th className="p-2 text-right">Taxable Amt</th>
-                <th className="p-2 text-right">CGST (2.5%)</th>
-                <th className="p-2 text-right">SGST (2.5%)</th>
-                <th className="p-2 text-right">Total (₹)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {selectedInvoice?.lines?.map((l: any, idx: number) => (
-                <tr key={idx}>
-                  <td className="p-2 font-medium text-slate-900">{l.description}</td>
-                  <td className="p-2 text-center font-mono">{l.hsnSacCode}</td>
-                  <td className="p-2 text-right font-mono">₹{l.taxableAmount.toFixed(2)}</td>
-                  <td className="p-2 text-right font-mono">₹{l.cgstAmount.toFixed(2)}</td>
-                  <td className="p-2 text-right font-mono">₹{l.sgstAmount.toFixed(2)}</td>
-                  <td className="p-2 text-right font-mono font-bold text-slate-900">₹{l.totalAmount.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              <div>
+                <span className="font-bold text-slate-500 uppercase text-[10px] block">Room & Category</span>
+                <div className="font-bold text-slate-900 text-xs mt-0.5">
+                  Room {selectedInvoice?.reservation?.assignedRoom?.roomNumber || '—'}
+                </div>
+                <div className="text-slate-500 text-[10px]">
+                  {selectedInvoice?.reservation?.roomType?.name || 'Standard Accommodation'}
+                </div>
+              </div>
 
-          <div className="flex justify-end pt-4 border-t border-slate-200">
-            <div className="w-64 space-y-1 text-right">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span className="font-mono font-bold">₹{selectedInvoice?.subtotal.toFixed(2)}</span>
+              <div>
+                <span className="font-bold text-slate-500 uppercase text-[10px] block">Booking Reference</span>
+                <div className="font-mono font-bold text-brand-700 mt-0.5">
+                  {selectedInvoice?.reservation?.reservationRef || '—'}
+                </div>
+                <div className="text-slate-500 text-[10px]">
+                  Stay: {selectedInvoice?.reservation?.nights || 1} Night(s)
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>CGST (2.5%):</span>
-                <span className="font-mono font-bold">₹{selectedInvoice?.cgstAmount.toFixed(2)}</span>
+
+              <div>
+                <span className="font-bold text-slate-500 uppercase text-[10px] block">Check-In Date & Time</span>
+                <div className="font-bold text-slate-800 mt-0.5">
+                  {formatStayDateTime(
+                    selectedInvoice?.reservation?.actualCheckInAt,
+                    selectedInvoice?.reservation?.arrivalTime || '14:00',
+                    selectedInvoice?.reservation?.arrivalDate
+                  )}
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>SGST (2.5%):</span>
-                <span className="font-mono font-bold">₹{selectedInvoice?.sgstAmount.toFixed(2)}</span>
+
+              <div>
+                <span className="font-bold text-slate-500 uppercase text-[10px] block">Check-Out Date & Time</span>
+                <div className="font-bold text-slate-800 mt-0.5">
+                  {formatStayDateTime(
+                    selectedInvoice?.reservation?.actualCheckOutAt,
+                    selectedInvoice?.reservation?.departureTime || '11:00',
+                    selectedInvoice?.reservation?.departureDate
+                  )}
+                </div>
               </div>
-              <div className="flex justify-between text-sm font-extrabold text-emerald-700 pt-2 border-t">
-                <span>Total Invoice:</span>
-                <span className="font-mono">₹{selectedInvoice?.totalAmount.toFixed(2)}</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-800 font-bold border-y border-slate-200 uppercase text-[10px]">
+                    <th className="p-2 text-left">Description</th>
+                    <th className="p-2 text-center">HSN/SAC</th>
+                    <th className="p-2 text-right">Rate / Taxable (₹)</th>
+                    <th className="p-2 text-right">CGST (2.5%)</th>
+                    <th className="p-2 text-right">SGST (2.5%)</th>
+                    <th className="p-2 text-right">Total (₹)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {selectedInvoice?.lines?.map((l: any, idx: number) => (
+                    <tr key={idx}>
+                      <td className="p-2 font-medium text-slate-900">{l.description}</td>
+                      <td className="p-2 text-center font-mono">{l.hsnSacCode || '996311'}</td>
+                      <td className="p-2 text-right font-mono">₹{Number(l.taxableAmount || (l.quantity * l.unitPrice) || 0).toFixed(2)}</td>
+                      <td className="p-2 text-right font-mono text-slate-600">₹{Number(l.cgstAmount || 0).toFixed(2)}</td>
+                      <td className="p-2 text-right font-mono text-slate-600">₹{Number(l.sgstAmount || 0).toFixed(2)}</td>
+                      <td className="p-2 text-right font-mono font-bold text-slate-900">₹{Number(l.totalAmount || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end pt-3 border-t border-slate-200 gap-4">
+              <div className="text-[11px] text-slate-500 max-w-xs space-y-1">
+                <div className="font-semibold text-slate-700">Terms & Conditions:</div>
+                <p>1. Check-out time is 11:00 AM.</p>
+                <p>2. This computer generated bill is final and acknowledged.</p>
+              </div>
+
+              <div className="w-full sm:w-64 bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1 text-xs">
+                <div className="flex justify-between text-slate-600">
+                  <span>Gross Subtotal:</span>
+                  <span className="font-mono font-bold">₹{Number(selectedInvoice?.subtotal || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 text-[11px]">
+                  <span>CGST (2.5%):</span>
+                  <span className="font-mono">₹{Number(selectedInvoice?.cgstAmount || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 text-[11px]">
+                  <span>SGST (2.5%):</span>
+                  <span className="font-mono">₹{Number(selectedInvoice?.sgstAmount || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-slate-700 font-bold text-[11px] border-t pt-1">
+                  <span>Total GST (5%):</span>
+                  <span className="font-mono">
+                    ₹{(Number(selectedInvoice?.cgstAmount || 0) + Number(selectedInvoice?.sgstAmount || 0)).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t-2 border-slate-300">
+                  <span>Grand Total:</span>
+                  <span className="font-mono text-emerald-700">₹{Number(selectedInvoice?.totalAmount || 0).toFixed(2)}</span>
+                </div>
               </div>
             </div>
           </div>

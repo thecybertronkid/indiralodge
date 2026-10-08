@@ -110,28 +110,25 @@ export async function POST(req: Request) {
       (t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE'
     ) || [];
 
-    // Calculate Financial Breakdown (Room rates are GST-inclusive)
+    // Calculate Financial Breakdown
     // If a discount was attached to the reservation, absorb it into the effective nightly base rate so the discounted price becomes the base price on the bill
     const rawDiscount = reservation.discountAmount || 0;
     const effectiveTotalRoomTariff = Math.max(0, (reservation.roomRate * reservation.nights) - rawDiscount);
     const effectiveNightlyRate = reservation.nights > 0 ? Math.round((effectiveTotalRoomTariff / reservation.nights) * 100) / 100 : reservation.roomRate;
     const roomCharges = effectiveNightlyRate * reservation.nights;
     const extraChargesTotal = extraCharges.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
-    const grossSubtotal = roomCharges + extraChargesTotal;
+    const taxableSubtotal = roomCharges + extraChargesTotal;
     const discount = 0; // Discounted rate is now the base price
-    const netTotal = grossSubtotal;
 
     let cgstAmount = 0;
     let sgstAmount = 0;
-    let taxableSubtotal = netTotal;
-    const totalAmount = netTotal;
+    let totalAmount = taxableSubtotal;
 
     if (isGst) {
-      // 5% GST (2.5% CGST + 2.5% SGST) extracted from inclusive total
-      taxableSubtotal = Math.round((netTotal / 1.05) * 100) / 100;
-      const totalGst = Math.round((netTotal - taxableSubtotal) * 100) / 100;
-      cgstAmount = Math.round((totalGst / 2) * 100) / 100;
-      sgstAmount = Math.round((totalGst - cgstAmount) * 100) / 100;
+      // Direct 2.5% CGST and 2.5% SGST on taxable tariff (e.g. 2.5% of 1200 = 30.00)
+      cgstAmount = Math.round((taxableSubtotal * 0.025) * 100) / 100;
+      sgstAmount = Math.round((taxableSubtotal * 0.025) * 100) / 100;
+      totalAmount = Math.round((taxableSubtotal + cgstAmount + sgstAmount) * 100) / 100;
     }
 
     const refPrefix = isGst ? 'INV' : 'BIL';
@@ -140,26 +137,30 @@ export async function POST(req: Request) {
     const folioId = folio?.id || null;
 
     // Build itemized invoice lines: Accommodation + all room service/extra items
+    const roomCgst = isGst ? Math.round((roomCharges * 0.025) * 100) / 100 : 0;
+    const roomSgst = isGst ? Math.round((roomCharges * 0.025) * 100) / 100 : 0;
+    const roomLineTotal = roomCharges + roomCgst + roomSgst;
+
     const invoiceLinesToCreate: any[] = [
       {
         description: `Accommodation Charges (${reservation.roomType.name} - Room ${reservation.assignedRoom?.roomNumber || 'N/A'}) x ${reservation.nights} Night${reservation.nights > 1 ? 's' : ''}`,
         hsnSacCode: '996311',
         quantity: reservation.nights,
         unitPrice: effectiveNightlyRate,
-        taxableAmount: isGst ? Math.round((roomCharges / 1.05) * 100) / 100 : roomCharges,
-        cgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.05) * 100) / 100) / 2) * 100) / 100 : 0,
-        sgstAmount: isGst ? Math.round(((roomCharges - Math.round((roomCharges / 1.05) * 100) / 100) / 2) * 100) / 100 : 0,
-        totalAmount: roomCharges,
+        taxableAmount: roomCharges,
+        cgstAmount: roomCgst,
+        sgstAmount: roomSgst,
+        totalAmount: roomLineTotal,
       },
     ];
 
     for (const ec of extraCharges) {
       const isFood = ec.category === 'FOOD_BEVERAGE' || ec.category === 'ROOM_SERVICE';
       const sac = isFood ? '996331' : '996311';
-      const itemTaxBase = isGst ? Math.round((ec.amount / 1.05) * 100) / 100 : ec.amount;
-      const itemGst = isGst ? Math.round((ec.amount - itemTaxBase) * 100) / 100 : 0;
-      const itemCgst = Math.round((itemGst / 2) * 100) / 100;
-      const itemSgst = Math.round((itemGst - itemCgst) * 100) / 100;
+      const itemTaxBase = ec.amount;
+      const itemCgst = isGst ? Math.round((itemTaxBase * 0.025) * 100) / 100 : 0;
+      const itemSgst = isGst ? Math.round((itemTaxBase * 0.025) * 100) / 100 : 0;
+      const itemTotal = itemTaxBase + itemCgst + itemSgst;
 
       invoiceLinesToCreate.push({
         description: ec.description,
@@ -169,7 +170,7 @@ export async function POST(req: Request) {
         taxableAmount: itemTaxBase,
         cgstAmount: itemCgst,
         sgstAmount: itemSgst,
-        totalAmount: ec.amount,
+        totalAmount: itemTotal,
       });
     }
 
@@ -185,7 +186,7 @@ export async function POST(req: Request) {
         customerGstin: customerGstin || reservation.guest.gstin || null,
         invoiceType: isGst ? 'GST' : 'NON_GST',
         isGstBill: isGst,
-        subtotal: grossSubtotal,
+        subtotal: taxableSubtotal,
         discount,
         cgstAmount,
         sgstAmount,
