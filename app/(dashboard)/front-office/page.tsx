@@ -1282,52 +1282,54 @@ export default function FrontOfficePage() {
                         </td>
                         <td className="pmfs-table-td text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {inh.isBilled && (
+                            {inh.isBilled ? (
                               <button
-                                onClick={() => handleViewGeneratedBill(inh)}
-                                className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md text-xs font-bold border border-purple-200 flex items-center gap-1 shadow-xs"
-                                title="View Final Generated Bill"
+                                onClick={() => openCheckoutModal(inh)}
+                                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                                title="Check Out Guest"
                               >
-                                <FileText className="w-3 h-3 text-purple-600" />
-                                <span>Bill</span>
+                                Check Out
                               </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => openRoomServiceModal(inh)}
+                                  className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md text-xs font-bold border border-indigo-200 flex items-center gap-1"
+                                  title="Add Room Service / Order Item"
+                                >
+                                  <UtensilsCrossed className="w-3 h-3" />
+                                  <span>Order</span>
+                                </button>
+                                <button
+                                  onClick={() => openPaymentModal(inh)}
+                                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-semibold border border-emerald-200"
+                                  title="Record Payment"
+                                >
+                                  Payment
+                                </button>
+                                <button
+                                  onClick={() => openTransferModal(inh)}
+                                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md text-xs font-semibold border border-blue-200"
+                                  title="Transfer Room"
+                                >
+                                  Transfer
+                                </button>
+                                <button
+                                  onClick={() => openExtendModal(inh)}
+                                  className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md text-xs font-semibold border border-purple-200"
+                                  title="Extend Stay"
+                                >
+                                  Extend
+                                </button>
+                                <button
+                                  onClick={() => openCheckoutModal(inh)}
+                                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-md text-xs font-semibold border border-amber-200"
+                                  title="Check Out"
+                                >
+                                  Check Out
+                                </button>
+                              </>
                             )}
-                            <button
-                              onClick={() => openRoomServiceModal(inh)}
-                              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md text-xs font-bold border border-indigo-200 flex items-center gap-1"
-                              title="Add Room Service / Order Item"
-                            >
-                              <UtensilsCrossed className="w-3 h-3" />
-                              <span>Order</span>
-                            </button>
-                            <button
-                              onClick={() => openPaymentModal(inh)}
-                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-semibold border border-emerald-200"
-                              title="Record Payment"
-                            >
-                              Payment
-                            </button>
-                            <button
-                              onClick={() => openTransferModal(inh)}
-                              className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md text-xs font-semibold border border-blue-200"
-                              title="Transfer Room"
-                            >
-                              Transfer
-                            </button>
-                            <button
-                              onClick={() => openExtendModal(inh)}
-                              className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md text-xs font-semibold border border-purple-200"
-                              title="Extend Stay"
-                            >
-                              Extend
-                            </button>
-                            <button
-                              onClick={() => openCheckoutModal(inh)}
-                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-md text-xs font-semibold border border-amber-200"
-                              title="Check Out"
-                            >
-                              Check Out
-                            </button>
                           </div>
                         </td>
                       </tr>
