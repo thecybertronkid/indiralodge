@@ -103,12 +103,13 @@ export async function POST(req: Request) {
         lineItemsData = folio.transactions
           .filter((t) => t.type === 'DEBIT')
           .map((t) => {
+            const isRoomTariff = t.category === 'ROOM_CHARGE' || t.description.toLowerCase().includes('accommodation') || t.description.toLowerCase().includes('room stay');
             const taxBase = t.amount;
-            const cgst = Math.round((taxBase * 0.025) * 100) / 100;
-            const sgst = Math.round((taxBase * 0.025) * 100) / 100;
+            const cgst = isRoomTariff ? Math.round((taxBase * 0.025) * 100) / 100 : 0;
+            const sgst = isRoomTariff ? Math.round((taxBase * 0.025) * 100) / 100 : 0;
             return {
               description: t.description,
-              hsnSacCode: '996311', // Hotel lodging SAC
+              hsnSacCode: isRoomTariff ? '996311' : (t.category === 'FOOD_BEVERAGE' || t.category === 'ROOM_SERVICE' ? '996331' : '996311'),
               quantity: t.quantity || 1,
               unitPrice: t.unitPrice || t.amount,
               taxableAmount: taxBase,

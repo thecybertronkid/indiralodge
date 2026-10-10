@@ -13,7 +13,7 @@ import {
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
-import { formatStayDateTime, openPrintBillWindow } from '@/lib/billPrinter';
+import { formatStayDateTime, openPrintBillWindow, segregateBillLines } from '@/lib/billPrinter';
 
 export default function TaxInvoicesPage() {
   const { showToast } = useToast();
@@ -366,65 +366,168 @@ export default function TaxInvoicesPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-800 font-bold border-y border-slate-200 uppercase text-[10px]">
-                    <th className="p-2 text-left">Description</th>
-                    <th className="p-2 text-center">HSN/SAC</th>
-                    <th className="p-2 text-right">Rate / Taxable (₹)</th>
-                    <th className="p-2 text-right">CGST (2.5%)</th>
-                    <th className="p-2 text-right">SGST (2.5%)</th>
-                    <th className="p-2 text-right">Total (₹)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {selectedInvoice?.lines?.map((l: any, idx: number) => (
-                    <tr key={idx}>
-                      <td className="p-2 font-medium text-slate-900">{l.description}</td>
-                      <td className="p-2 text-center font-mono">{l.hsnSacCode || '996311'}</td>
-                      <td className="p-2 text-right font-mono">₹{Number(l.taxableAmount || (l.quantity * l.unitPrice) || 0).toFixed(2)}</td>
-                      <td className="p-2 text-right font-mono text-slate-600">₹{Number(l.cgstAmount || 0).toFixed(2)}</td>
-                      <td className="p-2 text-right font-mono text-slate-600">₹{Number(l.sgstAmount || 0).toFixed(2)}</td>
-                      <td className="p-2 text-right font-mono font-bold text-slate-900">₹{Number(l.totalAmount || 0).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {(() => {
+              const { roomLines, extraOrderLines } = segregateBillLines(selectedInvoice?.lines || []);
+              const roomSub = roomLines.reduce((s: number, l: any) => s + (Number(l.taxableAmount || (l.unitPrice * l.quantity)) || 0), 0);
+              const extraSub = extraOrderLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
+              const isGst = selectedInvoice?.invoiceType === 'GST' || selectedInvoice?.isGstBill || true; // Invoices here are Tax Invoices
+              const cgst = isGst ? (Number(selectedInvoice?.cgstAmount) || Math.round(roomSub * 0.025 * 100) / 100) : 0;
+              const sgst = isGst ? (Number(selectedInvoice?.sgstAmount) || Math.round(roomSub * 0.025 * 100) / 100) : 0;
+              const totalGst = cgst + sgst;
+              const grandTotal = Number(selectedInvoice?.totalAmount || (roomSub + totalGst + extraSub));
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end pt-3 border-t border-slate-200 gap-4">
-              <div className="text-[11px] text-slate-500 max-w-xs space-y-1">
-                <div className="font-semibold text-slate-700">Terms & Conditions:</div>
-                <p>1. Check-out time is 11:00 AM.</p>
-                <p>2. This computer generated bill is final and acknowledged.</p>
-              </div>
+              return (
+                <div className="space-y-4">
+                  {/* SECTION 1: Room Accommodation Tariff */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="bg-slate-900 text-white px-3.5 py-2 flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+                      <span>Section 1: Base Room Tariff & Accommodation</span>
+                      <span className="text-[11px] text-slate-300 font-normal">Tariff Particulars</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase text-[10px]">
+                            <th className="p-2 text-center w-8">#</th>
+                            <th className="p-2 text-left">Particulars / Description</th>
+                            <th className="p-2 text-center w-20">HSN/SAC</th>
+                            <th className="p-2 text-center w-12">Qty</th>
+                            <th className="p-2 text-right w-20">Rate (₹)</th>
+                            <th className="p-2 text-right w-20">Taxable (₹)</th>
+                            <th className="p-2 text-right w-16">CGST (2.5%)</th>
+                            <th className="p-2 text-right w-16">SGST (2.5%)</th>
+                            <th className="p-2 text-right w-24">Amount (₹)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {roomLines.map((line: any, idx: number) => {
+                            const unitPrice = Number(line.unitPrice || 0).toFixed(2);
+                            const taxable = Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
+                            const lCgst = (Number(line.cgstAmount) || (Number(taxable) * 0.025)).toFixed(2);
+                            const lSgst = (Number(line.sgstAmount) || (Number(taxable) * 0.025)).toFixed(2);
+                            const lTotal = (Number(taxable) + Number(lCgst) + Number(lSgst)).toFixed(2);
+                            return (
+                              <tr key={line.id || idx} className="hover:bg-slate-50/50">
+                                <td className="p-2 text-center font-mono text-[11px] text-slate-400">{idx + 1}</td>
+                                <td className="p-2 font-semibold text-slate-900">{line.description}</td>
+                                <td className="p-2 text-center font-mono text-[11px] text-slate-600">{line.hsnSacCode || '996311'}</td>
+                                <td className="p-2 text-center font-mono">{line.quantity || 1}</td>
+                                <td className="p-2 text-right font-mono">₹{unitPrice}</td>
+                                <td className="p-2 text-right font-mono text-slate-700">₹{taxable}</td>
+                                <td className="p-2 text-right font-mono text-slate-600">₹{lCgst}</td>
+                                <td className="p-2 text-right font-mono text-slate-600">₹{lSgst}</td>
+                                <td className="p-2 text-right font-mono font-bold text-slate-900">₹{lTotal}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-50 font-bold border-t border-slate-200 text-[11px]">
+                            <td colSpan={5} className="p-2 text-right text-slate-600">Section 1 Subtotal (Tariff):</td>
+                            <td className="p-2 text-right font-mono text-slate-900">₹{roomSub.toFixed(2)}</td>
+                            <td className="p-2 text-right font-mono text-slate-700">₹{cgst.toFixed(2)}</td>
+                            <td className="p-2 text-right font-mono text-slate-700">₹{sgst.toFixed(2)}</td>
+                            <td className="p-2 text-right font-mono text-brand-700">₹{(roomSub + totalGst).toFixed(2)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
 
-              <div className="w-full sm:w-64 bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Gross Subtotal:</span>
-                  <span className="font-mono font-bold">₹{Number(selectedInvoice?.subtotal || 0).toFixed(2)}</span>
+                  {/* SECTION 2: Extra Room Orders & Services */}
+                  {extraOrderLines.length > 0 && (
+                    <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/10">
+                      <div className="bg-amber-900 text-white px-3.5 py-2 flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+                        <span>Section 2: Extra Room Orders & Services</span>
+                        <span className="text-[10px] text-amber-200 font-semibold bg-amber-800/60 px-2 py-0.5 rounded">
+                          Non-GST / Exempt (GST Charged on Room Tariff Only)
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-amber-100/60 text-slate-700 font-bold border-b border-amber-200 uppercase text-[10px]">
+                              <th className="p-2 text-center w-8">#</th>
+                              <th className="p-2 text-left">Item Description</th>
+                              <th className="p-2 text-center w-20">Type</th>
+                              <th className="p-2 text-center w-12">Qty</th>
+                              <th className="p-2 text-right w-24">Unit Rate (₹)</th>
+                              <th className="p-2 text-center w-24">Tax Status</th>
+                              <th className="p-2 text-right w-24">Amount (₹)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-amber-100 font-medium">
+                            {extraOrderLines.map((line: any, idx: number) => {
+                              const lineTot = Number(line.totalAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
+                              return (
+                                <tr key={line.id || idx} className="hover:bg-amber-50/40">
+                                  <td className="p-2 text-center font-mono text-[11px] text-slate-400">{idx + 1}</td>
+                                  <td className="p-2 font-semibold text-slate-900">{line.description}</td>
+                                  <td className="p-2 text-center text-slate-500 font-mono text-[11px]">{line.hsnSacCode || 'FOLIO'}</td>
+                                  <td className="p-2 text-center font-mono">{line.quantity || 1}</td>
+                                  <td className="p-2 text-right font-mono">₹{Number(line.unitPrice || 0).toFixed(2)}</td>
+                                  <td className="p-2 text-center">
+                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
+                                      0% (Exempt)
+                                    </span>
+                                  </td>
+                                  <td className="p-2 text-right font-mono font-bold text-slate-900">₹{lineTot}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-amber-50/80 font-bold border-t border-amber-200 text-[11px]">
+                              <td colSpan={6} className="p-2 text-right text-amber-900">Section 2 Subtotal (Room Orders):</td>
+                              <td className="p-2 text-right font-mono text-amber-900">₹{extraSub.toFixed(2)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Combined Totals & Summary */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end pt-3 border-t border-slate-200 gap-4">
+                    <div className="text-[11px] text-slate-500 max-w-xs space-y-1">
+                      <div className="font-semibold text-slate-700">Terms & Conditions:</div>
+                      <p>1. Check-out time is 11:00 AM.</p>
+                      <p>2. Goods & Services Tax (GST) is charged strictly on base room tariff as per hotel tax policy.</p>
+                      <p>3. This computer generated bill is final and acknowledged.</p>
+                    </div>
+
+                    <div className="w-full sm:w-72 bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                      <div className="flex justify-between text-slate-600">
+                        <span>Section 1 (Room Tariff):</span>
+                        <span className="font-mono font-bold">₹{roomSub.toFixed(2)}</span>
+                      </div>
+                      {extraOrderLines.length > 0 && (
+                        <div className="flex justify-between text-amber-800">
+                          <span>Section 2 (Room Orders):</span>
+                          <span className="font-mono font-bold">₹{extraSub.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-slate-600 text-[11px]">
+                        <span>CGST (2.5% on Room Tariff):</span>
+                        <span className="font-mono">₹{cgst.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600 text-[11px]">
+                        <span>SGST (2.5% on Room Tariff):</span>
+                        <span className="font-mono">₹{sgst.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-700 font-bold text-[11px] border-t pt-1">
+                        <span>Total GST (5%):</span>
+                        <span className="font-mono">₹{totalGst.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t-2 border-slate-300">
+                        <span>Grand Total:</span>
+                        <span className="font-mono text-emerald-700">₹{grandTotal.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between text-slate-600 text-[11px]">
-                  <span>CGST (2.5%):</span>
-                  <span className="font-mono">₹{Number(selectedInvoice?.cgstAmount || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600 text-[11px]">
-                  <span>SGST (2.5%):</span>
-                  <span className="font-mono">₹{Number(selectedInvoice?.sgstAmount || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-slate-700 font-bold text-[11px] border-t pt-1">
-                  <span>Total GST (5%):</span>
-                  <span className="font-mono">
-                    ₹{(Number(selectedInvoice?.cgstAmount || 0) + Number(selectedInvoice?.sgstAmount || 0)).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t-2 border-slate-300">
-                  <span>Grand Total:</span>
-                  <span className="font-mono text-emerald-700">₹{Number(selectedInvoice?.totalAmount || 0).toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
       </Modal>

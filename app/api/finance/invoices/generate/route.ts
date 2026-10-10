@@ -125,10 +125,10 @@ export async function POST(req: Request) {
     let totalAmount = taxableSubtotal;
 
     if (isGst) {
-      // Direct 2.5% CGST and 2.5% SGST on taxable tariff (e.g. 2.5% of 1200 = 30.00)
-      cgstAmount = Math.round((taxableSubtotal * 0.025) * 100) / 100;
-      sgstAmount = Math.round((taxableSubtotal * 0.025) * 100) / 100;
-      totalAmount = Math.round((taxableSubtotal + cgstAmount + sgstAmount) * 100) / 100;
+      // GST is charged strictly on room tariff ONLY, not on room orders
+      cgstAmount = Math.round((roomCharges * 0.025) * 100) / 100;
+      sgstAmount = Math.round((roomCharges * 0.025) * 100) / 100;
+      totalAmount = Math.round((roomCharges + cgstAmount + sgstAmount + extraChargesTotal) * 100) / 100;
     }
 
     const refPrefix = isGst ? 'INV' : 'BIL';
@@ -157,20 +157,18 @@ export async function POST(req: Request) {
     for (const ec of extraCharges) {
       const isFood = ec.category === 'FOOD_BEVERAGE' || ec.category === 'ROOM_SERVICE';
       const sac = isFood ? '996331' : '996311';
-      const itemTaxBase = ec.amount;
-      const itemCgst = isGst ? Math.round((itemTaxBase * 0.025) * 100) / 100 : 0;
-      const itemSgst = isGst ? Math.round((itemTaxBase * 0.025) * 100) / 100 : 0;
-      const itemTotal = itemTaxBase + itemCgst + itemSgst;
+      const itemAmount = ec.amount;
 
+      // GST is charged strictly on room tariff only, not on extra room orders
       invoiceLinesToCreate.push({
         description: ec.description,
         hsnSacCode: sac,
         quantity: ec.quantity || 1,
         unitPrice: ec.unitPrice || ec.amount,
-        taxableAmount: itemTaxBase,
-        cgstAmount: itemCgst,
-        sgstAmount: itemSgst,
-        totalAmount: itemTotal,
+        taxableAmount: itemAmount,
+        cgstAmount: 0,
+        sgstAmount: 0,
+        totalAmount: itemAmount,
       });
     }
 
