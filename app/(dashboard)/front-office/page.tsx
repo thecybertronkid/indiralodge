@@ -1283,13 +1283,23 @@ export default function FrontOfficePage() {
                         <td className="pmfs-table-td text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {inh.isBilled ? (
-                              <button
-                                onClick={() => openCheckoutModal(inh)}
-                                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
-                                title="Check Out Guest"
-                              >
-                                Check Out
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleViewGeneratedBill(inh)}
+                                  className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-md text-xs font-bold border border-purple-200 flex items-center gap-1 shadow-xs transition-all"
+                                  title="View Final Generated Bill"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-purple-600" />
+                                  <span>View Bill</span>
+                                </button>
+                                <button
+                                  onClick={() => openCheckoutModal(inh)}
+                                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-xs font-bold transition-all shadow-xs"
+                                  title="Check Out Guest"
+                                >
+                                  Check Out
+                                </button>
+                              </>
                             ) : (
                               <>
                                 <button
