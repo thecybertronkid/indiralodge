@@ -22,9 +22,17 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const dateStr = searchParams.get('date') || new Date().toISOString().split('T')[0];
 
-    const targetDate = new Date(dateStr);
-    const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const localEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+    const utcStart = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+    const utcEnd = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+    const startOfDay = localStart < utcStart ? localStart : utcStart;
+    const endOfDay = localEnd > utcEnd ? localEnd : utcEnd;
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const isToday = dateStr === todayStr;
 
     // Parallelize all report queries concurrently
     const [
@@ -47,56 +55,65 @@ export async function GET(req: Request) {
           OR: [{ availabilityStatus: 'BLOCKED' }, { maintenanceStatus: 'OUT_OF_ORDER' }, { maintenanceStatus: 'MAINTENANCE' }],
         },
       }),
+      // Arrivals for the selected date
       db.reservation.findMany({
         where: {
           propertyId,
           arrivalDate: { gte: startOfDay, lte: endOfDay },
-          status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+          status: { in: isToday ? ['CONFIRMED', 'CHECKED_IN'] : ['CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'] },
         },
         include: {
           guest: { select: { displayName: true, phone: true, guestRef: true } },
           roomType: { select: { name: true, code: true } },
-          assignedRoom: { select: { roomNumber: true } },
+          assignedRoom: { select: { id: true, roomNumber: true } },
           bookingSource: { select: { name: true } },
         },
         orderBy: { arrivalDate: 'asc' },
       }),
+      // Departures for the selected date
       db.reservation.findMany({
         where: {
           propertyId,
           OR: [
             {
               departureDate: { gte: startOfDay, lte: endOfDay },
-              status: { in: ['CHECKED_IN', 'CONFIRMED'] },
+              status: { in: ['CHECKED_IN', 'CONFIRMED', 'CHECKED_OUT'] },
             },
             {
               actualCheckOutAt: { gte: startOfDay, lte: endOfDay },
               status: 'CHECKED_OUT',
             },
-            {
-              departureDate: { gte: startOfDay, lte: endOfDay },
-              status: 'CHECKED_OUT',
-            },
           ],
         },
         include: {
-          guest: { select: { displayName: true, phone: true, guestRef: true, gstin: true } },
+          guest: { select: { displayName: true, phone: true, guestRef: true, gstin: true, company: true } },
           roomType: { select: { name: true, code: true } },
           assignedRoom: { select: { id: true, roomNumber: true } },
           folios: { select: { id: true, folioNumber: true, balanceAmount: true, totalCharges: true, totalPayments: true } },
         },
         orderBy: [{ actualCheckOutAt: 'desc' }, { departureDate: 'asc' }],
       }),
+      // In-House guests on the selected date
       db.reservation.findMany({
-        where: {
-          propertyId,
-          status: 'CHECKED_IN',
-        },
+        where: isToday
+          ? {
+              propertyId,
+              status: 'CHECKED_IN',
+            }
+          : {
+              propertyId,
+              status: { in: ['CHECKED_IN', 'CHECKED_OUT', 'CONFIRMED'] },
+              arrivalDate: { lte: endOfDay },
+              OR: [
+                { actualCheckOutAt: { gte: startOfDay } },
+                { actualCheckOutAt: null, departureDate: { gte: startOfDay } },
+              ],
+            },
         include: {
-          guest: { select: { displayName: true, phone: true, email: true, guestRef: true } },
+          guest: { select: { displayName: true, phone: true, email: true, guestRef: true, company: true, gstin: true } },
           assignedRoom: { select: { roomNumber: true, floor: true } },
           roomType: { select: { name: true, code: true } },
-          folios: { select: { folioNumber: true, balanceAmount: true, totalCharges: true, totalPayments: true } },
+          folios: { select: { id: true, folioNumber: true, balanceAmount: true, totalCharges: true, totalPayments: true } },
         },
         orderBy: { assignedRoom: { roomNumber: 'asc' } },
       }),
@@ -109,8 +126,9 @@ export async function GET(req: Request) {
       }),
     ]);
 
-    const availableRooms = Math.max(0, totalRooms - occupiedRooms - reservedRooms - outOfOrderRooms);
-    const occupancyRate = totalRooms > 0 ? ((occupiedRooms / totalRooms) * 100).toFixed(1) : '0';
+    const effectiveOccupied = isToday ? occupiedRooms : inHouseGuests.length;
+    const availableRooms = Math.max(0, totalRooms - effectiveOccupied - reservedRooms - outOfOrderRooms);
+    const occupancyRate = totalRooms > 0 ? ((effectiveOccupied / totalRooms) * 100).toFixed(1) : '0';
     const roomRevenue = todayPayments._sum.amount || 0;
 
     return NextResponse.json({

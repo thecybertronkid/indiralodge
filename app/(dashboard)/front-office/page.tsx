@@ -46,8 +46,17 @@ const getCurrentTimeString = () => {
 
 export default function FrontOfficePage() {
   const { showToast } = useToast();
+  const getTodayDateStr = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'arrivals' | 'departures' | 'inhouse'>('arrivals');
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateStr());
+  const [activeTab, setActiveTab] = useState<'arrivals' | 'departures' | 'inhouse'>('inhouse');
 
   // Datasets
   const [reportData, setReportData] = useState<any>(null);
@@ -380,10 +389,10 @@ export default function FrontOfficePage() {
 
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchFrontDeskData = async () => {
+  const fetchFrontDeskData = async (targetDate = selectedDate) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/reports/front-office');
+      const res = await fetch(`/api/reports/front-office?date=${encodeURIComponent(targetDate)}`);
       if (res.ok) {
         const data = await res.json();
         setReportData(data);
@@ -396,8 +405,8 @@ export default function FrontOfficePage() {
   };
 
   useEffect(() => {
-    fetchFrontDeskData();
-  }, []);
+    fetchFrontDeskData(selectedDate);
+  }, [selectedDate]);
 
   const handleCheckinClick = async (resItem: any) => {
     const targetRoomId = resItem.assignedRoomId || resItem.assignedRoom?.id;
@@ -941,13 +950,17 @@ export default function FrontOfficePage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="pmfs-card p-3.5 flex flex-col justify-between">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase">Today's Arrivals</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase">
+            {selectedDate === getTodayDateStr() ? "Today's Arrivals" : 'Arrivals'}
+          </span>
           <div className="text-2xl font-extrabold text-brand-600 mt-1">
             {reportData?.arrivals?.length ?? '—'}
           </div>
         </div>
         <div className="pmfs-card p-3.5 flex flex-col justify-between">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase">Today's Departures</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase">
+            {selectedDate === getTodayDateStr() ? "Today's Departures" : 'Departures'}
+          </span>
           <div className="text-2xl font-extrabold text-amber-600 mt-1">
             {reportData?.departures?.length ?? '—'}
           </div>
@@ -972,45 +985,75 @@ export default function FrontOfficePage() {
         </div>
       </div>
 
-      {/* Main Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
-        <button
-          onClick={() => setActiveTab('arrivals')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
-            activeTab === 'arrivals' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <CalendarCheck className="w-4 h-4" />
-          Today's Arrivals ({reportData?.arrivals?.length || 0})
-        </button>
+      {/* Main Tabs Navigation & Date Filter */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200 pb-1.5">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+          <button
+            onClick={() => setActiveTab('inhouse')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
+              activeTab === 'inhouse' ? 'bg-brand-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <UserCheck className="w-4 h-4" />
+            In-House Guests ({reportData?.inHouseGuests?.length || 0})
+          </button>
 
-        <button
-          onClick={() => setActiveTab('departures')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
-            activeTab === 'departures' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <LogOut className="w-4 h-4" />
-          Today's Departures ({reportData?.departures?.length || 0})
-        </button>
+          <button
+            onClick={() => setActiveTab('arrivals')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
+              activeTab === 'arrivals' ? 'bg-brand-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <CalendarCheck className="w-4 h-4" />
+            {selectedDate === getTodayDateStr() ? "Today's Arrivals" : 'Arrivals'} ({reportData?.arrivals?.length || 0})
+          </button>
 
-        <button
-          onClick={() => setActiveTab('inhouse')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
-            activeTab === 'inhouse' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          In-House Guests ({reportData?.inHouseGuests?.length || 0})
-        </button>
+          <button
+            onClick={() => setActiveTab('departures')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
+              activeTab === 'departures' ? 'bg-brand-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <LogOut className="w-4 h-4" />
+            {selectedDate === getTodayDateStr() ? "Today's Departures" : 'Departures'} ({reportData?.departures?.length || 0})
+          </button>
+        </div>
 
-        <button
-          onClick={fetchFrontDeskData}
-          className="ml-auto p-2 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100"
-          title="Refresh feeds"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        {/* Date Filter Bar */}
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded-lg shadow-2xs hover:border-brand-500 transition-colors">
+            <Calendar className="w-3.5 h-3.5 text-brand-600 flex-shrink-0" />
+            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Date:</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setSelectedDate(e.target.value);
+                }
+              }}
+              className="text-xs font-bold text-slate-800 bg-transparent outline-none cursor-pointer"
+            />
+          </div>
+
+          {selectedDate !== getTodayDateStr() && (
+            <button
+              onClick={() => setSelectedDate(getTodayDateStr())}
+              className="px-2.5 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 rounded-lg text-xs font-bold transition-all shadow-2xs"
+              title="Reset to today's date"
+            >
+              Today
+            </button>
+          )}
+
+          <button
+            onClick={() => fetchFrontDeskData(selectedDate)}
+            className="p-2 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors"
+            title="Refresh front desk data"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Tab 1: Today's Arrivals */}
@@ -1216,10 +1259,10 @@ export default function FrontOfficePage() {
         <div className="pmfs-card overflow-hidden">
           <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Currently Staying Guests
+              {selectedDate === getTodayDateStr() ? 'Currently Staying Guests' : 'In-House Guests for Date'}
             </h3>
             <span className="text-xs text-slate-500">
-              Total In-House: {reportData?.inHouseGuests?.length || 0}
+              Date: {reportData?.date || selectedDate} • Total In-House: {reportData?.inHouseGuests?.length || 0}
             </span>
           </div>
 
