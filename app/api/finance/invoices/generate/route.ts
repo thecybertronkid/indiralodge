@@ -224,6 +224,7 @@ export async function POST(req: Request) {
     });
 
     // Update reservation -> Mark as BILLED & LOCKED
+    const newBalanceAmount = Math.max(0, totalAmount - reservation.paidAmount);
     await db.reservation.update({
       where: { id: reservationId },
       data: {
@@ -235,8 +236,22 @@ export async function POST(req: Request) {
         discountAmount: 0,
         taxAmount: cgstAmount + sgstAmount,
         totalAmount,
+        balanceAmount: newBalanceAmount,
       },
     });
+
+    // Synchronize folio total charges and balance amount with finalized invoice
+    if (folio) {
+      const folioPayments = folio.totalPayments || 0;
+      const newFolioBalance = Math.max(0, totalAmount - folioPayments);
+      await db.folio.update({
+        where: { id: folio.id },
+        data: {
+          totalCharges: totalAmount,
+          balanceAmount: newFolioBalance,
+        },
+      });
+    }
 
     await logAuditEvent({
       organizationId: session.organizationId,

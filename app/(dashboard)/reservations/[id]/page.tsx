@@ -441,6 +441,10 @@ export default function ReservationDetailPage() {
   const payments = res.payments || [];
   const timeline = data.auditEvents || [];
   const isBilled = res.isBilled;
+  const extraOrdersTotal = transactions
+    .filter((t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE')
+    .reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+  const roomTariffTotal = res.roomRate * res.nights;
 
   const getBadgeVariant = (status: string) => {
     if (status === 'CHECKED_IN') return 'success';
@@ -870,29 +874,45 @@ export default function ReservationDetailPage() {
 
           {/* Financial Summary */}
           <div className="pmfs-card p-6 space-y-4">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
-              Financial & Billing Summary
-            </h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                Financial & Billing Summary
+              </h3>
+              {isBilled && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  {res.billType === 'GST' ? 'GST Billed' : 'Non-GST Billed'}
+                </span>
+              )}
+            </div>
 
             <div className="space-y-2.5 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-600">Room Rate x {res.nights} Nights:</span>
-                <span className="font-semibold text-slate-900">₹{(res.roomRate * res.nights).toFixed(2)}</span>
+                <span className="text-slate-600">Room Tariff ({res.nights} Night{res.nights > 1 ? 's' : ''}):</span>
+                <span className="font-semibold text-slate-900">₹{roomTariffTotal.toFixed(2)}</span>
               </div>
 
-              {res.discountAmount > 0 && (
+              {extraOrdersTotal > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Discount Applied:</span>
-                  <span className="font-semibold text-rose-600">- ₹{res.discountAmount.toFixed(2)}</span>
+                  <span className="text-slate-600">Extra Orders & Services:</span>
+                  <span className="font-semibold text-slate-900">₹{extraOrdersTotal.toFixed(2)}</span>
                 </div>
               )}
 
-              <div className="flex justify-between">
-                <span className="text-slate-600">GST Tax (5%):</span>
-                <span className="font-semibold text-slate-900">
-                  {res.taxAmount > 0 ? `₹${res.taxAmount.toFixed(2)} (Included in Tariff)` : 'Included in Tariff'}
-                </span>
-              </div>
+              {isBilled ? (
+                <div className="flex justify-between">
+                  <span className="text-slate-600">
+                    {res.billType === 'GST' ? 'GST Tax (5%):' : 'Tax Applied:'}
+                  </span>
+                  <span className="font-semibold text-slate-900">
+                    {res.billType === 'GST' ? `₹${res.taxAmount.toFixed(2)}` : 'Non-GST (Zero Tax)'}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex justify-between text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                  <span>Proforma Tax (if GST):</span>
+                  <span className="font-semibold text-slate-700">₹{(roomTariffTotal * 0.05).toFixed(2)} (5% on tariff)</span>
+                </div>
+              )}
 
               <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-sm">
                 <span>Total Payable:</span>

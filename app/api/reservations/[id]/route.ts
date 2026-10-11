@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { hasPermission } from '@/lib/permissions';
 import { isRoomAvailable } from '@/lib/availability';
 import { logAuditEvent } from '@/lib/audit';
+import { generateReferenceNumber } from '@/lib/refGenerator';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -158,6 +159,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
 
       const totalRoomCharge = Math.round((newRoomRate * newNights) * 100) / 100;
+      const newTaxAmount = Math.round((totalRoomCharge * 0.05) * 100) / 100;
 
       // Find any folios attached to this reservation
       const folios = await db.folio.findMany({
@@ -169,11 +171,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
       if (folios.length > 0) {
         for (const folio of folios) {
-          // Find the ROOM_CHARGE transaction
-          const roomChargeTx = folio.transactions.find((t) => t.category === 'ROOM_CHARGE');
-          if (roomChargeTx) {
+          const roomChargeTxs = folio.transactions.filter((t) => t.category === 'ROOM_CHARGE');
+
+          if (roomChargeTxs.length > 0) {
+            // Keep the first room charge tx and update it to the full totalRoomCharge
+            const primaryRoomTx = roomChargeTxs[0];
             await db.folioTransaction.update({
-              where: { id: roomChargeTx.id },
+              where: { id: primaryRoomTx.id },
               data: {
                 unitPrice: newRoomRate,
                 quantity: newNights,
@@ -181,20 +185,51 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 description: `Room charge for ${newNights} night(s) @ ₹${newRoomRate}/night`,
               },
             });
+
+            // If there are duplicate or obsolete extension room charge transactions, delete them
+            if (roomChargeTxs.length > 1) {
+              const extraRoomTxIds = roomChargeTxs.slice(1).map((t) => t.id);
+              await db.folioTransaction.deleteMany({
+                where: { id: { in: extraRoomTxIds } },
+              });
+            }
+          } else {
+            // Create the room charge transaction if missing
+            const trxRef = await generateReferenceNumber(reservation.propertyId, 'TRX');
+            await db.folioTransaction.create({
+              data: {
+                folioId: folio.id,
+                transactionRef: trxRef,
+                type: 'DEBIT',
+                category: 'ROOM_CHARGE',
+                description: `Room charge for ${newNights} night(s) @ ₹${newRoomRate}/night`,
+                quantity: newNights,
+                unitPrice: newRoomRate,
+                amount: totalRoomCharge,
+                status: 'POSTED',
+                postedById: session.userId,
+              },
+            });
           }
 
-          // Recalculate folio total charges from transactions
+          // Recalculate other debits (strictly non-room charges: FOOD, EXTRA_BED, etc.)
           const otherDebits = folio.transactions
-            .filter((t) => t.id !== (roomChargeTx?.id || '') && t.type === 'DEBIT')
+            .filter((t) => t.category !== 'ROOM_CHARGE' && t.type === 'DEBIT')
             .reduce((sum, t) => sum + t.amount, 0);
 
+          const totalCredits = folio.transactions
+            .filter((t) => t.type === 'CREDIT')
+            .reduce((sum, t) => sum + t.amount, 0);
+
+          const actualPayments = Math.max(folio.totalPayments, totalCredits);
           const newTotalCharges = totalRoomCharge + otherDebits;
-          const newBalance = Math.max(0, newTotalCharges - folio.totalPayments);
+          const newBalance = Math.max(0, newTotalCharges - actualPayments);
 
           await db.folio.update({
             where: { id: folio.id },
             data: {
               totalCharges: newTotalCharges,
+              totalPayments: actualPayments,
               balanceAmount: newBalance,
             },
           });
@@ -228,6 +263,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           nights: newNights,
           roomRate: newRoomRate,
           discountAmount: 0,
+          taxAmount: newTaxAmount,
           totalAmount: calculatedTotal,
           balanceAmount,
           ...(specialRequests !== undefined ? { specialRequests: specialRequests ? specialRequests.trim() : null } : {}),
