@@ -269,27 +269,37 @@ export function buildTemporaryInvoice(
 
   const nights = reservation?.nights || 1;
   const roomRate = reservation?.roomRate || 0;
-  const roomCharges = roomRate * nights;
+  const totalRoomTariff = roomRate * nights;
   const extraChargesTotal = extraCharges.reduce(
     (sum: number, t: any) => sum + (Number(t.amount) || 0),
     0
   );
 
-  const roomCgst = isGst ? Math.round((roomCharges * 0.025) * 100) / 100 : 0;
-  const roomSgst = isGst ? Math.round((roomCharges * 0.025) * 100) / 100 : 0;
-  const totalGst = roomCgst + roomSgst;
-  const roomLineTotal = roomCharges + totalGst;
+  let roomCgst = 0;
+  let roomSgst = 0;
+  let totalGst = 0;
+  let baseRoomTariff = totalRoomTariff;
+  let unitBaseRate = nights > 0 ? Math.round((totalRoomTariff / nights) * 100) / 100 : roomRate;
+
+  if (isGst) {
+    // 5% GST is already included in the room tariff (e.g. 100 tariff = 95 base + 5 GST)
+    totalGst = Math.round((totalRoomTariff * 0.05) * 100) / 100;
+    roomCgst = Math.round((totalRoomTariff * 0.025) * 100) / 100;
+    roomSgst = Math.round((totalGst - roomCgst) * 100) / 100;
+    baseRoomTariff = Math.round((totalRoomTariff - totalGst) * 100) / 100;
+    unitBaseRate = nights > 0 ? Math.round((baseRoomTariff / nights) * 100) / 100 : baseRoomTariff;
+  }
 
   const lines: any[] = [
     {
       description: `Accommodation Charges (${reservation?.roomType?.name || 'Room'} - Room ${reservation?.assignedRoom?.roomNumber || 'N/A'}) x ${nights} Night${nights > 1 ? 's' : ''}`,
       hsnSacCode: '996311',
       quantity: nights,
-      unitPrice: roomRate,
-      taxableAmount: roomCharges,
+      unitPrice: unitBaseRate,
+      taxableAmount: baseRoomTariff,
       cgstAmount: roomCgst,
       sgstAmount: roomSgst,
-      totalAmount: roomLineTotal,
+      totalAmount: totalRoomTariff,
     },
   ];
 
@@ -316,7 +326,7 @@ export function buildTemporaryInvoice(
     });
   }
 
-  const grandTotal = roomLineTotal + extraChargesTotal;
+  const grandTotal = totalRoomTariff + extraChargesTotal;
 
   return {
     id: 'draft-temp-invoice',
@@ -327,7 +337,7 @@ export function buildTemporaryInvoice(
     invoiceDate: new Date().toISOString(),
     customerGstin: customerGstin || reservation?.guest?.gstin || null,
     companyName: companyName || reservation?.guest?.company || null,
-    totalTaxable: roomCharges + extraChargesTotal,
+    totalTaxable: baseRoomTariff + extraChargesTotal,
     cgstAmount: roomCgst,
     sgstAmount: roomSgst,
     totalTax: totalGst,
@@ -371,24 +381,31 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
   const lines = invoice?.lines || [];
   const { roomLines, extraOrderLines } = segregateBillLines(lines);
 
-  // Financial calculations: GST is strictly on room tariff ONLY
-  const roomSubtotal = roomLines.reduce(
+  // Financial calculations: Room tariff is INCLUSIVE of GST (5%)
+  const roomBaseSubtotal = roomLines.reduce(
     (sum, l) => sum + (Number(l.taxableAmount || (l.unitPrice * l.quantity)) || 0),
+    0
+  );
+  const roomTariffTotal = roomLines.reduce(
+    (sum, l) => sum + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0),
     0
   );
   const extraOrdersSubtotal = extraOrderLines.reduce(
     (sum, l) => sum + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0),
     0
   );
-  const grossSubtotal = roomSubtotal + extraOrdersSubtotal;
   const discount = Number(invoice?.discount || 0);
 
-  // 2.5% CGST + 2.5% SGST on room tariff ONLY
-  const cgstAmount = isGst ? Math.round((roomSubtotal * 0.025) * 100) / 100 : 0;
-  const sgstAmount = isGst ? Math.round((roomSubtotal * 0.025) * 100) / 100 : 0;
+  const cgstAmount = isGst
+    ? (Number(invoice?.cgstAmount) || roomLines.reduce((s, l) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100)
+    : 0;
+  const sgstAmount = isGst
+    ? (Number(invoice?.sgstAmount) || roomLines.reduce((s, l) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100)
+    : 0;
   const totalGst = cgstAmount + sgstAmount;
-  const roomTariffWithGst = roomSubtotal + totalGst;
-  const grandTotal = roomTariffWithGst + extraOrdersSubtotal - discount;
+  const roomSubtotal = isGst ? roomBaseSubtotal : roomTariffTotal;
+  const grossSubtotal = roomSubtotal + extraOrdersSubtotal;
+  const grandTotal = roomTariffTotal + extraOrdersSubtotal - discount;
 
   const hasExtraOrders = extraOrderLines.length > 0;
 
@@ -399,7 +416,7 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
       const taxable = Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
       const cgst = isGst ? Number(line.cgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
       const sgst = isGst ? Number(line.sgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
-      const lineTotal = isGst ? (Number(taxable) + Number(cgst) + Number(sgst)).toFixed(2) : taxable;
+      const lineTotal = Number(line.totalAmount || (Number(taxable) + Number(cgst) + Number(sgst)) || 0).toFixed(2);
 
       if (isGst) {
         return `
@@ -951,7 +968,7 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
                 </tr>
                 <tr style="border-top: 1px solid #cbd5e1;">
                   <td class="text-left font-bold" style="color: #065f46;">Room Accommodation Total:</td>
-                  <td class="text-right font-mono font-bold" style="color: #065f46;">₹${roomTariffWithGst.toFixed(2)}</td>
+                  <td class="text-right font-mono font-bold" style="color: #065f46;">₹${roomTariffTotal.toFixed(2)}</td>
                 </tr>
               ` : `
                 <tr style="border-top: 1px solid #cbd5e1;">

@@ -120,43 +120,47 @@ export async function POST(req: Request) {
     // If a discount was attached to the reservation, absorb it into the effective nightly base rate so the discounted price becomes the base price on the bill
     const rawDiscount = reservation.discountAmount || 0;
     const effectiveTotalRoomTariff = Math.max(0, (reservation.roomRate * reservation.nights) - rawDiscount);
-    const effectiveNightlyRate = reservation.nights > 0 ? Math.round((effectiveTotalRoomTariff / reservation.nights) * 100) / 100 : reservation.roomRate;
-    const roomCharges = effectiveNightlyRate * reservation.nights;
+    const roomCharges = effectiveTotalRoomTariff;
     const extraChargesTotal = extraCharges.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
-    const taxableSubtotal = roomCharges + extraChargesTotal;
     const discount = 0; // Discounted rate is now the base price
 
     let cgstAmount = 0;
     let sgstAmount = 0;
-    let totalAmount = taxableSubtotal;
+    let totalTax = 0;
+    let baseRoomTariff = roomCharges;
+    let unitBaseRate = reservation.nights > 0 ? Math.round((roomCharges / reservation.nights) * 100) / 100 : reservation.roomRate;
 
     if (isGst) {
-      // GST is charged strictly on room tariff ONLY, not on room orders
+      // 5% GST is already included in room tariff (e.g. 100 tariff = 95 base + 5 GST)
+      totalTax = Math.round((roomCharges * 0.05) * 100) / 100;
       cgstAmount = Math.round((roomCharges * 0.025) * 100) / 100;
-      sgstAmount = Math.round((roomCharges * 0.025) * 100) / 100;
-      totalAmount = Math.round((roomCharges + cgstAmount + sgstAmount + extraChargesTotal) * 100) / 100;
+      sgstAmount = Math.round((totalTax - cgstAmount) * 100) / 100;
+      baseRoomTariff = Math.round((roomCharges - totalTax) * 100) / 100;
+      unitBaseRate = reservation.nights > 0 ? Math.round((baseRoomTariff / reservation.nights) * 100) / 100 : baseRoomTariff;
     }
+
+    // Total payable is room tariff + extra charges (NO extra GST added on top)
+    const totalAmount = Math.round((roomCharges + extraChargesTotal) * 100) / 100;
+    const taxableSubtotal = Math.round((baseRoomTariff + extraChargesTotal) * 100) / 100;
 
     const refPrefix = isGst ? 'INV' : 'BIL';
     const invoiceRef = await generateReferenceNumber(propertyId, refPrefix);
 
     const folioId = folio?.id || null;
 
-    // Build itemized invoice lines: Accommodation + all room service/extra items
-    const roomCgst = isGst ? Math.round((roomCharges * 0.025) * 100) / 100 : 0;
-    const roomSgst = isGst ? Math.round((roomCharges * 0.025) * 100) / 100 : 0;
-    const roomLineTotal = roomCharges + roomCgst + roomSgst;
-
+    // Accommodation Line:
+    // If GST: taxableAmount is baseRoomTariff (e.g. 95), cgst is 2.50, sgst is 2.50, totalAmount is roomCharges (e.g. 100)
+    // If Non-GST: taxableAmount is roomCharges (e.g. 100), cgst is 0, sgst is 0, totalAmount is roomCharges (e.g. 100)
     const invoiceLinesToCreate: any[] = [
       {
         description: `Accommodation Charges (${reservation.roomType.name} - Room ${reservation.assignedRoom?.roomNumber || 'N/A'}) x ${reservation.nights} Night${reservation.nights > 1 ? 's' : ''}`,
         hsnSacCode: '996311',
         quantity: reservation.nights,
-        unitPrice: effectiveNightlyRate,
-        taxableAmount: roomCharges,
-        cgstAmount: roomCgst,
-        sgstAmount: roomSgst,
-        totalAmount: roomLineTotal,
+        unitPrice: unitBaseRate,
+        taxableAmount: baseRoomTariff,
+        cgstAmount,
+        sgstAmount,
+        totalAmount: roomCharges,
       },
     ];
 
@@ -232,9 +236,9 @@ export async function POST(req: Request) {
         billType: isGst ? 'GST' : 'NON_GST',
         billedAt: new Date(),
         billedInvoiceId: invoice.id,
-        roomRate: effectiveNightlyRate,
+        roomRate: reservation.roomRate,
         discountAmount: 0,
-        taxAmount: cgstAmount + sgstAmount,
+        taxAmount: totalTax,
         totalAmount,
         balanceAmount: newBalanceAmount,
       },

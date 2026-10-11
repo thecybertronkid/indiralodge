@@ -3119,14 +3119,17 @@ export default function FrontOfficePage() {
               {/* Multi-Section Charges & Totals */}
               {(() => {
                 const { roomLines, extraOrderLines } = segregateBillLines(generatedInvoice.lines || []);
-                const roomSub = roomLines.reduce((s: number, l: any) => s + (Number(l.taxableAmount || (l.unitPrice * l.quantity)) || 0), 0);
+                const roomBaseSub = roomLines.reduce((s: number, l: any) => s + (Number(l.taxableAmount || (l.unitPrice * l.quantity)) || 0), 0);
+                const roomTariffTotal = roomLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const extraSub = extraOrderLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const isGst = generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST';
-                const cgst = isGst ? Math.round((roomSub * 0.025) * 100) / 100 : 0;
-                const sgst = isGst ? Math.round((roomSub * 0.025) * 100) / 100 : 0;
+                const cgst = isGst ? (Number(generatedInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
+                const sgst = isGst ? (Number(generatedInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
                 const totalGst = cgst + sgst;
                 const discount = Number(generatedInvoice.discount || 0);
-                const grandTotal = roomSub + totalGst + extraSub - discount;
+                const roomSub = isGst ? roomBaseSub : roomTariffTotal;
+                const grossSub = roomSub + extraSub;
+                const grandTotal = roomTariffTotal + extraSub - discount;
 
                 return (
                   <div className="space-y-4">
@@ -3161,7 +3164,7 @@ export default function FrontOfficePage() {
                               const taxable = Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
                               const lCgst = isGst ? Number(line.cgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
                               const lSgst = isGst ? Number(line.sgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
-                              const lTotal = isGst ? (Number(taxable) + Number(lCgst) + Number(lSgst)).toFixed(2) : taxable;
+                              const lTotal = Number(line.totalAmount || (Number(taxable) + Number(lCgst) + Number(lSgst)) || 0).toFixed(2);
                               return (
                                 <tr key={line.id || idx} className="hover:bg-slate-50/50">
                                   <td className="py-2 px-2.5 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
