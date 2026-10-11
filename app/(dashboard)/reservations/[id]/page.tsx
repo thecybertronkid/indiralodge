@@ -29,11 +29,17 @@ import {
   IdCard,
   Compass,
   ShieldCheck,
+  Eye,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
-import { formatStayDateTime, openPrintBillWindow, segregateBillLines } from '@/lib/billPrinter';
+import {
+  formatStayDateTime,
+  openPrintBillWindow,
+  segregateBillLines,
+  buildTemporaryInvoice,
+} from '@/lib/billPrinter';
 
 const toDateInputStr = (d: any) => {
   if (!d) return '';
@@ -299,6 +305,14 @@ export default function ReservationDetailPage() {
     }
   };
 
+  const handleViewTemporaryBill = (type: 'GST' | 'NON_GST' = 'GST') => {
+    if (!res) return;
+    const tempInv = buildTemporaryInvoice(res, type, customerGstinInput, companyNameInput);
+    setActiveInvoice(tempInv);
+    setBillingType(type);
+    setIsBillModalOpen(true);
+  };
+
   const handleGenerateBill = async (type: 'GST' | 'NON_GST') => {
     if (!isBilled) {
       const guestName = res?.guest?.displayName || 'this guest';
@@ -463,13 +477,25 @@ export default function ReservationDetailPage() {
         {/* Header Actions */}
         <div className="flex flex-wrap items-center gap-2">
           {!isBilled && (
-            <button
-              onClick={() => setIsEditOpen(true)}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              Edit Details
-            </button>
+            <>
+              <button
+                onClick={() => setIsEditOpen(true)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                Edit Details
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleViewTemporaryBill('GST')}
+                className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs"
+                title="View temporary draft bill for customer verification before locking"
+              >
+                <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                View Temporary Bill
+              </button>
+            </>
           )}
 
           {!isBilled && res.status === 'CONFIRMED' && (
@@ -906,6 +932,15 @@ export default function ReservationDetailPage() {
                 </div>
 
                 <button
+                  type="button"
+                  onClick={() => handleViewTemporaryBill('GST')}
+                  className="w-full py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold shadow-2xs flex items-center justify-center gap-2 transition-all hover:border-indigo-300"
+                >
+                  <Eye className="w-4 h-4 text-indigo-600" />
+                  View Temporary Bill (Customer Review)
+                </button>
+
+                <button
                   onClick={() => handleGenerateBill('GST')}
                   className="w-full py-2.5 px-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2"
                 >
@@ -1328,17 +1363,86 @@ export default function ReservationDetailPage() {
       </Modal>
 
       {/* Printable Invoice / Bill Preview Modal */}
-      <Modal isOpen={isBillModalOpen} onClose={() => setIsBillModalOpen(false)} title={`Invoice Preview: ${activeInvoice?.invoiceRef || ''}`} maxWidth="xl">
-        <div className="space-y-6">
-          <div className="flex justify-end gap-2 print:hidden">
-            <button
-              onClick={handlePrintWindow}
-              className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-1.5"
-            >
-              <Printer className="w-4 h-4" />
-              Print / Save PDF
-            </button>
+      <Modal
+        isOpen={isBillModalOpen}
+        onClose={() => setIsBillModalOpen(false)}
+        title={activeInvoice?.isDraft ? 'Temporary Bill Preview (Pre-Billing Review)' : `Invoice Preview: ${activeInvoice?.invoiceRef || ''}`}
+        maxWidth="xl"
+      >
+        <div className="space-y-5">
+          {/* Controls Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+            {activeInvoice?.isDraft ? (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Preview Format:</span>
+                <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleViewTemporaryBill('GST')}
+                    className={`px-3 py-1 rounded-md font-bold transition-all ${
+                      activeInvoice.invoiceType === 'GST'
+                        ? 'bg-brand-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    GST Proforma
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleViewTemporaryBill('NON_GST')}
+                    className={`px-3 py-1 rounded-md font-bold transition-all ${
+                      activeInvoice.invoiceType === 'NON_GST'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Non-GST Estimate
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Finalized Tax Invoice</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              {activeInvoice?.isDraft && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBillModalOpen(false);
+                    setIsEditOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-1.5 transition-all"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Edit Booking Info
+                </button>
+              )}
+              <button
+                onClick={handlePrintWindow}
+                className="px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold shadow-md flex items-center gap-1.5"
+              >
+                <Printer className="w-4 h-4" />
+                {activeInvoice?.isDraft ? 'Print Draft Preview' : 'Print / Save PDF'}
+              </button>
+            </div>
           </div>
+
+          {/* Draft Notice Banner */}
+          {activeInvoice?.isDraft && (
+            <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5 print:hidden">
+              <span className="text-base leading-none">⚠️</span>
+              <div>
+                <span className="font-bold block">Temporary Proforma Bill (Customer Review Mode)</span>
+                <span className="text-[11px] text-amber-800">
+                  This draft bill is generated for customer review before final billing lock. Room rate, stay dates, guest details, and GSTIN can still be freely modified.
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Printable Invoice Container */}
           {activeInvoice && (
@@ -1361,12 +1465,20 @@ export default function ReservationDetailPage() {
                 <div className="text-right space-y-1">
                   <div
                     className={`inline-block px-3 py-1 rounded text-xs font-extrabold uppercase tracking-wider ${
-                      activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST'
+                      activeInvoice.isDraft
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                        : activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST'
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                         : 'bg-slate-900 text-white'
                     }`}
                   >
-                    {activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST' ? 'TAX INVOICE (GST)' : 'HOTEL RECEIPT (NON-GST)'}
+                    {activeInvoice.isDraft
+                      ? activeInvoice.invoiceType === 'GST'
+                        ? 'PROFORMA TAX INVOICE (DRAFT)'
+                        : 'HOTEL ESTIMATE (DRAFT)'
+                      : activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST'
+                      ? 'TAX INVOICE (GST)'
+                      : 'HOTEL RECEIPT (NON-GST)'}
                   </div>
                   <div className="font-mono font-bold text-sm text-slate-900 mt-1">{activeInvoice.invoiceRef}</div>
                   <div className="text-[11px] text-slate-500">
@@ -1599,12 +1711,49 @@ export default function ReservationDetailPage() {
               <div className="pt-8 border-t border-slate-200 flex items-end justify-between text-[11px] text-slate-500">
                 <div>
                   <p>Thank you for staying at Indira Lodge!</p>
-                  <p className="text-[10px] italic">Computer generated invoice. System lock active.</p>
+                  <p className="text-[10px] italic">
+                    {activeInvoice.isDraft
+                      ? '⚠️ Temporary estimate for guest review. Booking remains unlocked & editable.'
+                      : 'Computer generated invoice. System lock active.'}
+                  </p>
                 </div>
                 <div className="text-center">
                   <div className="w-36 border-b border-slate-400 mb-1"></div>
                   <p className="font-semibold text-slate-700">Authorized Signatory</p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Footer if Temporary Bill */}
+          {activeInvoice?.isDraft && !isBilled && (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 print:hidden">
+              <div className="text-xs text-slate-600">
+                <span className="font-bold text-slate-800 block">Customer verified the bill details?</span>
+                <span className="text-[11px]">Lock the billing to generate the official tax invoice and proceed with check-out.</span>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBillModalOpen(false);
+                    setIsEditOpen(true);
+                  }}
+                  className="flex-1 sm:flex-none px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition-all shadow-2xs"
+                >
+                  Modify Stay Info
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBillModalOpen(false);
+                    handleGenerateBill(activeInvoice.invoiceType || 'GST');
+                  }}
+                  className="flex-1 sm:flex-none px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Confirm & Lock {activeInvoice.invoiceType === 'GST' ? 'GST Bill' : 'Non-GST Bill'}
+                </button>
               </div>
             </div>
           )}

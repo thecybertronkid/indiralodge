@@ -95,6 +95,87 @@ export function segregateBillLines(lines: any[] = []) {
   return { roomLines, extraOrderLines };
 }
 
+export function buildTemporaryInvoice(
+  reservation: any,
+  invoiceType: 'GST' | 'NON_GST' = 'GST',
+  customerGstin?: string,
+  companyName?: string
+) {
+  const isGst = invoiceType === 'GST';
+  const folio = reservation?.folios?.[0] || null;
+  const extraCharges = (folio?.transactions || []).filter(
+    (t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE'
+  );
+
+  const nights = reservation?.nights || 1;
+  const roomRate = reservation?.roomRate || 0;
+  const roomCharges = roomRate * nights;
+  const extraChargesTotal = extraCharges.reduce(
+    (sum: number, t: any) => sum + (Number(t.amount) || 0),
+    0
+  );
+
+  const roomCgst = isGst ? Math.round((roomCharges * 0.025) * 100) / 100 : 0;
+  const roomSgst = isGst ? Math.round((roomCharges * 0.025) * 100) / 100 : 0;
+  const totalGst = roomCgst + roomSgst;
+  const roomLineTotal = roomCharges + totalGst;
+
+  const lines: any[] = [
+    {
+      description: `Accommodation Charges (${reservation?.roomType?.name || 'Room'} - Room ${reservation?.assignedRoom?.roomNumber || 'N/A'}) x ${nights} Night${nights > 1 ? 's' : ''}`,
+      hsnSacCode: '996311',
+      quantity: nights,
+      unitPrice: roomRate,
+      taxableAmount: roomCharges,
+      cgstAmount: roomCgst,
+      sgstAmount: roomSgst,
+      totalAmount: roomLineTotal,
+    },
+  ];
+
+  for (const ec of extraCharges) {
+    const isFood = ec.category === 'FOOD_BEVERAGE' || ec.category === 'ROOM_SERVICE';
+    const sac = isFood ? '996331' : '996311';
+    const itemAmount = Number(ec.amount) || 0;
+    lines.push({
+      description: ec.description || 'Room Service / Extra Charge',
+      hsnSacCode: sac,
+      quantity: ec.quantity || 1,
+      unitPrice: ec.unitPrice || ec.amount,
+      taxableAmount: itemAmount,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      totalAmount: itemAmount,
+    });
+  }
+
+  const grandTotal = roomLineTotal + extraChargesTotal;
+
+  return {
+    id: 'draft-temp-invoice',
+    invoiceRef: isGst ? 'DRAFT-GST-ESTIMATE' : 'DRAFT-NON-GST-ESTIMATE',
+    invoiceType,
+    isGstBill: isGst,
+    isDraft: true,
+    invoiceDate: new Date().toISOString(),
+    customerGstin: customerGstin || reservation?.guest?.gstin || null,
+    companyName: companyName || reservation?.guest?.company || null,
+    totalTaxable: roomCharges + extraChargesTotal,
+    cgstAmount: roomCgst,
+    sgstAmount: roomSgst,
+    totalTax: totalGst,
+    totalAmount: grandTotal,
+    discount: 0,
+    lines,
+    guest: {
+      ...(reservation?.guest || {}),
+      company: companyName || reservation?.guest?.company || null,
+      gstin: customerGstin || reservation?.guest?.gstin || null,
+    },
+    reservation,
+  };
+}
+
 export interface PrintableBillProps {
   invoice: any;
   reservation?: any;
@@ -229,13 +310,12 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
             </tr>
           </table>
         </td>
-        <td style="width: 38%; text-align: right;">
           <div class="doc-badge ${isGst ? 'gst' : ''}">
-            ${isGst ? 'TAX INVOICE' : 'HOTEL BILL & RECEIPT'}
+            ${invoice?.isDraft ? (isGst ? 'PROFORMA TAX INVOICE (DRAFT)' : 'ESTIMATED BILL (DRAFT)') : (isGst ? 'TAX INVOICE' : 'HOTEL BILL & RECEIPT')}
           </div>
           <div class="invoice-ref">${invoice?.invoiceRef || 'INV-DRAFT'}</div>
           <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Date: <strong style="color: #0f172a;">${invDateFormatted}</strong></div>
-          <div style="font-size: 10px; color: #64748b;">Status: <strong style="color: #059669;">${invoice?.status || 'ISSUED'}</strong></div>
+          <div style="font-size: 10px; color: #64748b;">Status: <strong style="color: ${invoice?.isDraft ? '#d97706' : '#059669'};">${invoice?.isDraft ? 'TEMPORARY / ESTIMATE' : (invoice?.status || 'ISSUED')}</strong></div>
         </td>
       </tr>
     </table>
@@ -526,6 +606,11 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
   <!-- ==================== PAGE 1: BASE ROOM TARIFF & ACCOMMODATION ==================== -->
   <div class="bill-page">
     ${renderOfficialHeader()}
+    ${invoice?.isDraft ? `
+      <div style="background-color: #fffbeb; border: 1.5px dashed #f59e0b; padding: 7px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 10px; color: #b45309; font-weight: 700; text-align: center; letter-spacing: 0.5px;">
+        ⚠️ TEMPORARY / PROFORMA BILL ESTIMATE — PRE-BILLING REVIEW FOR CUSTOMER (BOOKING UNLOCKED & EDITABLE)
+      </div>
+    ` : ''}
 
     <!-- Guest & Stay Meta Box -->
     <div class="meta-card">
