@@ -205,11 +205,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
       const balanceAmount = Math.max(0, calculatedTotal - reservation.paidAmount);
 
+      let updatedCheckInAt = reservation.actualCheckInAt;
+      if (arrivalDate && reservation.actualCheckInAt) {
+        const prev = new Date(reservation.actualCheckInAt);
+        const newArr = new Date(arrivalDate + 'T00:00:00');
+        updatedCheckInAt = new Date(
+          newArr.getFullYear(),
+          newArr.getMonth(),
+          newArr.getDate(),
+          prev.getHours(),
+          prev.getMinutes(),
+          prev.getSeconds()
+        );
+      }
+
       const updated = await db.reservation.update({
         where: { id: reservationId },
         data: {
           arrivalDate: newArrivalDate,
           departureDate: newDepartureDate,
+          actualCheckInAt: updatedCheckInAt,
           nights: newNights,
           roomRate: newRoomRate,
           discountAmount: 0,

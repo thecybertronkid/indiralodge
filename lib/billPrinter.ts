@@ -5,6 +5,114 @@
  * GST is charged strictly on room accommodation tariff only, NOT on room orders.
  */
 
+export function formatTimeStr(timeValue?: string | null): string {
+  if (!timeValue) return '11:00 am';
+  const trimmed = timeValue.trim();
+  if (trimmed.toLowerCase().includes('am') || trimmed.toLowerCase().includes('pm')) {
+    return trimmed;
+  }
+  const parts = trimmed.split(':');
+  if (parts.length >= 2) {
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (!isNaN(h) && !isNaN(m)) {
+      const temp = new Date();
+      temp.setHours(h, m, 0);
+      return temp.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    }
+  }
+  return trimmed;
+}
+
+export function getStayDates(res: any) {
+  if (!res) {
+    return {
+      checkInDate: new Date(),
+      checkOutDate: new Date(),
+      checkInFormatted: '—',
+      checkOutFormatted: '—',
+    };
+  }
+
+  // 1. Determine Check-In Date & Time
+  const inRaw = res.actualCheckInAt || res.arrivalDate || new Date();
+  const inDate = new Date(inRaw);
+  const validInDate = isNaN(inDate.getTime()) ? new Date() : inDate;
+
+  const inDateStr = validInDate.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const inTimeStr = res.actualCheckInAt
+    ? validInDate.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+    : formatTimeStr(res.arrivalTime || '02:00 pm');
+
+  const checkInFormatted = `${inDateStr}, ${inTimeStr}`;
+
+  // 2. Determine Check-Out Date & Time
+  const nights = Math.max(1, Number(res.nights || 1));
+  let outDate: Date;
+
+  if (res.actualCheckOutAt) {
+    const actOut = new Date(res.actualCheckOutAt);
+    if (!isNaN(actOut.getTime()) && actOut.getTime() > validInDate.getTime()) {
+      outDate = actOut;
+    } else {
+      outDate = new Date(validInDate.getTime() + nights * 24 * 60 * 60 * 1000);
+    }
+  } else if (res.departureDate) {
+    const dep = new Date(res.departureDate);
+    const inDateYMD = validInDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const depYMD = dep.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    // Check-out calendar date must be strictly after check-in calendar date
+    if (!isNaN(dep.getTime()) && depYMD > inDateYMD) {
+      outDate = dep;
+    } else {
+      // If departureDate in DB is on or before checkIn date, calculate correctly from nights
+      outDate = new Date(validInDate.getTime() + nights * 24 * 60 * 60 * 1000);
+    }
+  } else {
+    outDate = new Date(validInDate.getTime() + nights * 24 * 60 * 60 * 1000);
+  }
+
+  const outDateStr = outDate.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const outTimeStr = res.actualCheckOutAt
+    ? outDate.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+    : formatTimeStr(res.departureTime || '11:00 am');
+
+  const checkOutFormatted = `${outDateStr}, ${outTimeStr}`;
+
+  return {
+    checkInDate: validInDate,
+    checkOutDate: outDate,
+    checkInFormatted,
+    checkOutFormatted,
+  };
+}
+
 export function formatStayDateTime(
   dateValue?: string | Date | null,
   timeValue?: string | null,
@@ -16,6 +124,7 @@ export function formatStayDateTime(
   if (isNaN(d.getTime())) return '—';
 
   const dateStr = d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -25,6 +134,7 @@ export function formatStayDateTime(
     const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
     if (hasTime) {
       const timeStr = d.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
@@ -34,22 +144,7 @@ export function formatStayDateTime(
   }
 
   if (timeValue) {
-    const parts = timeValue.split(':');
-    if (parts.length >= 2) {
-      const h = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10);
-      if (!isNaN(h) && !isNaN(m)) {
-        const temp = new Date();
-        temp.setHours(h, m, 0);
-        const formattedTime = temp.toLocaleTimeString('en-IN', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
-        return `${dateStr}, ${formattedTime}`;
-      }
-    }
-    return `${dateStr}, ${timeValue}`;
+    return `${dateStr}, ${formatTimeStr(timeValue)}`;
   }
 
   return dateStr;
@@ -259,17 +354,7 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
   const res = invoice?.reservation || reservation || {};
   const gstGuest = invoice?.guest || guest || res?.guest || {};
 
-  const checkInFormatted = formatStayDateTime(
-    res?.actualCheckInAt,
-    res?.arrivalTime || '14:00',
-    res?.arrivalDate
-  );
-
-  const checkOutFormatted = formatStayDateTime(
-    res?.actualCheckOutAt,
-    res?.departureTime || '11:00',
-    res?.departureDate
-  );
+  const { checkInFormatted, checkOutFormatted } = getStayDates(res);
 
   const invDateFormatted = invoice?.invoiceDate
     ? new Date(invoice.invoiceDate).toLocaleDateString('en-IN', {

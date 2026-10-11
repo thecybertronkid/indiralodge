@@ -54,12 +54,37 @@ export async function POST(req: Request) {
     }
 
     // 1. Update Reservation
+    const now = new Date();
+    const todayMidnight = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const depMidnight = new Date(
+      Date.UTC(
+        reservation.departureDate.getFullYear(),
+        reservation.departureDate.getMonth(),
+        reservation.departureDate.getDate()
+      )
+    );
+
+    let newArrivalDate = reservation.arrivalDate;
+    let newDepartureDate = reservation.departureDate;
+    if (depMidnight <= todayMidnight) {
+      newArrivalDate = todayMidnight;
+      newDepartureDate = new Date(
+        Date.UTC(
+          todayMidnight.getFullYear(),
+          todayMidnight.getMonth(),
+          todayMidnight.getDate() + (reservation.nights || 1)
+        )
+      );
+    }
+
     const updatedRes = await db.reservation.update({
       where: { id: reservationId },
       data: {
         status: 'CHECKED_IN',
         assignedRoomId: targetRoomId,
-        actualCheckInAt: new Date(),
+        actualCheckInAt: now,
+        arrivalDate: newArrivalDate,
+        departureDate: newDepartureDate,
       },
     });
 

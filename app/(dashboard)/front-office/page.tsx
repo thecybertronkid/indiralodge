@@ -40,7 +40,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { calculateIndiraLodgeRoomRate } from '@/lib/roomRates';
-import { formatStayDateTime, openPrintBillWindow, segregateBillLines, getStayDayInfo } from '@/lib/billPrinter';
+import { formatStayDateTime, openPrintBillWindow, segregateBillLines, getStayDayInfo, getStayDates } from '@/lib/billPrinter';
 
 const getCurrentTimeString = () => {
   const now = new Date();
@@ -3093,27 +3093,27 @@ export default function FrontOfficePage() {
                   </span>
                 </div>
 
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Check-In Date & Time</span>
-                  <span className="font-bold text-slate-800">
-                    {formatStayDateTime(
-                      generatedInvoice.reservation?.actualCheckInAt || selectedRes?.actualCheckInAt,
-                      generatedInvoice.reservation?.arrivalTime || selectedRes?.arrivalTime || '14:00',
-                      generatedInvoice.reservation?.arrivalDate || selectedRes?.arrivalDate
-                    )}
-                  </span>
-                </div>
+                {(() => {
+                  const billRes = generatedInvoice.reservation || selectedRes;
+                  const stayDates = getStayDates(billRes);
+                  return (
+                    <>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Check-In Date & Time</span>
+                        <span className="font-bold text-slate-800">
+                          {stayDates.checkInFormatted}
+                        </span>
+                      </div>
 
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Check-Out Date & Time</span>
-                  <span className="font-bold text-slate-800">
-                    {formatStayDateTime(
-                      generatedInvoice.reservation?.actualCheckOutAt || selectedRes?.actualCheckOutAt,
-                      generatedInvoice.reservation?.departureTime || selectedRes?.departureTime || '11:00',
-                      generatedInvoice.reservation?.departureDate || selectedRes?.departureDate
-                    )}
-                  </span>
-                </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Check-Out Date & Time</span>
+                        <span className="font-bold text-slate-800">
+                          {stayDates.checkOutFormatted}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Multi-Section Charges & Totals */}

@@ -41,6 +41,7 @@ import {
   buildTemporaryInvoice,
   getStayDayInfo,
   parseExtraOrderLine,
+  getStayDates,
 } from '@/lib/billPrinter';
 
 const toDateInputStr = (d: any) => {
@@ -127,8 +128,9 @@ export default function ReservationDetailPage() {
         if (result.reservation?.guest) {
           const g = result.reservation.guest;
           const names = (g.displayName || '').split(' ');
-          const arrStr = toDateInputStr(result.reservation.arrivalDate);
-          const depStr = toDateInputStr(result.reservation.departureDate);
+          const stayDates = getStayDates(result.reservation);
+          const arrStr = toDateInputStr(stayDates.checkInDate);
+          const depStr = toDateInputStr(stayDates.checkOutDate);
           const nNights = result.reservation.nights || calculateNights(arrStr, depStr);
           setEditForm({
             firstName: g.firstName || names[0] || '',
@@ -632,32 +634,35 @@ export default function ReservationDetailPage() {
             </div>
 
             {/* 1. Stay Schedule Key Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Arrival / Check-In</span>
-                <div className="font-extrabold text-slate-900 mt-1">
-                  {new Date(res.arrivalDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </div>
-                <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-brand-600" />
-                  {res.actualCheckInAt
-                    ? `Checked in: ${new Date(res.actualCheckInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                    : `Time: ${res.arrivalTime || '14:00'}`}
-                </div>
-              </div>
+            {(() => {
+              const stay = getStayDates(res);
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Arrival / Check-In</span>
+                    <div className="font-extrabold text-slate-900 mt-1">
+                      {stay.checkInDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-brand-600" />
+                      {res.actualCheckInAt
+                        ? `Checked in: ${stay.checkInDate.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}`
+                        : `Time: ${res.arrivalTime || '14:00'}`}
+                    </div>
+                  </div>
 
-              <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Departure / Check-Out</span>
-                <div className="font-extrabold text-slate-900 mt-1">
-                  {new Date(res.departureDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </div>
-                <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-amber-600" />
-                  {res.actualCheckOutAt
-                    ? `Checked out: ${new Date(res.actualCheckOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                    : `Time: ${res.departureTime || '11:00'}`}
-                </div>
-              </div>
+                  <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Departure / Check-Out</span>
+                    <div className="font-extrabold text-slate-900 mt-1">
+                      {stay.checkOutDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-amber-600" />
+                      {res.actualCheckOutAt
+                        ? `Checked out: ${stay.checkOutDate.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}`
+                        : `Time: ${res.departureTime || '11:00'}`}
+                    </div>
+                  </div>
 
               <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Stay Duration</span>
@@ -679,6 +684,8 @@ export default function ReservationDetailPage() {
                 </div>
               </div>
             </div>
+          );
+        })()}
 
             {/* 2. Stay Logistics Bar (Coming From, Purpose of Visit, Booking Source, Created By) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 bg-slate-100/70 rounded-xl border border-slate-200 text-xs">
@@ -1535,14 +1542,14 @@ export default function ReservationDetailPage() {
                 <div>
                   <h4 className="font-bold text-slate-500 uppercase text-[10px]">Check-In Date & Time</h4>
                   <div className="font-bold text-slate-800 mt-0.5">
-                    {formatStayDateTime(res.actualCheckInAt, res.arrivalTime || '14:00', res.arrivalDate)}
+                    {getStayDates(res).checkInFormatted}
                   </div>
                 </div>
 
                 <div>
                   <h4 className="font-bold text-slate-500 uppercase text-[10px]">Check-Out Date & Time</h4>
                   <div className="font-bold text-slate-800 mt-0.5">
-                    {formatStayDateTime(res.actualCheckOutAt, res.departureTime || '11:00', res.departureDate)}
+                    {getStayDates(res).checkOutFormatted}
                   </div>
                 </div>
               </div>
