@@ -405,8 +405,8 @@ export default function TaxInvoicesPage() {
                           {roomLines.map((line: any, idx: number) => {
                             const unitPrice = Number(line.unitPrice || 0).toFixed(2);
                             const taxable = Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
-                            const lCgst = (Number(line.cgstAmount) || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025)).toFixed(2);
-                            const lSgst = (Number(line.sgstAmount) || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025)).toFixed(2);
+                            const lCgst = (Number(line.cgstAmount) || (Number(taxable) * 0.025)).toFixed(2);
+                            const lSgst = (Number(line.sgstAmount) || (Number(taxable) * 0.025)).toFixed(2);
                             const lTotal = Number(line.totalAmount || (Number(taxable) + Number(lCgst) + Number(lSgst)) || 0).toFixed(2);
                             return (
                               <tr key={line.id || idx} className="hover:bg-slate-50/50">

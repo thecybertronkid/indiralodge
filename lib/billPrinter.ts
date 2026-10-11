@@ -278,16 +278,17 @@ export function buildTemporaryInvoice(
   let roomCgst = 0;
   let roomSgst = 0;
   let totalGst = 0;
-  let baseRoomTariff = totalRoomTariff;
-  let unitBaseRate = nights > 0 ? Math.round((totalRoomTariff / nights) * 100) / 100 : roomRate;
+  const baseRoomTariff = totalRoomTariff;
+  const unitBaseRate = nights > 0 ? Math.round((totalRoomTariff / nights) * 100) / 100 : roomRate;
+  let finalAccommodationTotal = totalRoomTariff;
 
   if (isGst) {
-    // 5% GST is inclusive in room tariff (e.g. 1000 tariff = 950 base + 25 CGST + 25 SGST)
-    totalGst = Math.round((totalRoomTariff * 0.05) * 100) / 100;
-    roomCgst = Math.round((totalRoomTariff * 0.025) * 100) / 100;
-    roomSgst = Math.round((totalGst - roomCgst) * 100) / 100;
-    baseRoomTariff = Math.round((totalRoomTariff - totalGst) * 100) / 100;
-    unitBaseRate = nights > 0 ? Math.round((baseRoomTariff / nights) * 100) / 100 : baseRoomTariff;
+    // In GST Bill, 5% GST is charged ABOVE the base tariff:
+    // e.g. Base Tariff 1000 => SGST 25 (2.5%) + CGST 25 (2.5%) => Final Room Tariff = 1050
+    roomCgst = Math.round((baseRoomTariff * 0.025) * 100) / 100;
+    roomSgst = Math.round((baseRoomTariff * 0.025) * 100) / 100;
+    totalGst = roomCgst + roomSgst;
+    finalAccommodationTotal = Math.round((baseRoomTariff + totalGst) * 100) / 100;
   }
 
   const lines: any[] = [
@@ -299,7 +300,7 @@ export function buildTemporaryInvoice(
       taxableAmount: baseRoomTariff,
       cgstAmount: roomCgst,
       sgstAmount: roomSgst,
-      totalAmount: totalRoomTariff,
+      totalAmount: finalAccommodationTotal,
     },
   ];
 
@@ -326,7 +327,7 @@ export function buildTemporaryInvoice(
     });
   }
 
-  const grandTotal = totalRoomTariff + extraChargesTotal;
+  const grandTotal = finalAccommodationTotal + extraChargesTotal;
 
   return {
     id: 'draft-temp-invoice',
@@ -397,15 +398,16 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
   const discount = Number(invoice?.discount || 0);
 
   const cgstAmount = isGst
-    ? (Number(invoice?.cgstAmount) || roomLines.reduce((s, l) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100)
+    ? (Number(invoice?.cgstAmount) || roomLines.reduce((s, l) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomBaseSubtotal * 0.025) * 100) / 100)
     : 0;
   const sgstAmount = isGst
-    ? (Number(invoice?.sgstAmount) || roomLines.reduce((s, l) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100)
+    ? (Number(invoice?.sgstAmount) || roomLines.reduce((s, l) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomBaseSubtotal * 0.025) * 100) / 100)
     : 0;
   const totalGst = cgstAmount + sgstAmount;
-  const roomSubtotal = isGst ? roomBaseSubtotal : roomTariffTotal;
-  const grossSubtotal = roomSubtotal + extraOrdersSubtotal;
-  const grandTotal = roomTariffTotal + extraOrdersSubtotal - discount;
+  const roomSubtotal = roomBaseSubtotal;
+  const finalRoomTotal = isGst ? (roomBaseSubtotal + totalGst) : roomBaseSubtotal;
+  const grossSubtotal = roomBaseSubtotal + extraOrdersSubtotal;
+  const grandTotal = Number(invoice?.totalAmount || (finalRoomTotal + extraOrdersSubtotal - discount));
 
   const hasExtraOrders = extraOrderLines.length > 0;
 
@@ -414,8 +416,8 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
     .map((line: any, idx: number) => {
       const unitPrice = Number(line.unitPrice || 0).toFixed(2);
       const taxable = Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
-      const cgst = isGst ? Number(line.cgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
-      const sgst = isGst ? Number(line.sgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
+      const cgst = isGst ? Number(line.cgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
+      const sgst = isGst ? Number(line.sgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
       const lineTotal = Number(line.totalAmount || (Number(taxable) + Number(cgst) + Number(sgst)) || 0).toFixed(2);
 
       if (isGst) {
@@ -968,7 +970,7 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
                 </tr>
                 <tr style="border-top: 1px solid #cbd5e1;">
                   <td class="text-left font-bold" style="color: #065f46;">Room Accommodation Total:</td>
-                  <td class="text-right font-mono font-bold" style="color: #065f46;">₹${roomTariffTotal.toFixed(2)}</td>
+                  <td class="text-right font-mono font-bold" style="color: #065f46;">₹${finalRoomTotal.toFixed(2)}</td>
                 </tr>
               ` : `
                 <tr style="border-top: 1px solid #cbd5e1;">

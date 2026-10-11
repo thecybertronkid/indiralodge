@@ -898,18 +898,46 @@ export default function ReservationDetailPage() {
                 </div>
               )}
 
-              <div className="text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-0.5">
-                <div className="flex justify-between">
-                  <span>GST Breakdown (5% Incl.):</span>
-                  <span className="font-semibold text-slate-700">
-                    Base ₹{(Math.round((roomTariffTotal * 0.95) * 100) / 100).toFixed(2)} + GST ₹{(Math.round((roomTariffTotal * 0.05) * 100) / 100).toFixed(2)}
-                  </span>
-                </div>
-                <div className="text-[10px] text-slate-400">
-                  {isBilled
-                    ? (res.billType === 'GST' ? '• Finalized as GST Tax Invoice' : '• Finalized as Non-GST Bill (Zero Tax)')
-                    : '• Room tariff includes 5% GST; same payable on Non-GST'}
-                </div>
+              <div className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200 space-y-1">
+                {isBilled && res.billType === 'GST' ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Base Room Tariff:</span>
+                      <span className="font-semibold text-slate-800">₹{roomTariffTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-700 font-semibold">
+                      <span>GST (5% Above Base):</span>
+                      <span>+₹{(roomTariffTotal * 0.05).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-200 pt-1 font-bold text-slate-900">
+                      <span>Room Tariff with GST:</span>
+                      <span>₹{(roomTariffTotal * 1.05).toFixed(2)}</span>
+                    </div>
+                    <div className="text-[10px] text-emerald-600 font-medium">
+                      • Finalized as GST Tax Invoice (5% GST added above base)
+                    </div>
+                  </>
+                ) : isBilled && res.billType === 'NON_GST' ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Base Room Tariff:</span>
+                      <span className="font-semibold text-slate-800">₹{roomTariffTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      • Finalized as Non-GST Bill (Base Tariff Only, Zero Tax)
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Base Room Tariff:</span>
+                      <span className="font-semibold text-slate-800">₹{roomTariffTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      • Base room tariff shown. 5% GST (+₹{(roomTariffTotal * 0.05).toFixed(2)}) applies only if GST Bill is chosen at payment.
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-sm">
@@ -1579,13 +1607,14 @@ export default function ReservationDetailPage() {
                 const roomTariffTotal = roomLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const extraSub = extraOrderLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const isGst = activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST';
-                const cgst = isGst ? (Number(activeInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
-                const sgst = isGst ? (Number(activeInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
+                const cgst = isGst ? (Number(activeInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
+                const sgst = isGst ? (Number(activeInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
                 const totalGst = cgst + sgst;
                 const discount = Number(activeInvoice.discount || 0);
-                const roomSub = isGst ? roomBaseSub : roomTariffTotal;
-                const grossSub = roomSub + extraSub;
-                const grandTotal = roomTariffTotal + extraSub - discount;
+                const roomSub = roomBaseSub;
+                const finalRoomSub = isGst ? (roomBaseSub + totalGst) : roomBaseSub;
+                const grossSub = roomBaseSub + extraSub;
+                const grandTotal = Number(activeInvoice.totalAmount || (finalRoomSub + extraSub - discount));
 
                 return (
                   <div className="space-y-4">
@@ -1618,9 +1647,9 @@ export default function ReservationDetailPage() {
                             {roomLines.map((line: any, idx: number) => {
                               const unitPrice = Number(line.unitPrice || 0).toFixed(2);
                               const taxable = Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
-                              const lCgst = isGst ? Number(line.cgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
-                              const lSgst = isGst ? Number(line.sgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
-                              const lTotal = Number(line.totalAmount || (Number(taxable) + Number(lCgst) + Number(lSgst)) || 0).toFixed(2);
+                              const lCgst = isGst ? Number(line.cgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
+                              const lSgst = isGst ? Number(line.sgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
+                              const lTotal = Number(line.totalAmount || (Number(taxable) + (isGst ? (Number(lCgst) + Number(lSgst)) : 0)) || 0).toFixed(2);
                               return (
                                 <tr key={line.id || idx} className="hover:bg-slate-50/50">
                                   <td className="p-2 text-center font-mono text-[11px] text-slate-400">{idx + 1}</td>

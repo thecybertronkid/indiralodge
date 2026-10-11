@@ -883,17 +883,40 @@ export default function FrontOfficePage() {
     }
   };
 
+  const calculateResBalanceForBillType = (resItem: any, type: 'GST' | 'NON_GST') => {
+    if (!resItem) return 0;
+    if (resItem.isBilled) {
+      const folio = resItem.folios?.[0];
+      return folio ? folio.balanceAmount : resItem.balanceAmount || 0;
+    }
+    const baseTariff = (resItem.roomRate || 0) * (resItem.nights || 1);
+    const extraCharges = (resItem.folios?.[0]?.transactions || [])
+      .filter((t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE')
+      .reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+    const paid = Number(resItem.paidAmount || resItem.folios?.[0]?.totalPayments || 0);
+    const gst = type === 'GST' ? Math.round(baseTariff * 0.05 * 100) / 100 : 0;
+    const total = baseTariff + gst + extraCharges;
+    return Math.max(0, total - paid);
+  };
+
   const openPaymentModal = (resItem: any) => {
     setSelectedRes(resItem);
-    const folio = resItem.folios?.[0];
-    const bal = folio ? folio.balanceAmount : resItem.balanceAmount;
+    const initialType = resItem.billType === 'NON_GST' ? 'NON_GST' : 'GST';
+    setBillType(initialType);
+    const bal = calculateResBalanceForBillType(resItem, initialType);
     setPayAmount(bal > 0 ? String(bal) : '0');
     setPayMethod('CASH');
-    setBillType(resItem.billType === 'NON_GST' ? 'NON_GST' : 'GST');
     setCompanyName(resItem.guest?.company || '');
     setCustomerGstin(resItem.guest?.gstin || '');
-    setRecordPaymentWithBill(false);
+    setRecordPaymentWithBill(!resItem.isBilled);
     setIsPaymentOpen(true);
+  };
+
+  const handleSelectPaymentBillType = (type: 'GST' | 'NON_GST') => {
+    setBillType(type);
+    if (!selectedRes) return;
+    const bal = calculateResBalanceForBillType(selectedRes, type);
+    setPayAmount(bal > 0 ? String(bal) : '0');
   };
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
@@ -902,6 +925,10 @@ export default function FrontOfficePage() {
     setSubmitting(true);
 
     try {
+      if (recordPaymentWithBill && !selectedRes.isBilled) {
+        await handleGenerateBill(selectedRes.id, billType, customerGstin, companyName);
+      }
+
       const res = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -909,6 +936,7 @@ export default function FrontOfficePage() {
           reservationId: selectedRes.id,
           amount: payAmount,
           method: payMethod,
+          billType,
         }),
       });
 
@@ -921,12 +949,7 @@ export default function FrontOfficePage() {
 
       showToast(`Payment of ₹${payAmount} recorded successfully!`, 'success');
       setIsPaymentOpen(false);
-
-      if (recordPaymentWithBill && !selectedRes.isBilled) {
-        await handleGenerateBill(selectedRes.id, billType, customerGstin, companyName);
-      } else {
-        fetchFrontDeskData();
-      }
+      fetchFrontDeskData();
     } catch (e) {
       showToast('Error recording payment', 'error');
     } finally {
@@ -1714,7 +1737,7 @@ export default function FrontOfficePage() {
         <form onSubmit={handleCheckoutSubmit} className="space-y-4">
           {(() => {
             const folio = selectedRes?.folios?.[0];
-            const bal = folio ? folio.balanceAmount : selectedRes?.balanceAmount || 0;
+            const bal = calculateResBalanceForBillType(selectedRes, billType);
 
             return (
               <>
@@ -2581,38 +2604,7 @@ export default function FrontOfficePage() {
       {/* Modal 6: Record Payment */}
       <Modal isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} title={`Record Payment for ${selectedRes?.guest?.displayName}`} maxWidth="md">
         <form onSubmit={handlePaymentSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Payment Amount (₹) *
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              required
-              value={payAmount}
-              onChange={(e) => setPayAmount(e.target.value)}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Payment Method *
-            </label>
-            <select
-              value={payMethod}
-              onChange={(e) => setPayMethod(e.target.value)}
-              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              <option value="CASH">Cash</option>
-              <option value="CARD">Credit / Debit Card</option>
-              <option value="UPI">UPI / QR Payment</option>
-              <option value="BANK_TRANSFER">Bank Wire Transfer</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </div>
-
-          {/* Option to generate GST or Non-GST Bill in Payment Box */}
+          {/* STEP 1: Mandatory Bill Type Selection Before Payment */}
           {selectedRes?.isBilled ? (
             <div className="p-3.5 rounded-xl bg-purple-50/80 border border-purple-200 space-y-2">
               <div className="flex items-center justify-between">
@@ -2642,16 +2634,16 @@ export default function FrontOfficePage() {
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
                   <Receipt className="w-4 h-4 text-emerald-600" />
-                  Generate Bill Option
+                  1. Choose Bill Type Before Payment *
                 </label>
-                <span className="text-[10px] text-slate-500 font-semibold">GST or Non-GST</span>
+                <span className="text-[10px] text-slate-500 font-semibold">Select Bill Type</span>
               </div>
 
               {/* Toggle GST vs Non-GST */}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setBillType('GST')}
+                  onClick={() => handleSelectPaymentBillType('GST')}
                   className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
                     billType === 'GST'
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
@@ -2659,11 +2651,11 @@ export default function FrontOfficePage() {
                   }`}
                 >
                   <Receipt className="w-3.5 h-3.5" />
-                  <span>GST Bill (5%)</span>
+                  <span>GST Bill (+5% Above Base)</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setBillType('NON_GST')}
+                  onClick={() => handleSelectPaymentBillType('NON_GST')}
                   className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
                     billType === 'NON_GST'
                       ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
@@ -2671,9 +2663,62 @@ export default function FrontOfficePage() {
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>Non-GST Bill</span>
+                  <span>Non-GST Bill (Base Tariff Only)</span>
                 </button>
               </div>
+
+              {/* Live Financial Breakdown for Selected Bill Type */}
+              {(() => {
+                const baseTariff = (selectedRes?.roomRate || 0) * (selectedRes?.nights || 1);
+                const extraCharges = (selectedRes?.folios?.[0]?.transactions || [])
+                  .filter((t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE')
+                  .reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+                const paid = Number(selectedRes?.paidAmount || selectedRes?.folios?.[0]?.totalPayments || 0);
+                const isGst = billType === 'GST';
+                const gstVal = isGst ? Math.round(baseTariff * 0.05 * 100) / 100 : 0;
+                const totalBill = baseTariff + gstVal + extraCharges;
+                const netBal = Math.max(0, totalBill - paid);
+
+                return (
+                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Base Room Tariff ({selectedRes?.nights || 1} Night{selectedRes?.nights > 1 ? 's' : ''}):</span>
+                      <span className="font-semibold text-slate-900">₹{baseTariff.toFixed(2)}</span>
+                    </div>
+                    {isGst ? (
+                      <div className="flex justify-between text-emerald-700 font-semibold">
+                        <span>GST (2.5% CGST + 2.5% SGST):</span>
+                        <span>+₹{gstVal.toFixed(2)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between text-slate-500">
+                        <span>GST (Zero Tax):</span>
+                        <span>₹0.00</span>
+                      </div>
+                    )}
+                    {extraCharges > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Extra Orders / Services:</span>
+                        <span className="font-semibold text-slate-900">+₹{extraCharges.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-slate-100 pt-1 font-bold text-slate-900">
+                      <span>Total Bill Amount:</span>
+                      <span>₹{totalBill.toFixed(2)}</span>
+                    </div>
+                    {paid > 0 && (
+                      <div className="flex justify-between text-slate-500 text-[11px]">
+                        <span>Previously Paid:</span>
+                        <span>-₹{paid.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-slate-200 pt-1 font-extrabold text-sm text-brand-600">
+                      <span>Net Balance To Collect:</span>
+                      <span>₹{netBal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {billType === 'GST' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -2712,7 +2757,7 @@ export default function FrontOfficePage() {
                     onChange={(e) => setRecordPaymentWithBill(e.target.checked)}
                     className="w-4 h-4 text-emerald-600 rounded"
                   />
-                  <span>Generate Bill upon recording payment</span>
+                  <span>Generate & Lock Bill upon recording payment</span>
                 </label>
 
                 <button
@@ -2727,6 +2772,38 @@ export default function FrontOfficePage() {
               </div>
             </div>
           )}
+
+          {/* STEP 2: Payment Amount & Method */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              2. Payment Amount (₹) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              required
+              value={payAmount}
+              onChange={(e) => setPayAmount(e.target.value)}
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Payment Method *
+            </label>
+            <select
+              value={payMethod}
+              onChange={(e) => setPayMethod(e.target.value)}
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="CASH">Cash</option>
+              <option value="CARD">Credit / Debit Card</option>
+              <option value="UPI">UPI / QR Payment</option>
+              <option value="BANK_TRANSFER">Bank Wire Transfer</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
 
           <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
             <button
@@ -3123,13 +3200,14 @@ export default function FrontOfficePage() {
                 const roomTariffTotal = roomLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const extraSub = extraOrderLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const isGst = generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST';
-                const cgst = isGst ? (Number(generatedInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
-                const sgst = isGst ? (Number(generatedInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
+                const cgst = isGst ? (Number(generatedInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
+                const sgst = isGst ? (Number(generatedInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
                 const totalGst = cgst + sgst;
                 const discount = Number(generatedInvoice.discount || 0);
-                const roomSub = isGst ? roomBaseSub : roomTariffTotal;
-                const grossSub = roomSub + extraSub;
-                const grandTotal = roomTariffTotal + extraSub - discount;
+                const roomSub = roomBaseSub;
+                const finalRoomSub = isGst ? (roomBaseSub + totalGst) : roomBaseSub;
+                const grossSub = roomBaseSub + extraSub;
+                const grandTotal = Number(generatedInvoice.totalAmount || (finalRoomSub + extraSub - discount));
 
                 return (
                   <div className="space-y-4">
@@ -3162,9 +3240,9 @@ export default function FrontOfficePage() {
                             {roomLines.map((line: any, idx: number) => {
                               const unitPrice = Number(line.unitPrice || 0).toFixed(2);
                               const taxable = Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
-                              const lCgst = isGst ? Number(line.cgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
-                              const lSgst = isGst ? Number(line.sgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
-                              const lTotal = Number(line.totalAmount || (Number(taxable) + Number(lCgst) + Number(lSgst)) || 0).toFixed(2);
+                              const lCgst = isGst ? Number(line.cgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
+                              const lSgst = isGst ? Number(line.sgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
+                              const lTotal = Number(line.totalAmount || (Number(taxable) + (isGst ? (Number(lCgst) + Number(lSgst)) : 0)) || 0).toFixed(2);
                               return (
                                 <tr key={line.id || idx} className="hover:bg-slate-50/50">
                                   <td className="py-2 px-2.5 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
