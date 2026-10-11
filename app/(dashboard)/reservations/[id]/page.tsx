@@ -902,7 +902,7 @@ export default function ReservationDetailPage() {
                 <div className="flex justify-between">
                   <span>GST Breakdown (5% Incl.):</span>
                   <span className="font-semibold text-slate-700">
-                    Base ₹{(roomTariffTotal - Math.round(roomTariffTotal * 0.05 * 100) / 100).toFixed(2)} + GST ₹{(Math.round(roomTariffTotal * 0.05 * 100) / 100).toFixed(2)}
+                    Base ₹{(Math.round((roomTariffTotal / 1.05) * 100) / 100).toFixed(2)} + GST ₹{(Math.round((roomTariffTotal - Math.round((roomTariffTotal / 1.05) * 100) / 100) * 100) / 100).toFixed(2)}
                   </span>
                 </div>
                 <div className="text-[10px] text-slate-400">
@@ -1579,8 +1579,8 @@ export default function ReservationDetailPage() {
                 const roomTariffTotal = roomLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const extraSub = extraOrderLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const isGst = activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST';
-                const cgst = isGst ? (Number(activeInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
-                const sgst = isGst ? (Number(activeInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
+                const cgst = isGst ? (Number(activeInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
+                const sgst = isGst ? (Number(activeInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
                 const totalGst = cgst + sgst;
                 const discount = Number(activeInvoice.discount || 0);
                 const roomSub = isGst ? roomBaseSub : roomTariffTotal;

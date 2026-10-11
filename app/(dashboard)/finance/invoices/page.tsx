@@ -372,8 +372,8 @@ export default function TaxInvoicesPage() {
               const roomTariffTotal = roomLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
               const extraSub = extraOrderLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
               const isGst = selectedInvoice?.invoiceType === 'GST' || selectedInvoice?.isGstBill || true; // Invoices here are Tax Invoices
-              const cgst = isGst ? (Number(selectedInvoice?.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
-              const sgst = isGst ? (Number(selectedInvoice?.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
+              const cgst = isGst ? (Number(selectedInvoice?.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
+              const sgst = isGst ? (Number(selectedInvoice?.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
               const totalGst = cgst + sgst;
               const roomSub = isGst ? roomBaseSub : roomTariffTotal;
               const grandTotal = Number(selectedInvoice?.totalAmount || (roomTariffTotal + extraSub));
