@@ -89,7 +89,11 @@ export async function GET(req: Request) {
           guest: { select: { displayName: true, phone: true, guestRef: true, gstin: true, company: true } },
           roomType: { select: { name: true, code: true } },
           assignedRoom: { select: { id: true, roomNumber: true } },
-          folios: { select: { id: true, folioNumber: true, balanceAmount: true, totalCharges: true, totalPayments: true } },
+          folios: {
+            include: {
+              transactions: true,
+            },
+          },
         },
         orderBy: [{ actualCheckOutAt: 'desc' }, { departureDate: 'asc' }],
       }),
@@ -113,7 +117,11 @@ export async function GET(req: Request) {
           guest: { select: { displayName: true, phone: true, email: true, guestRef: true, company: true, gstin: true } },
           assignedRoom: { select: { roomNumber: true, floor: true } },
           roomType: { select: { name: true, code: true } },
-          folios: { select: { id: true, folioNumber: true, balanceAmount: true, totalCharges: true, totalPayments: true } },
+          folios: {
+            include: {
+              transactions: true,
+            },
+          },
         },
         orderBy: { assignedRoom: { roomNumber: 'asc' } },
       }),

@@ -889,17 +889,23 @@ export default function FrontOfficePage() {
       const folio = resItem.folios?.[0];
       return folio ? folio.balanceAmount : resItem.balanceAmount || 0;
     }
+    const folio = resItem.folios?.[0];
     const baseTariff = (resItem.roomRate || 0) * (resItem.nights || 1);
-    const extraCharges = (resItem.folios?.[0]?.transactions || [])
+    const txExtra = (folio?.transactions || [])
       .filter((t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE')
       .reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
-    const paid = Number(resItem.paidAmount || resItem.folios?.[0]?.totalPayments || 0);
+    const fallbackExtra = folio
+      ? Math.max(0, (folio.totalCharges || 0) - baseTariff)
+      : Math.max(0, (resItem.totalAmount || 0) - baseTariff);
+    const extraCharges = txExtra > 0 ? txExtra : fallbackExtra;
+
+    const paid = Number(resItem.paidAmount || folio?.totalPayments || 0);
     const gst = type === 'GST' ? Math.round(baseTariff * 0.05 * 100) / 100 : 0;
     const total = baseTariff + gst + extraCharges;
     return Math.max(0, total - paid);
   };
 
-  const openPaymentModal = (resItem: any) => {
+  const openPaymentModal = async (resItem: any) => {
     setSelectedRes(resItem);
     const initialType = resItem.billType === 'NON_GST' ? 'NON_GST' : 'GST';
     setBillType(initialType);
@@ -910,6 +916,18 @@ export default function FrontOfficePage() {
     setCustomerGstin(resItem.guest?.gstin || '');
     setRecordPaymentWithBill(!resItem.isBilled);
     setIsPaymentOpen(true);
+
+    try {
+      const res = await fetch(`/api/reservations/${resItem.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reservation) {
+          setSelectedRes(data.reservation);
+          const freshBal = calculateResBalanceForBillType(data.reservation, initialType);
+          setPayAmount(freshBal > 0 ? String(freshBal) : '0');
+        }
+      }
+    } catch {}
   };
 
   const handleSelectPaymentBillType = (type: 'GST' | 'NON_GST') => {
@@ -2669,11 +2687,17 @@ export default function FrontOfficePage() {
 
               {/* Live Financial Breakdown for Selected Bill Type */}
               {(() => {
+                const folio = selectedRes?.folios?.[0];
                 const baseTariff = (selectedRes?.roomRate || 0) * (selectedRes?.nights || 1);
-                const extraCharges = (selectedRes?.folios?.[0]?.transactions || [])
+                const txExtra = (folio?.transactions || [])
                   .filter((t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE')
                   .reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
-                const paid = Number(selectedRes?.paidAmount || selectedRes?.folios?.[0]?.totalPayments || 0);
+                const fallbackExtra = folio
+                  ? Math.max(0, (folio.totalCharges || 0) - baseTariff)
+                  : Math.max(0, (selectedRes?.totalAmount || 0) - baseTariff);
+                const extraCharges = txExtra > 0 ? txExtra : fallbackExtra;
+
+                const paid = Number(selectedRes?.paidAmount || folio?.totalPayments || 0);
                 const isGst = billType === 'GST';
                 const gstVal = isGst ? Math.round(baseTariff * 0.05 * 100) / 100 : 0;
                 const totalBill = baseTariff + gstVal + extraCharges;
@@ -2697,9 +2721,9 @@ export default function FrontOfficePage() {
                       </div>
                     )}
                     {extraCharges > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Extra Orders / Services:</span>
-                        <span className="font-semibold text-slate-900">+₹{extraCharges.toFixed(2)}</span>
+                      <div className="flex justify-between text-amber-800 font-semibold bg-amber-50/60 px-1.5 py-0.5 rounded">
+                        <span>Room Orders & Extras (Non-Taxable):</span>
+                        <span className="font-mono">+₹{extraCharges.toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex justify-between border-t border-slate-100 pt-1 font-bold text-slate-900">
