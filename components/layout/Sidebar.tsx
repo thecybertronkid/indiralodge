@@ -7,7 +7,6 @@ import {
   Building2,
   LayoutDashboard,
   ConciergeBell,
-  CalendarDays,
   BedDouble,
   Sparkles,
   Users,
@@ -90,7 +89,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }[] = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, isReady: true, permission: 'dashboard.view' },
     { label: 'Front Office', href: '/front-office', icon: ConciergeBell, isReady: true, permission: 'frontdesk.view' },
-    { label: 'Reservations', href: '/front-office?tab=reservations', icon: CalendarDays, isReady: true, permission: 'reservation.view' },
     { label: 'Rooms & Inventory', href: '/rooms', icon: BedDouble, isReady: true, permission: 'room.view' },
     { label: 'Guests', href: '/guests', icon: Users, isReady: true, permission: 'guest.view' },
     { label: 'Housekeeping', href: '/housekeeping', icon: Sparkles, isReady: true, permission: 'housekeeping.view' },
