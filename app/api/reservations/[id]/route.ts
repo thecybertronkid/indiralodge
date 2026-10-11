@@ -242,16 +242,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
       let updatedCheckInAt = reservation.actualCheckInAt;
       if (arrivalDate && reservation.actualCheckInAt) {
-        const prev = new Date(reservation.actualCheckInAt);
-        const newArr = new Date(arrivalDate + 'T00:00:00');
-        updatedCheckInAt = new Date(
-          newArr.getFullYear(),
-          newArr.getMonth(),
-          newArr.getDate(),
-          prev.getHours(),
-          prev.getMinutes(),
-          prev.getSeconds()
-        );
+        const arrParts = String(arrivalDate).split('-').map(Number);
+        if (arrParts.length === 3) {
+          const prev = new Date(reservation.actualCheckInAt);
+          const prevTimeStr = prev.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false });
+          const [prevH, prevM] = prevTimeStr.split(':').map(Number);
+          updatedCheckInAt = new Date(Date.UTC(arrParts[0], arrParts[1] - 1, arrParts[2], (prevH || 14) - 5, (prevM || 0) - 30));
+        }
       }
 
       const updated = await db.reservation.update({

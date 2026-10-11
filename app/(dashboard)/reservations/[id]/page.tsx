@@ -48,16 +48,13 @@ const toDateInputStr = (d: any) => {
   if (!d) return '';
   const dateObj = new Date(d);
   if (isNaN(dateObj.getTime())) return '';
-  const year = dateObj.getFullYear();
-  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const day = String(dateObj.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return dateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 };
 
 const calculateNights = (arrival: string, departure: string) => {
   if (!arrival || !departure) return 1;
-  const a = new Date(arrival + 'T00:00:00');
-  const d = new Date(departure + 'T00:00:00');
+  const a = new Date(arrival + 'T00:00:00Z');
+  const d = new Date(departure + 'T00:00:00Z');
   const diff = d.getTime() - a.getTime();
   const days = Math.round(diff / (1000 * 60 * 60 * 24));
   return days > 0 ? days : 1;
@@ -129,8 +126,8 @@ export default function ReservationDetailPage() {
           const g = result.reservation.guest;
           const names = (g.displayName || '').split(' ');
           const stayDates = getStayDates(result.reservation);
-          const arrStr = toDateInputStr(stayDates.checkInDate);
-          const depStr = toDateInputStr(stayDates.checkOutDate);
+          const arrStr = toDateInputStr(result.reservation.arrivalDate);
+          const depStr = toDateInputStr(result.reservation.departureDate);
           const nNights = result.reservation.nights || calculateNights(arrStr, depStr);
           setEditForm({
             firstName: g.firstName || names[0] || '',

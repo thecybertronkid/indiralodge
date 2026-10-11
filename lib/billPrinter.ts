@@ -28,6 +28,36 @@ export function formatTimeStr(timeValue?: string | null): string {
   return trimmed;
 }
 
+export function parseKolkataDateParts(
+  dateInput: string | Date | null | undefined
+): { year: number; month: number; day: number; ymd: string } | null {
+  if (!dateInput) return null;
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return null;
+  const ymd = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const [year, month, day] = ymd.split('-').map(Number);
+  return { year, month, day, ymd };
+}
+
+export function parseTimeHoursMinutes(timeStr?: string | null): { hours: number; minutes: number } {
+  if (!timeStr) return { hours: 14, minutes: 0 };
+  const trimmed = timeStr.trim();
+  const match12 = trimmed.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+  if (match12) {
+    let h = parseInt(match12[1], 10);
+    const m = parseInt(match12[2], 10);
+    const isPm = match12[3].toLowerCase() === 'pm';
+    if (isPm && h < 12) h += 12;
+    if (!isPm && h === 12) h = 0;
+    return { hours: h, minutes: m };
+  }
+  const match24 = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  if (match24) {
+    return { hours: parseInt(match24[1], 10), minutes: parseInt(match24[2], 10) };
+  }
+  return { hours: 14, minutes: 0 };
+}
+
 export function getStayDates(res: any) {
   if (!res) {
     return {
@@ -39,75 +69,100 @@ export function getStayDates(res: any) {
   }
 
   // 1. Determine Check-In Date & Time
-  const inRaw = res.actualCheckInAt || res.arrivalDate || new Date();
-  const inDate = new Date(inRaw);
-  const validInDate = isNaN(inDate.getTime()) ? new Date() : inDate;
+  // The stay's check-in date MUST ALWAYS match the user's entered arrivalDate
+  const arrivalRaw = res.arrivalDate || res.actualCheckInAt || new Date();
+  const arrDateParts = parseKolkataDateParts(arrivalRaw) || {
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+    day: new Date().getDate(),
+    ymd: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
+  };
 
-  const inDateStr = validInDate.toLocaleDateString('en-IN', {
+  const inDateObj = new Date(Date.UTC(arrDateParts.year, arrDateParts.month - 1, arrDateParts.day, 6, 0, 0));
+  const inDateStr = inDateObj.toLocaleDateString('en-IN', {
     timeZone: 'Asia/Kolkata',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
 
-  const inTimeStr = res.actualCheckInAt
-    ? validInDate.toLocaleTimeString('en-IN', {
+  // Check-In Time: Prioritize entered arrivalTime, else check if actualCheckInAt is on arrival date, else default 02:00 pm
+  let inTimeStr = '02:00 pm';
+  let inHours = 14;
+  let inMinutes = 0;
+
+  if (res.arrivalTime) {
+    inTimeStr = formatTimeStr(res.arrivalTime);
+    const parsedT = parseTimeHoursMinutes(res.arrivalTime);
+    inHours = parsedT.hours;
+    inMinutes = parsedT.minutes;
+  } else if (res.actualCheckInAt) {
+    const actParts = parseKolkataDateParts(res.actualCheckInAt);
+    if (actParts && actParts.ymd === arrDateParts.ymd) {
+      const actD = new Date(res.actualCheckInAt);
+      inTimeStr = actD.toLocaleTimeString('en-IN', {
         timeZone: 'Asia/Kolkata',
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
-      })
-    : formatTimeStr(res.arrivalTime || '02:00 pm');
+      });
+      inHours = actD.getHours();
+      inMinutes = actD.getMinutes();
+    }
+  }
 
+  const validInDate = new Date(Date.UTC(arrDateParts.year, arrDateParts.month - 1, arrDateParts.day, inHours - 5, inMinutes - 30));
   const checkInFormatted = `${inDateStr}, ${inTimeStr}`;
 
   // 2. Determine Check-Out Date & Time
+  // The stay's check-out date MUST ALWAYS match the user's entered departureDate (or calculated from nights)
   const nights = Math.max(1, Number(res.nights || 1));
-  let outDate: Date;
+  let depDateParts = parseKolkataDateParts(res.departureDate);
 
-  if (res.actualCheckOutAt) {
-    const actOut = new Date(res.actualCheckOutAt);
-    if (!isNaN(actOut.getTime()) && actOut.getTime() > validInDate.getTime()) {
-      outDate = actOut;
-    } else {
-      outDate = new Date(validInDate.getTime() + nights * 24 * 60 * 60 * 1000);
-    }
-  } else if (res.departureDate) {
-    const dep = new Date(res.departureDate);
-    const inDateYMD = validInDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    const depYMD = dep.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    // Check-out calendar date must be strictly after check-in calendar date
-    if (!isNaN(dep.getTime()) && depYMD > inDateYMD) {
-      outDate = dep;
-    } else {
-      // If departureDate in DB is on or before checkIn date, calculate correctly from nights
-      outDate = new Date(validInDate.getTime() + nights * 24 * 60 * 60 * 1000);
-    }
-  } else {
-    outDate = new Date(validInDate.getTime() + nights * 24 * 60 * 60 * 1000);
+  if (!depDateParts || depDateParts.ymd <= arrDateParts.ymd) {
+    const calcOutDate = new Date(validInDate.getTime() + nights * 24 * 60 * 60 * 1000);
+    depDateParts = parseKolkataDateParts(calcOutDate) || arrDateParts;
   }
 
-  const outDateStr = outDate.toLocaleDateString('en-IN', {
+  const outDateObj = new Date(Date.UTC(depDateParts.year, depDateParts.month - 1, depDateParts.day, 6, 0, 0));
+  const outDateStr = outDateObj.toLocaleDateString('en-IN', {
     timeZone: 'Asia/Kolkata',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
 
-  const outTimeStr = res.actualCheckOutAt
-    ? outDate.toLocaleTimeString('en-IN', {
+  // Check-Out Time: Prioritize entered departureTime, else check if actualCheckOutAt is on departure date, else default 11:00 am
+  let outTimeStr = '11:00 am';
+  let outHours = 11;
+  let outMinutes = 0;
+
+  if (res.departureTime) {
+    outTimeStr = formatTimeStr(res.departureTime);
+    const parsedOutT = parseTimeHoursMinutes(res.departureTime);
+    outHours = parsedOutT.hours;
+    outMinutes = parsedOutT.minutes;
+  } else if (res.actualCheckOutAt) {
+    const actOutParts = parseKolkataDateParts(res.actualCheckOutAt);
+    if (actOutParts && actOutParts.ymd === depDateParts.ymd) {
+      const actOutD = new Date(res.actualCheckOutAt);
+      outTimeStr = actOutD.toLocaleTimeString('en-IN', {
         timeZone: 'Asia/Kolkata',
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
-      })
-    : formatTimeStr(res.departureTime || '11:00 am');
+      });
+      outHours = actOutD.getHours();
+      outMinutes = actOutD.getMinutes();
+    }
+  }
 
+  const validOutDate = new Date(Date.UTC(depDateParts.year, depDateParts.month - 1, depDateParts.day, outHours - 5, outMinutes - 30));
   const checkOutFormatted = `${outDateStr}, ${outTimeStr}`;
 
   return {
     checkInDate: validInDate,
-    checkOutDate: outDate,
+    checkOutDate: validOutDate,
     checkInFormatted,
     checkOutFormatted,
   };
@@ -176,9 +231,10 @@ export function isAccommodationLine(line: any, index: number): boolean {
 }
 
 export function getStayDayInfo(orderDate?: Date | string | null, arrivalDate?: Date | string | null) {
-  const d = orderDate ? new Date(orderDate) : new Date();
-  const validD = isNaN(d.getTime()) ? new Date() : d;
-  const dateFormatted = validD.toLocaleDateString('en-GB', {
+  const dParts = parseKolkataDateParts(orderDate) || parseKolkataDateParts(new Date())!;
+  const dObj = new Date(Date.UTC(dParts.year, dParts.month - 1, dParts.day, 6, 0, 0));
+  const dateFormatted = dObj.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -188,13 +244,13 @@ export function getStayDayInfo(orderDate?: Date | string | null, arrivalDate?: D
     return { dayNumber: 1, dayLabel: 'Day 1', dateFormatted, fullLabel: `Day 1 • ${dateFormatted}` };
   }
 
-  const arr = new Date(arrivalDate);
-  if (isNaN(arr.getTime())) {
+  const arrParts = parseKolkataDateParts(arrivalDate);
+  if (!arrParts) {
     return { dayNumber: 1, dayLabel: 'Day 1', dateFormatted, fullLabel: `Day 1 • ${dateFormatted}` };
   }
 
-  const dZero = new Date(validD.getFullYear(), validD.getMonth(), validD.getDate()).getTime();
-  const arrZero = new Date(arr.getFullYear(), arr.getMonth(), arr.getDate()).getTime();
+  const dZero = new Date(Date.UTC(dParts.year, dParts.month - 1, dParts.day)).getTime();
+  const arrZero = new Date(Date.UTC(arrParts.year, arrParts.month - 1, arrParts.day)).getTime();
 
   const diffDays = Math.round((dZero - arrZero) / (1000 * 60 * 60 * 24));
   const dayNumber = Math.max(1, diffDays + 1);

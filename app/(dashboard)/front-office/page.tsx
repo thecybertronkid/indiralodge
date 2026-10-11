@@ -1418,10 +1418,10 @@ export default function FrontOfficePage() {
                           <div className="text-xs text-slate-500">{inh.guest?.phone}</div>
                         </td>
                         <td className="pmfs-table-td text-xs text-slate-600">
-                          {new Date(inh.arrivalDate).toLocaleDateString()}
+                          {new Date(inh.arrivalDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
                         <td className="pmfs-table-td text-xs text-slate-600 font-medium">
-                          {new Date(inh.departureDate).toLocaleDateString()}
+                          {new Date(inh.departureDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
                         <td className="pmfs-table-td font-mono text-xs text-slate-600">
                           {folio?.folioNumber || '—'}
@@ -1622,7 +1622,7 @@ export default function FrontOfficePage() {
                           </td>
                           <td className="pmfs-table-td text-xs text-slate-600">
                             <div>
-                              {new Date(r.arrivalDate).toLocaleDateString()} → {new Date(r.departureDate).toLocaleDateString()}
+                              {new Date(r.arrivalDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })} → {new Date(r.departureDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })}
                             </div>
                             <div className="text-[11px] text-slate-400">
                               {r.nights} Night{r.nights > 1 ? 's' : ''} • {r.adults} Adult{r.adults > 1 ? 's' : ''}
@@ -1690,7 +1690,7 @@ export default function FrontOfficePage() {
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs text-slate-700">
             <div className="font-bold text-slate-900">Booking Ref: {selectedRes?.reservationRef}</div>
             <div>Room Type: {selectedRes?.roomType?.name}</div>
-            <div>Stay: {selectedRes?.nights} Nights ({selectedRes?.arrivalDate ? new Date(selectedRes.arrivalDate).toLocaleDateString() : ''} to {selectedRes?.departureDate ? new Date(selectedRes.departureDate).toLocaleDateString() : ''})</div>
+            <div>Stay: {selectedRes?.nights} Nights ({selectedRes?.arrivalDate ? new Date(selectedRes.arrivalDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : ''} to {selectedRes?.departureDate ? new Date(selectedRes.departureDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : ''})</div>
             <div>Total Amount: ₹{selectedRes?.totalAmount} (Paid: ₹{selectedRes?.paidAmount})</div>
           </div>
 
@@ -2553,7 +2553,7 @@ export default function FrontOfficePage() {
       <Modal isOpen={isExtendOpen} onClose={() => setIsExtendOpen(false)} title={`Extend Stay for ${selectedRes?.guest?.displayName}`} maxWidth="md">
         <form onSubmit={handleExtendSubmit} className="space-y-4">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-            Current Checkout Date: <strong className="text-slate-900">{selectedRes?.departureDate ? new Date(selectedRes.departureDate).toLocaleDateString() : ''}</strong>
+            Current Checkout Date: <strong className="text-slate-900">{selectedRes?.departureDate ? new Date(selectedRes.departureDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : ''}</strong>
           </div>
 
           <div>

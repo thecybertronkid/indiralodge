@@ -64,11 +64,22 @@ export async function POST(req: Request) {
     }
 
     // 1. Update Reservation Status
+    let checkOutTimestamp = new Date();
+    if (reservation.departureDate) {
+      const depYmd = new Date(reservation.departureDate).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const todayYmd = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      if (depYmd < todayYmd) {
+        const [y, m, d] = depYmd.split('-').map(Number);
+        const [h, min] = (reservation.departureTime || '11:00').split(':').map(Number);
+        checkOutTimestamp = new Date(Date.UTC(y, m - 1, d, (h || 11) - 5, (min || 0) - 30));
+      }
+    }
+
     const updatedRes = await db.reservation.update({
       where: { id: reservationId },
       data: {
         status: 'CHECKED_OUT',
-        actualCheckOutAt: new Date(),
+        actualCheckOutAt: checkOutTimestamp,
       },
     });
 

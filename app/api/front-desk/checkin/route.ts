@@ -55,26 +55,15 @@ export async function POST(req: Request) {
 
     // 1. Update Reservation
     const now = new Date();
-    const todayMidnight = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    const depMidnight = new Date(
-      Date.UTC(
-        reservation.departureDate.getFullYear(),
-        reservation.departureDate.getMonth(),
-        reservation.departureDate.getDate()
-      )
-    );
-
-    let newArrivalDate = reservation.arrivalDate;
-    let newDepartureDate = reservation.departureDate;
-    if (depMidnight <= todayMidnight) {
-      newArrivalDate = todayMidnight;
-      newDepartureDate = new Date(
-        Date.UTC(
-          todayMidnight.getFullYear(),
-          todayMidnight.getMonth(),
-          todayMidnight.getDate() + (reservation.nights || 1)
-        )
-      );
+    let checkInTimestamp = now;
+    if (reservation.arrivalDate) {
+      const arrYmd = new Date(reservation.arrivalDate).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const todayYmd = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      if (arrYmd < todayYmd) {
+        const [y, m, d] = arrYmd.split('-').map(Number);
+        const [h, min] = (reservation.arrivalTime || '14:00').split(':').map(Number);
+        checkInTimestamp = new Date(Date.UTC(y, m - 1, d, (h || 14) - 5, (min || 0) - 30));
+      }
     }
 
     const updatedRes = await db.reservation.update({
@@ -82,9 +71,7 @@ export async function POST(req: Request) {
       data: {
         status: 'CHECKED_IN',
         assignedRoomId: targetRoomId,
-        actualCheckInAt: now,
-        arrivalDate: newArrivalDate,
-        departureDate: newDepartureDate,
+        actualCheckInAt: checkInTimestamp,
       },
     });
 

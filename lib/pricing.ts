@@ -40,11 +40,12 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
 
   const taxRate = propSettings?.defaultTaxRate ?? 5.0;
 
-  // Calculate nights
-  const arr = new Date(input.arrivalDate);
-  const dep = new Date(input.departureDate);
-  const diffTime = Math.max(1, dep.getTime() - arr.getTime());
-  const nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Calculate nights based on calendar dates in Asia/Kolkata
+  const arrYmd = new Date(input.arrivalDate).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const depYmd = new Date(input.departureDate).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const aUtc = new Date(arrYmd + 'T00:00:00Z').getTime();
+  const dUtc = new Date(depYmd + 'T00:00:00Z').getTime();
+  const nights = Math.max(1, Math.round((dUtc - aUtc) / (1000 * 60 * 60 * 24)));
 
   // Determine rate based on occupancy matrix
   const calculatedNightlyRate = calculateIndiraLodgeRoomRate(

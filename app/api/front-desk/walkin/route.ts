@@ -148,6 +148,17 @@ export async function POST(req: Request) {
     const resRef = await generateReferenceNumber(propertyId, 'RES');
     const deposit = depositAmount ? parseFloat(depositAmount) : 0;
 
+    // Calculate actual check-in timestamp matching the user's entered arrivalDate and arrivalTime
+    let checkInTimestamp = new Date();
+    if (arrivalDate) {
+      const arrParts = String(arrivalDate).split('-').map(Number);
+      if (arrParts.length === 3) {
+        const [h, m] = (arrivalTime || '14:00').split(':').map(Number);
+        // Convert from IST (UTC+5:30) to UTC Date
+        checkInTimestamp = new Date(Date.UTC(arrParts[0], arrParts[1] - 1, arrParts[2], (h || 14) - 5, (m || 0) - 30));
+      }
+    }
+
     // 5. Create Checked-in Reservation
     const reservation = await db.reservation.create({
       data: {
@@ -163,7 +174,7 @@ export async function POST(req: Request) {
         comingFrom: comingFrom ? comingFrom.trim() : null,
         purposeOfVisit: purposeOfVisit ? purposeOfVisit.trim() : null,
         specialRequests: specialRequests ? specialRequests.trim() : null,
-        actualCheckInAt: new Date(),
+        actualCheckInAt: checkInTimestamp,
         nights: pricing.nights,
         adults: parseInt(adults || '1', 10),
         children: parseInt(children || '0', 10),
