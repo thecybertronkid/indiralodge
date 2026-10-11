@@ -113,19 +113,51 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     // Action: Update Booking Details Before Billing
     if (action === 'update_booking') {
-      const { discountAmount, specialRequests, roomRate } = body;
+      const { discountAmount, specialRequests, roomRate, arrivalDate, departureDate, nights: reqNights } = body;
       const prevRate = reservation.roomRate;
       let newRoomRate = roomRate !== undefined && roomRate !== '' ? parseFloat(String(roomRate)) : reservation.roomRate;
       if (isNaN(newRoomRate) || newRoomRate < 0) newRoomRate = 0;
 
-      const discountVal = discountAmount !== undefined && discountAmount !== '' ? parseFloat(String(discountAmount)) : 0;
-      
-      if (discountVal > 0 && reservation.nights > 0) {
-        const totalTariff = Math.max(0, (newRoomRate * reservation.nights) - discountVal);
-        newRoomRate = Math.round((totalTariff / reservation.nights) * 100) / 100;
+      // Calculate dates and nights
+      let newArrivalDate = reservation.arrivalDate;
+      let newDepartureDate = reservation.departureDate;
+      let newNights = reservation.nights;
+
+      if (arrivalDate && departureDate) {
+        const arr = new Date(arrivalDate + 'T00:00:00');
+        const dep = new Date(departureDate + 'T00:00:00');
+        if (dep <= arr) {
+          return NextResponse.json({ error: 'Check-out date must be after check-in date.' }, { status: 400 });
+        }
+        newArrivalDate = arr;
+        newDepartureDate = dep;
+        const diff = Math.abs(dep.getTime() - arr.getTime());
+        newNights = Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)));
+      } else if (reqNights && Number(reqNights) > 0) {
+        newNights = Number(reqNights);
       }
 
-      const totalRoomCharge = Math.round((newRoomRate * reservation.nights) * 100) / 100;
+      // If room is assigned, verify room is available for the new date window (excluding this reservation)
+      if (reservation.assignedRoomId && (arrivalDate || departureDate)) {
+        const available = await isRoomAvailable(reservation.assignedRoomId, newArrivalDate, newDepartureDate, reservationId);
+        if (!available) {
+          return NextResponse.json(
+            {
+              error: `The assigned Room is not available for the updated stay dates (${newArrivalDate.toLocaleDateString('en-IN')} to ${newDepartureDate.toLocaleDateString('en-IN')}). Please choose alternative dates or reassign the room first.`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      const discountVal = discountAmount !== undefined && discountAmount !== '' ? parseFloat(String(discountAmount)) : 0;
+      
+      if (discountVal > 0 && newNights > 0) {
+        const totalTariff = Math.max(0, (newRoomRate * newNights) - discountVal);
+        newRoomRate = Math.round((totalTariff / newNights) * 100) / 100;
+      }
+
+      const totalRoomCharge = Math.round((newRoomRate * newNights) * 100) / 100;
 
       // Find any folios attached to this reservation
       const folios = await db.folio.findMany({
@@ -144,9 +176,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
               where: { id: roomChargeTx.id },
               data: {
                 unitPrice: newRoomRate,
-                quantity: reservation.nights,
+                quantity: newNights,
                 amount: totalRoomCharge,
-                description: `Room charge for ${reservation.nights} night(s) @ ₹${newRoomRate}/night`,
+                description: `Room charge for ${newNights} night(s) @ ₹${newRoomRate}/night`,
               },
             });
           }
@@ -176,6 +208,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       const updated = await db.reservation.update({
         where: { id: reservationId },
         data: {
+          arrivalDate: newArrivalDate,
+          departureDate: newDepartureDate,
+          nights: newNights,
           roomRate: newRoomRate,
           discountAmount: 0,
           totalAmount: calculatedTotal,
@@ -191,8 +226,23 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         action: 'RESERVATION_DETAILS_UPDATED',
         module: 'reservations',
         entityId: reservationId,
-        beforeData: { roomRate: prevRate, totalAmount: reservation.totalAmount, balanceAmount: reservation.balanceAmount },
-        afterData: { roomRate: newRoomRate, totalAmount: calculatedTotal, balanceAmount, specialRequests },
+        beforeData: {
+          arrivalDate: reservation.arrivalDate,
+          departureDate: reservation.departureDate,
+          nights: reservation.nights,
+          roomRate: prevRate,
+          totalAmount: reservation.totalAmount,
+          balanceAmount: reservation.balanceAmount,
+        },
+        afterData: {
+          arrivalDate: newArrivalDate,
+          departureDate: newDepartureDate,
+          nights: newNights,
+          roomRate: newRoomRate,
+          totalAmount: calculatedTotal,
+          balanceAmount,
+          specialRequests,
+        },
       });
 
       return NextResponse.json({ success: true, reservation: updated });

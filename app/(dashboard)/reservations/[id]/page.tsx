@@ -30,6 +30,25 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { formatStayDateTime, openPrintBillWindow, segregateBillLines } from '@/lib/billPrinter';
 
+const toDateInputStr = (d: any) => {
+  if (!d) return '';
+  const dateObj = new Date(d);
+  if (isNaN(dateObj.getTime())) return '';
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const calculateNights = (arrival: string, departure: string) => {
+  if (!arrival || !departure) return 1;
+  const a = new Date(arrival + 'T00:00:00');
+  const d = new Date(departure + 'T00:00:00');
+  const diff = d.getTime() - a.getTime();
+  const days = Math.round(diff / (1000 * 60 * 60 * 24));
+  return days > 0 ? days : 1;
+};
+
 export default function ReservationDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -58,6 +77,9 @@ export default function ReservationDetailPage() {
     address: '',
     city: '',
     state: '',
+    arrivalDate: '',
+    departureDate: '',
+    nights: 1,
     roomRate: '0',
     discountAmount: '0',
     specialRequests: '',
@@ -91,6 +113,9 @@ export default function ReservationDetailPage() {
         if (result.reservation?.guest) {
           const g = result.reservation.guest;
           const names = (g.displayName || '').split(' ');
+          const arrStr = toDateInputStr(result.reservation.arrivalDate);
+          const depStr = toDateInputStr(result.reservation.departureDate);
+          const nNights = result.reservation.nights || calculateNights(arrStr, depStr);
           setEditForm({
             firstName: g.firstName || names[0] || '',
             lastName: g.lastName || names.slice(1).join(' ') || '',
@@ -102,8 +127,11 @@ export default function ReservationDetailPage() {
             address: g.address || '',
             city: g.city || '',
             state: g.state || '',
+            arrivalDate: arrStr,
+            departureDate: depStr,
+            nights: nNights,
             roomRate: String(result.reservation.roomRate || 0),
-            discountAmount: String(result.reservation.discountAmount || 0),
+            discountAmount: '0',
             specialRequests: result.reservation.specialRequests || '',
           });
           setCompanyNameInput(g.company || '');
@@ -170,8 +198,50 @@ export default function ReservationDetailPage() {
     }
   };
 
+  const handleEditArrivalChange = (val: string) => {
+    const newNights = calculateNights(val, editForm.departureDate);
+    setEditForm((prev) => ({
+      ...prev,
+      arrivalDate: val,
+      nights: newNights,
+    }));
+  };
+
+  const handleEditDepartureChange = (val: string) => {
+    const newNights = calculateNights(editForm.arrivalDate, val);
+    setEditForm((prev) => ({
+      ...prev,
+      departureDate: val,
+      nights: newNights,
+    }));
+  };
+
+  const handleEditRoomRateChange = (rateVal: string) => {
+    setEditForm((prev) => ({
+      ...prev,
+      roomRate: rateVal,
+    }));
+  };
+
+  const handleEditTotalStayPriceChange = (totalVal: string) => {
+    const tot = parseFloat(totalVal) || 0;
+    const n = editForm.nights > 0 ? editForm.nights : 1;
+    const computedRate = Math.round((tot / n) * 100) / 100;
+    setEditForm((prev) => ({
+      ...prev,
+      roomRate: String(computedRate),
+    }));
+  };
+
   const handleUpdateGuestAndBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editForm.arrivalDate && editForm.departureDate) {
+      if (new Date(editForm.departureDate) <= new Date(editForm.arrivalDate)) {
+        showToast('Check-out date must be after check-in date', 'error');
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -192,12 +262,15 @@ export default function ReservationDetailPage() {
         return;
       }
 
-      // 2. Update Booking Info (Rate, Special Requests)
+      // 2. Update Booking Info (Dates, Nights, Rate, Special Requests)
       const resBooking = await fetch(`/api/reservations/${reservationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_booking',
+          arrivalDate: editForm.arrivalDate,
+          departureDate: editForm.departureDate,
+          nights: editForm.nights,
           roomRate: editForm.roomRate,
           discountAmount: 0,
           specialRequests: editForm.specialRequests,
@@ -851,6 +924,7 @@ export default function ReservationDetailPage() {
             Notice: All information can be edited now. Once a GST or Non-GST Bill is generated, this booking will be permanently locked.
           </div>
 
+          {/* Section 1: Guest Personal & Contact Details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">First Name *</label>
@@ -911,28 +985,116 @@ export default function ReservationDetailPage() {
                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Room Tariff / Rate per Night (₹) *</label>
-              <input
-                type="number"
-                step="any"
-                min="0"
-                required
-                value={editForm.roomRate}
-                onChange={(e) => setEditForm({ ...editForm, roomRate: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-semibold"
-              />
+          </div>
+
+          {/* Section 2: Stay Schedule Dates & Duration */}
+          <div className="pt-2 border-t border-slate-100">
+            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+              Stay Schedule & Duration
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Check-In Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={editForm.arrivalDate}
+                  onChange={(e) => handleEditArrivalChange(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Check-Out Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={editForm.departureDate}
+                  min={editForm.arrivalDate}
+                  onChange={(e) => handleEditDepartureChange(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Stay Duration
+                </label>
+                <div className="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-bold text-slate-800 flex items-center justify-between">
+                  <span>{editForm.nights} Night{editForm.nights > 1 ? 's' : ''}</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Calculated</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Room Tariff & Pricing Recalculation */}
+          <div className="pt-2 border-t border-slate-100">
+            <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+              Room Tariff & Price Calculation
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Room Tariff / Rate per Night (₹) *
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  required
+                  value={editForm.roomRate}
+                  onChange={(e) => handleEditRoomRateChange(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Total Room Stay Price (₹)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={Math.round((parseFloat(editForm.roomRate || '0') || 0) * (editForm.nights || 1) * 100) / 100}
+                  onChange={(e) => handleEditTotalStayPriceChange(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-extrabold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Special Requests / Notes</label>
-              <input
-                type="text"
-                value={editForm.specialRequests}
-                onChange={(e) => setEditForm({ ...editForm, specialRequests: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
-              />
+            {/* Live Pricing Breakdown Card */}
+            <div className="mt-2.5 p-3 rounded-xl bg-brand-50/60 border border-brand-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+              <div className="text-slate-700">
+                <span className="font-semibold text-brand-900">Calculated Tariff Breakdown: </span>
+                <span className="font-mono">
+                  {editForm.nights} night{editForm.nights > 1 ? 's' : ''} × ₹{parseFloat(editForm.roomRate || '0') || 0}/night
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[11px] text-slate-500 font-medium">Total Stay Charge: </span>
+                <span className="text-base font-black text-brand-700 font-mono">
+                  ₹{((parseFloat(editForm.roomRate || '0') || 0) * (editForm.nights || 1)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
             </div>
+          </div>
+
+          {/* Section 4: Special Requests / Notes */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Special Requests / Notes</label>
+            <input
+              type="text"
+              value={editForm.specialRequests}
+              onChange={(e) => setEditForm({ ...editForm, specialRequests: e.target.value })}
+              placeholder="e.g. Ground floor preference, extra pillows"
+              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
+            />
           </div>
 
           <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
