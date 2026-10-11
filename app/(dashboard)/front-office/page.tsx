@@ -357,8 +357,8 @@ export default function FrontOfficePage() {
 
   const walkinRoomSubtotal = walkinPricePerNight * walkinDaysStayed;
   const walkinTotalPrice = Math.max(0, walkinRoomSubtotal);
-  const walkinTaxableVal = Math.round((walkinTotalPrice / 1.05) * 100) / 100;
-  const walkinGstTaxVal = Math.round((walkinTotalPrice - walkinTaxableVal) * 100) / 100;
+  const walkinGstTaxVal = Math.round((walkinTotalPrice * 0.05) * 100) / 100;
+  const walkinTaxableVal = Math.round((walkinTotalPrice - walkinGstTaxVal) * 100) / 100;
   const walkinDepositVal = parseFloat(walkinForm.depositAmount || '0');
   const walkinBalance = Math.max(0, walkinTotalPrice - walkinDepositVal);
 
@@ -3123,8 +3123,8 @@ export default function FrontOfficePage() {
                 const roomTariffTotal = roomLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const extraSub = extraOrderLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const isGst = generatedInvoice.isGstBill || generatedInvoice.invoiceType === 'GST';
-                const cgst = isGst ? (Number(generatedInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
-                const sgst = isGst ? (Number(generatedInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
+                const cgst = isGst ? (Number(generatedInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
+                const sgst = isGst ? (Number(generatedInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
                 const totalGst = cgst + sgst;
                 const discount = Number(generatedInvoice.discount || 0);
                 const roomSub = isGst ? roomBaseSub : roomTariffTotal;
@@ -3162,8 +3162,8 @@ export default function FrontOfficePage() {
                             {roomLines.map((line: any, idx: number) => {
                               const unitPrice = Number(line.unitPrice || 0).toFixed(2);
                               const taxable = Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
-                              const lCgst = isGst ? Number(line.cgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
-                              const lSgst = isGst ? Number(line.sgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
+                              const lCgst = isGst ? Number(line.cgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
+                              const lSgst = isGst ? Number(line.sgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
                               const lTotal = Number(line.totalAmount || (Number(taxable) + Number(lCgst) + Number(lSgst)) || 0).toFixed(2);
                               return (
                                 <tr key={line.id || idx} className="hover:bg-slate-50/50">

@@ -49,31 +49,25 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Recalculate Pricing
-    const pricing = await calculateReservationPricing({
-      propertyId: reservation.propertyId,
-      roomTypeId: reservation.roomTypeId,
-      arrivalDate: reservation.arrivalDate,
-      departureDate: newDep,
-      adults: reservation.adults,
-      children: reservation.children,
-      discountAmount: reservation.discountAmount,
-      customRoomRate: reservation.roomRate,
-    });
-
-    const additionalNights = pricing.nights - reservation.nights;
-    const additionalAmount = pricing.totalAmount - reservation.totalAmount;
-    const newBalance = reservation.balanceAmount + additionalAmount;
+    // 2. Calculate Additional Stay and Pricing
+    // In Indira Lodge, the extra amount for stay extension is strictly the walk-in / reserved room rate times additional nights
+    const diffTime = Math.max(1, newDep.getTime() - oldDep.getTime());
+    const additionalNights = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
+    const nightlyRate = reservation.roomRate;
+    const additionalAmount = additionalNights * nightlyRate;
+    const newTotalNights = reservation.nights + additionalNights;
+    const newTotalRoomCharge = newTotalNights * nightlyRate;
+    const newTaxAmount = Math.round((newTotalRoomCharge * 0.05) * 100) / 100;
 
     // 3. Update Reservation
     const updatedRes = await db.reservation.update({
       where: { id: reservationId },
       data: {
         departureDate: newDep,
-        nights: pricing.nights,
-        taxAmount: pricing.taxAmount,
-        totalAmount: pricing.totalAmount,
-        balanceAmount: newBalance,
+        nights: newTotalNights,
+        taxAmount: newTaxAmount,
+        totalAmount: { increment: additionalAmount },
+        balanceAmount: { increment: additionalAmount },
       },
     });
 
@@ -89,7 +83,7 @@ export async function POST(req: Request) {
           category: 'ROOM_CHARGE',
           description: `Stay Extension (${additionalNights} Additional Night${additionalNights > 1 ? 's' : ''})`,
           quantity: additionalNights,
-          unitPrice: reservation.roomRate,
+          unitPrice: nightlyRate,
           amount: additionalAmount,
           status: 'POSTED',
           postedById: session.userId,
@@ -99,8 +93,8 @@ export async function POST(req: Request) {
       await db.folio.update({
         where: { id: folio.id },
         data: {
-          totalCharges: folio.totalCharges + additionalAmount,
-          balanceAmount: folio.balanceAmount + additionalAmount,
+          totalCharges: { increment: additionalAmount },
+          balanceAmount: { increment: additionalAmount },
         },
       });
     }

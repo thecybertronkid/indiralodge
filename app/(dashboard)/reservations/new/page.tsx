@@ -101,8 +101,8 @@ export default function NewReservationPage() {
   // Final Price Calculations (Room rates are GST-inclusive, changed price is base price)
   const roomSubtotal = roomPricePerNight * daysStayed;
   const totalPrice = Math.max(0, roomSubtotal);
-  const taxableVal = Math.round((totalPrice / 1.05) * 100) / 100;
-  const gstTaxVal = Math.round((totalPrice - taxableVal) * 100) / 100;
+  const gstTaxVal = Math.round((totalPrice * 0.05) * 100) / 100;
+  const taxableVal = Math.round((totalPrice - gstTaxVal) * 100) / 100;
 
   // Fetch Room Types
   useEffect(() => {

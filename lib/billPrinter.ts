@@ -282,11 +282,11 @@ export function buildTemporaryInvoice(
   let unitBaseRate = nights > 0 ? Math.round((totalRoomTariff / nights) * 100) / 100 : roomRate;
 
   if (isGst) {
-    // 5% GST is inclusive in room tariff: Taxable = Total / 1.05
-    baseRoomTariff = Math.round((totalRoomTariff / 1.05) * 100) / 100;
-    totalGst = Math.round((totalRoomTariff - baseRoomTariff) * 100) / 100;
-    roomCgst = Math.round((baseRoomTariff * 0.025) * 100) / 100;
+    // 5% GST is inclusive in room tariff (e.g. 1000 tariff = 950 base + 25 CGST + 25 SGST)
+    totalGst = Math.round((totalRoomTariff * 0.05) * 100) / 100;
+    roomCgst = Math.round((totalRoomTariff * 0.025) * 100) / 100;
     roomSgst = Math.round((totalGst - roomCgst) * 100) / 100;
+    baseRoomTariff = Math.round((totalRoomTariff - totalGst) * 100) / 100;
     unitBaseRate = nights > 0 ? Math.round((baseRoomTariff / nights) * 100) / 100 : baseRoomTariff;
   }
 
@@ -397,10 +397,10 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
   const discount = Number(invoice?.discount || 0);
 
   const cgstAmount = isGst
-    ? (Number(invoice?.cgstAmount) || roomLines.reduce((s, l) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomBaseSubtotal * 0.025) * 100) / 100)
+    ? (Number(invoice?.cgstAmount) || roomLines.reduce((s, l) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100)
     : 0;
   const sgstAmount = isGst
-    ? (Number(invoice?.sgstAmount) || roomLines.reduce((s, l) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomBaseSubtotal * 0.025) * 100) / 100)
+    ? (Number(invoice?.sgstAmount) || roomLines.reduce((s, l) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100)
     : 0;
   const totalGst = cgstAmount + sgstAmount;
   const roomSubtotal = isGst ? roomBaseSubtotal : roomTariffTotal;
@@ -414,8 +414,8 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
     .map((line: any, idx: number) => {
       const unitPrice = Number(line.unitPrice || 0).toFixed(2);
       const taxable = Number(line.taxableAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
-      const cgst = isGst ? Number(line.cgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
-      const sgst = isGst ? Number(line.sgstAmount || (Number(taxable) * 0.025) || 0).toFixed(2) : '0.00';
+      const cgst = isGst ? Number(line.cgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
+      const sgst = isGst ? Number(line.sgstAmount || (Number(line.totalAmount || (line.quantity * line.unitPrice)) * 0.025) || 0).toFixed(2) : '0.00';
       const lineTotal = Number(line.totalAmount || (Number(taxable) + Number(cgst) + Number(sgst)) || 0).toFixed(2);
 
       if (isGst) {

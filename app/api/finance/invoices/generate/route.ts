@@ -131,11 +131,11 @@ export async function POST(req: Request) {
     let unitBaseRate = reservation.nights > 0 ? Math.round((roomCharges / reservation.nights) * 100) / 100 : reservation.roomRate;
 
     if (isGst) {
-      // 5% GST is inclusive in room tariff: Taxable = Total / 1.05
-      baseRoomTariff = Math.round((roomCharges / 1.05) * 100) / 100;
-      totalTax = Math.round((roomCharges - baseRoomTariff) * 100) / 100;
-      cgstAmount = Math.round((baseRoomTariff * 0.025) * 100) / 100;
+      // 5% GST is inclusive in room tariff (e.g. 1000 tariff = 950 base + 25 CGST + 25 SGST)
+      totalTax = Math.round((roomCharges * 0.05) * 100) / 100;
+      cgstAmount = Math.round((roomCharges * 0.025) * 100) / 100;
       sgstAmount = Math.round((totalTax - cgstAmount) * 100) / 100;
+      baseRoomTariff = Math.round((roomCharges - totalTax) * 100) / 100;
       unitBaseRate = reservation.nights > 0 ? Math.round((baseRoomTariff / reservation.nights) * 100) / 100 : baseRoomTariff;
     }
 

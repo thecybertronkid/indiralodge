@@ -64,9 +64,9 @@ export async function calculateReservationPricing(input: PricingInput): Promise<
   const subtotal = baseRate * nights;
   const discountAmount = 0;
 
-  // Since room rates are GST-inclusive, taxable base and GST are extracted from the total
-  const taxableAmount = Math.round((totalAmount / (1 + taxRate / 100)) * 100) / 100;
-  const taxAmount = Math.round((totalAmount - taxableAmount) * 100) / 100;
+  // Since room rates are GST-inclusive, taxable base and GST are extracted from the total (e.g. 1000 tariff = 950 base + 50 GST)
+  const taxAmount = Math.round((totalAmount * 0.05) * 100) / 100;
+  const taxableAmount = Math.round((totalAmount - taxAmount) * 100) / 100;
 
   return {
     nights,
