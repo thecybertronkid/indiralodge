@@ -80,6 +80,67 @@ export function isAccommodationLine(line: any, index: number): boolean {
   return false;
 }
 
+export function getStayDayInfo(orderDate?: Date | string | null, arrivalDate?: Date | string | null) {
+  const d = orderDate ? new Date(orderDate) : new Date();
+  const validD = isNaN(d.getTime()) ? new Date() : d;
+  const dateFormatted = validD.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  if (!arrivalDate) {
+    return { dayNumber: 1, dayLabel: 'Day 1', dateFormatted, fullLabel: `Day 1 • ${dateFormatted}` };
+  }
+
+  const arr = new Date(arrivalDate);
+  if (isNaN(arr.getTime())) {
+    return { dayNumber: 1, dayLabel: 'Day 1', dateFormatted, fullLabel: `Day 1 • ${dateFormatted}` };
+  }
+
+  const dZero = new Date(validD.getFullYear(), validD.getMonth(), validD.getDate()).getTime();
+  const arrZero = new Date(arr.getFullYear(), arr.getMonth(), arr.getDate()).getTime();
+
+  const diffDays = Math.round((dZero - arrZero) / (1000 * 60 * 60 * 24));
+  const dayNumber = Math.max(1, diffDays + 1);
+  const dayLabel = `Day ${dayNumber}`;
+  const fullLabel = `${dayLabel} • ${dateFormatted}`;
+
+  return { dayNumber, dayLabel, dateFormatted, fullLabel };
+}
+
+export function parseExtraOrderLine(line: any, arrivalDate?: Date | string | null) {
+  let dayLabel = '';
+  let dateFormatted = '';
+  let fullDayTag = '';
+  let cleanDescription = line.description || 'Room Order';
+
+  const match = cleanDescription.match(/^\[(Day\s*\d+[^\]]*)\]\s*(.*)$/i);
+  if (match) {
+    fullDayTag = match[1].trim(); // e.g. "Day 1 • 11 Oct 2026"
+    cleanDescription = match[2].trim();
+    const parts = fullDayTag.split('•');
+    dayLabel = parts[0]?.trim() || '';
+    dateFormatted = parts[1]?.trim() || '';
+  } else if (line.date || line.createdAt) {
+    const stayDay = getStayDayInfo(line.date || line.createdAt, arrivalDate);
+    dayLabel = stayDay.dayLabel;
+    dateFormatted = stayDay.dateFormatted;
+    fullDayTag = stayDay.fullLabel;
+  } else {
+    dayLabel = 'Stay Order';
+    dateFormatted = '';
+    fullDayTag = 'Room Orders';
+  }
+
+  return {
+    dayLabel,
+    dateFormatted,
+    fullDayTag,
+    cleanDescription,
+  };
+}
+
 export function segregateBillLines(lines: any[] = []) {
   const roomLines: any[] = [];
   const extraOrderLines: any[] = [];
@@ -103,9 +164,13 @@ export function buildTemporaryInvoice(
 ) {
   const isGst = invoiceType === 'GST';
   const folio = reservation?.folios?.[0] || null;
-  const extraCharges = (folio?.transactions || []).filter(
-    (t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE'
-  );
+  const extraCharges = (folio?.transactions || [])
+    .filter((t: any) => t.type === 'DEBIT' && t.category !== 'ROOM_CHARGE')
+    .sort((a: any, b: any) => {
+      const timeA = new Date(a.date || a.createdAt).getTime();
+      const timeB = new Date(b.date || b.createdAt).getTime();
+      return timeA - timeB;
+    });
 
   const nights = reservation?.nights || 1;
   const roomRate = reservation?.roomRate || 0;
@@ -137,8 +202,15 @@ export function buildTemporaryInvoice(
     const isFood = ec.category === 'FOOD_BEVERAGE' || ec.category === 'ROOM_SERVICE';
     const sac = isFood ? '996331' : '996311';
     const itemAmount = Number(ec.amount) || 0;
+    const stayDay = getStayDayInfo(ec.date || ec.createdAt, reservation?.arrivalDate);
+    const lineDesc = (ec.description || '').startsWith('[Day')
+      ? ec.description
+      : `[${stayDay.fullLabel}] ${ec.description || 'Room Service / Extra Charge'}`;
+
     lines.push({
-      description: ec.description || 'Room Service / Extra Charge',
+      date: ec.date || ec.createdAt,
+      createdAt: ec.date || ec.createdAt,
+      description: lineDesc,
       hsnSacCode: sac,
       quantity: ec.quantity || 1,
       unitPrice: ec.unitPrice || ec.amount,
@@ -272,16 +344,40 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
     })
     .join('');
 
-  // Render Section 2: Extra Room Orders Lines (No GST)
-  const extraLinesHtml = extraOrderLines
+  // Render Section 2: Extra Room Orders Lines Date-Wise (Grouped by Stay Day)
+  let lastDayTag = '';
+  const extraLinesHtml = [...extraOrderLines]
+    .sort((a: any, b: any) => {
+      const timeA = new Date(a.date || a.createdAt).getTime();
+      const timeB = new Date(b.date || b.createdAt).getTime();
+      return timeA - timeB;
+    })
     .map((line: any, idx: number) => {
+      const parsed = parseExtraOrderLine(line, res?.arrivalDate);
       const unitPrice = Number(line.unitPrice || 0).toFixed(2);
       const lineTotal = Number(line.totalAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
 
+      let groupHeader = '';
+      if (parsed.fullDayTag && parsed.fullDayTag !== lastDayTag) {
+        lastDayTag = parsed.fullDayTag;
+        groupHeader = `
+          <tr class="day-group-header">
+            <td colspan="6" style="background-color: #f1f5f9; padding: 5px 8px; font-weight: 800; font-size: 10px; color: #1e293b; border: 1px solid #cbd5e1; border-top: 1.5px solid #94a3b8;">
+              📅 ${parsed.fullDayTag}
+            </td>
+          </tr>
+        `;
+      }
+
       return `
+        ${groupHeader}
         <tr>
           <td class="text-center font-mono">${idx + 1}</td>
-          <td class="font-bold">${line.description || 'Room Order'}</td>
+          <td style="font-weight: 700; color: #0369a1; font-size: 10px;">
+            ${parsed.dayLabel}
+            ${parsed.dateFormatted ? `<span style="color: #64748b; font-weight: 500; font-size: 9px; display: block;">${parsed.dateFormatted}</span>` : ''}
+          </td>
+          <td class="font-bold">${parsed.cleanDescription}</td>
           <td class="text-center font-mono">${line.quantity || 1}</td>
           <td class="text-right font-mono">₹${unitPrice}</td>
           <td class="text-right font-mono font-bold">₹${lineTotal}</td>
@@ -820,15 +916,16 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
         <span style="font-size: 9.5px; opacity: 0.85;">Food, Beverages & Incidentals (${extraOrderLines.length} Items)</span>
       </div>
 
-      <!-- Section 2 Table: Extra Room Orders -->
+      <!-- Section 2 Table: Extra Room Orders (Date-Wise) -->
       <table class="items-table">
         <thead>
           <tr>
             <th style="width: 28px;" class="text-center">#</th>
+            <th class="text-left" style="width: 110px;">Stay Day & Date</th>
             <th class="text-left">Particulars / Description</th>
-            <th class="text-center" style="width: 50px;">Qty</th>
-            <th class="text-right" style="width: 90px;">Rate (₹)</th>
-            <th class="text-right" style="width: 100px;">Amount (₹)</th>
+            <th class="text-center" style="width: 45px;">Qty</th>
+            <th class="text-right" style="width: 80px;">Rate (₹)</th>
+            <th class="text-right" style="width: 90px;">Amount (₹)</th>
           </tr>
         </thead>
         <tbody>

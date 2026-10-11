@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { generateReferenceNumber } from '@/lib/refGenerator';
 import { logAuditEvent } from '@/lib/audit';
+import { getStayDayInfo } from '@/lib/billPrinter';
 
 export async function GET(req: Request) {
   try {
@@ -65,7 +66,12 @@ export async function POST(req: Request) {
         guest: true,
         roomType: true,
         assignedRoom: true,
-        folios: { include: { transactions: true, payments: true } },
+        folios: {
+          include: {
+            transactions: { orderBy: [{ date: 'asc' }, { createdAt: 'asc' }] },
+            payments: true,
+          },
+        },
       },
     });
 
@@ -154,14 +160,25 @@ export async function POST(req: Request) {
       },
     ];
 
-    for (const ec of extraCharges) {
+    // Sort extra charges chronologically date-wise
+    const sortedExtraCharges = [...extraCharges].sort((a: any, b: any) => {
+      const timeA = new Date(a.date || a.createdAt).getTime();
+      const timeB = new Date(b.date || b.createdAt).getTime();
+      return timeA - timeB;
+    });
+
+    for (const ec of sortedExtraCharges) {
       const isFood = ec.category === 'FOOD_BEVERAGE' || ec.category === 'ROOM_SERVICE';
       const sac = isFood ? '996331' : '996311';
       const itemAmount = ec.amount;
+      const stayDay = getStayDayInfo(ec.date || ec.createdAt, reservation.arrivalDate);
+      const lineDesc = (ec.description || '').startsWith('[Day')
+        ? ec.description
+        : `[${stayDay.fullLabel}] ${ec.description || 'Room Service / Extra Charge'}`;
 
       // GST is charged strictly on room tariff only, not on extra room orders
       invoiceLinesToCreate.push({
-        description: ec.description,
+        description: lineDesc,
         hsnSacCode: sac,
         quantity: ec.quantity || 1,
         unitPrice: ec.unitPrice || ec.amount,
@@ -169,6 +186,7 @@ export async function POST(req: Request) {
         cgstAmount: 0,
         sgstAmount: 0,
         totalAmount: itemAmount,
+        createdAt: ec.date ? new Date(ec.date) : new Date(),
       });
     }
 

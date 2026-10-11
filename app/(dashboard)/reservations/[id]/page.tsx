@@ -39,6 +39,8 @@ import {
   openPrintBillWindow,
   segregateBillLines,
   buildTemporaryInvoice,
+  getStayDayInfo,
+  parseExtraOrderLine,
 } from '@/lib/billPrinter';
 
 const toDateInputStr = (d: any) => {
@@ -113,6 +115,7 @@ export default function ReservationDetailPage() {
     quantity: '1',
     unitPrice: '20',
     notes: '',
+    orderDate: new Date().toISOString().split('T')[0],
   });
 
   const fetchDetails = async () => {
@@ -377,6 +380,7 @@ export default function ReservationDetailPage() {
           quantity: qty,
           unitPrice: price,
           notes: serviceForm.notes,
+          orderDate: serviceForm.orderDate,
         }),
       });
       const resData = await res.json();
@@ -393,6 +397,7 @@ export default function ReservationDetailPage() {
         quantity: '1',
         unitPrice: '20',
         notes: '',
+        orderDate: new Date().toISOString().split('T')[0],
       });
       fetchDetails();
     } catch {
@@ -1008,7 +1013,16 @@ export default function ReservationDetailPage() {
                   transactions.map((t: any) => (
                     <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                       <td className="pmfs-table-td text-xs text-slate-500">
-                        {new Date(t.createdAt).toLocaleString()}
+                        {(() => {
+                          const dateObj = new Date(t.date || t.createdAt);
+                          const dayInfo = getStayDayInfo(dateObj, res.arrivalDate);
+                          return (
+                            <div>
+                              <span className="font-bold text-slate-800 block text-xs">{dayInfo.dayLabel} • {dayInfo.dateFormatted}</span>
+                              <span className="text-[10px] text-slate-400">{dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="pmfs-table-td font-mono font-bold text-slate-800">
                         {t.transactionRef}
@@ -1611,33 +1625,62 @@ export default function ReservationDetailPage() {
                       <div className="border border-slate-200 rounded-xl overflow-hidden">
                         <div className="bg-slate-800 text-white px-3.5 py-2 flex items-center justify-between text-xs font-bold uppercase tracking-wider">
                           <span>Section 2: Extra Room Orders & Incidentals</span>
-                          <span className="text-[11px] text-amber-300 font-normal">{extraOrderLines.length} Items (No GST)</span>
+                          <span className="text-[11px] text-amber-300 font-normal">{extraOrderLines.length} Items (Date-Wise)</span>
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase text-[10px]">
                                 <th className="p-2 text-center w-8">#</th>
+                                <th className="p-2 text-left w-28">Stay Day & Date</th>
                                 <th className="p-2 text-left">Particulars / Description</th>
-                                <th className="p-2 text-center w-16">Qty</th>
-                                <th className="p-2 text-right w-24">Rate (₹)</th>
-                                <th className="p-2 text-right w-28">Amount (₹)</th>
+                                <th className="p-2 text-center w-14">Qty</th>
+                                <th className="p-2 text-right w-20">Rate (₹)</th>
+                                <th className="p-2 text-right w-24">Amount (₹)</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 font-medium">
-                              {extraOrderLines.map((line: any, idx: number) => {
-                                const unitPrice = Number(line.unitPrice || 0).toFixed(2);
-                                const lTotal = Number(line.totalAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
-                                return (
-                                  <tr key={line.id || idx} className="hover:bg-slate-50/50">
-                                    <td className="p-2 text-center font-mono text-[11px] text-slate-400">{idx + 1}</td>
-                                    <td className="p-2 font-semibold text-slate-900">{line.description}</td>
-                                    <td className="p-2 text-center font-mono">{line.quantity || 1}</td>
-                                    <td className="p-2 text-right font-mono">₹{unitPrice}</td>
-                                    <td className="p-2 text-right font-mono font-bold text-slate-900">₹{lTotal}</td>
-                                  </tr>
-                                );
-                              })}
+                              {(() => {
+                                let lastDay = '';
+                                const sortedExtras = [...extraOrderLines].sort((a: any, b: any) => {
+                                  const timeA = new Date(a.date || a.createdAt).getTime();
+                                  const timeB = new Date(b.date || b.createdAt).getTime();
+                                  return timeA - timeB;
+                                });
+
+                                return sortedExtras.map((line: any, idx: number) => {
+                                  const parsed = parseExtraOrderLine(line, res.arrivalDate);
+                                  const unitPrice = Number(line.unitPrice || 0).toFixed(2);
+                                  const lTotal = Number(line.totalAmount || (line.quantity * line.unitPrice) || 0).toFixed(2);
+                                  const showGroup = parsed.fullDayTag && parsed.fullDayTag !== lastDay;
+                                  if (showGroup) lastDay = parsed.fullDayTag;
+
+                                  return (
+                                    <React.Fragment key={line.id || idx}>
+                                      {showGroup && (
+                                        <tr className="bg-slate-100/90 font-bold text-slate-800 text-[10.5px] uppercase tracking-wider border-y border-slate-200">
+                                          <td colSpan={6} className="px-3 py-1.5 text-slate-700">
+                                            📅 {parsed.fullDayTag}
+                                          </td>
+                                        </tr>
+                                      )}
+                                      <tr className="hover:bg-slate-50/50">
+                                        <td className="p-2 text-center font-mono text-[11px] text-slate-400">{idx + 1}</td>
+                                        <td className="p-2 text-left">
+                                          <span className="font-bold text-indigo-700 block">{parsed.dayLabel}</span>
+                                          {parsed.dateFormatted && (
+                                            <span className="text-[10px] text-slate-500 font-mono">{parsed.dateFormatted}</span>
+                                          )}
+                                        </td>
+                                        <td className="p-2 font-semibold text-slate-900">{parsed.cleanDescription}</td>
+                                        <td className="p-2 text-center font-mono">{line.quantity || 1}</td>
+                                        <td className="p-2 text-right font-mono">₹{unitPrice}</td>
+                                        <td className="p-2 text-right font-mono font-bold text-slate-900">₹{lTotal}</td>
+                                      </tr>
+                                    </React.Fragment>
+                                  );
+                                });
+                              })()}
                             </tbody>
                           </table>
                         </div>
@@ -1818,6 +1861,37 @@ export default function ReservationDetailPage() {
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Order Date (Date-Wise Billing) */}
+          <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div>
+                <label className="block text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                  Order Date (For Date-Wise Billing) *
+                </label>
+                <p className="text-[11px] text-indigo-700">
+                  Select the date when this order was placed. In the final bill, orders will appear grouped day-by-day.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  required
+                  value={serviceForm.orderDate}
+                  onChange={(e) => setServiceForm({ ...serviceForm, orderDate: e.target.value })}
+                  className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                />
+                {(() => {
+                  const dayInfo = getStayDayInfo(serviceForm.orderDate, res.arrivalDate);
+                  return (
+                    <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-extrabold shadow-2xs whitespace-nowrap">
+                      {dayInfo.dayLabel}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
           </div>
 

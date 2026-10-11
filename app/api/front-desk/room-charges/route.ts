@@ -35,7 +35,7 @@ export async function GET(req: Request) {
         folios: {
           include: {
             transactions: {
-              orderBy: { createdAt: 'asc' },
+              orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
             },
           },
         },
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { roomId, reservationId, description, category, quantity, unitPrice, notes } = body;
+    const { roomId, reservationId, description, category, quantity, unitPrice, notes, date, orderDate } = body;
 
     if ((!roomId && !reservationId) || !description || !unitPrice) {
       return NextResponse.json(
@@ -92,6 +92,14 @@ export async function POST(req: Request) {
     const qty = parseInt(String(quantity || 1), 10);
     const price = parseFloat(String(unitPrice));
     const totalAmount = Math.round(qty * price * 100) / 100;
+
+    let targetDate = new Date();
+    if (orderDate || date) {
+      const parsedDate = new Date(orderDate || date);
+      if (!isNaN(parsedDate.getTime())) {
+        targetDate = parsedDate;
+      }
+    }
 
     if (isNaN(price) || price <= 0) {
       return NextResponse.json({ error: 'Invalid unit price' }, { status: 400 });
@@ -147,11 +155,12 @@ export async function POST(req: Request) {
     // Create the transaction reference
     const trxRef = await generateReferenceNumber(reservation.propertyId, 'TRX');
 
-    // Post the extra charge transaction
+    // Post the extra charge transaction with the selected order date
     const transaction = await db.folioTransaction.create({
       data: {
         folioId: folio.id,
         transactionRef: trxRef,
+        date: targetDate,
         type: 'DEBIT',
         category: category || 'MISCELLANEOUS',
         description: notes ? `${description} — ${notes}` : description,

@@ -32,6 +32,7 @@ import {
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
+import { getStayDayInfo } from '@/lib/billPrinter';
 
 export default function RoomsPage() {
   const { showToast } = useToast();
@@ -61,6 +62,7 @@ export default function RoomsPage() {
     quantity: '1',
     unitPrice: '20',
     notes: '',
+    orderDate: new Date().toISOString().split('T')[0],
   });
 
   // New Physical Room Form State
@@ -289,6 +291,7 @@ export default function RoomsPage() {
           quantity: qty,
           unitPrice: price,
           notes: serviceForm.notes,
+          orderDate: serviceForm.orderDate,
         }),
       });
       const data = await res.json();
@@ -305,6 +308,7 @@ export default function RoomsPage() {
         quantity: '1',
         unitPrice: '20',
         notes: '',
+        orderDate: new Date().toISOString().split('T')[0],
       });
       loadRoomCharges(selectedRoom.id);
       fetchData();
@@ -1313,6 +1317,38 @@ export default function RoomsPage() {
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Order Date (Date-Wise Billing) */}
+          <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div>
+                <label className="block text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                  Order Date (For Date-Wise Billing) *
+                </label>
+                <p className="text-[11px] text-indigo-700">
+                  Select the date when this order was placed. In the final bill, orders will appear grouped day-by-day.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  required
+                  value={serviceForm.orderDate}
+                  onChange={(e) => setServiceForm({ ...serviceForm, orderDate: e.target.value })}
+                  className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                />
+                {(() => {
+                  const arrDate = selectedRoom?.reservations?.[0]?.arrivalDate;
+                  const dayInfo = getStayDayInfo(serviceForm.orderDate, arrDate);
+                  return (
+                    <span className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-extrabold shadow-2xs whitespace-nowrap">
+                      {dayInfo.dayLabel}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
           </div>
 
