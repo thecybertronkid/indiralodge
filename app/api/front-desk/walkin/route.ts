@@ -47,6 +47,8 @@ export async function POST(req: Request) {
       paymentMethod,
       specialRequests,
       discountAmount,
+      customRoomRate,
+      roomRate,
     } = body;
 
     let targetGuestId = guestId;
@@ -124,7 +126,14 @@ export async function POST(req: Request) {
       });
     }
 
-    // 4. Calculate Pricing
+    // 4. Calculate Pricing (Changed room tariff is base price, no discount)
+    const effectiveRoomRate =
+      customRoomRate != null && customRoomRate !== ''
+        ? parseFloat(String(customRoomRate))
+        : roomRate != null && roomRate !== ''
+        ? parseFloat(String(roomRate))
+        : undefined;
+
     const pricing = await calculateReservationPricing({
       propertyId,
       roomTypeId: room.roomTypeId,
@@ -132,7 +141,8 @@ export async function POST(req: Request) {
       departureDate: dep,
       adults: parseInt(adults || '1', 10),
       children: parseInt(children || '0', 10),
-      discountAmount: discountAmount ? parseFloat(discountAmount) : 0,
+      customRoomRate: effectiveRoomRate,
+      discountAmount: 0,
     });
 
     const resRef = await generateReferenceNumber(propertyId, 'RES');

@@ -65,7 +65,7 @@ export default function NewReservationPage() {
     purposeOfVisit: 'Leisure / Vacation',
 
     // Financial & Pricing
-    discountAmount: '0',
+    roomRate: '',
     depositAmount: '0',
     specialRequests: '',
   });
@@ -89,14 +89,18 @@ export default function NewReservationPage() {
 
   // Selected Room Type Price based on Occupancy Table
   const selectedRoomType = roomTypes.find((rt) => rt.id === form.roomTypeId) || roomTypes[0];
-  const roomPricePerNight = selectedRoomType
+  const standardPricePerNight = selectedRoomType
     ? calculateIndiraLodgeRoomRate(selectedRoomType.code, numAdults, numChildren, selectedRoomType.baseRate)
     : 0;
 
-  // Final Price Calculations (Room rates are GST-inclusive)
+  const roomPricePerNight =
+    form.roomRate !== '' && !isNaN(parseFloat(form.roomRate))
+      ? Math.max(0, parseFloat(form.roomRate))
+      : standardPricePerNight;
+
+  // Final Price Calculations (Room rates are GST-inclusive, changed price is base price)
   const roomSubtotal = roomPricePerNight * daysStayed;
-  const discountVal = parseFloat(form.discountAmount || '0');
-  const totalPrice = Math.max(0, roomSubtotal - discountVal);
+  const totalPrice = Math.max(0, roomSubtotal);
   const taxableVal = Math.round((totalPrice / 1.05) * 100) / 100;
   const gstTaxVal = Math.round((totalPrice - taxableVal) * 100) / 100;
 
@@ -230,6 +234,9 @@ export default function NewReservationPage() {
       const payload = {
         guestId: selectedGuest?.id,
         ...form,
+        customRoomRate: roomPricePerNight,
+        roomRate: roomPricePerNight,
+        discountAmount: 0,
         assignedRoomId: form.assignedRoomId || autoAllocatedRoom?.id || undefined,
       };
 
@@ -630,24 +637,48 @@ export default function NewReservationPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
             <div className="space-y-2">
-              <div className="flex justify-between text-slate-300">
-                <span>Room Rate ({selectedRoomType?.name}):</span>
-                <span className="font-mono font-bold">₹{roomPricePerNight} / night</span>
+              <div className="flex justify-between items-center text-slate-300">
+                <span>Standard Room Tariff:</span>
+                <span className="font-mono text-slate-400">₹{standardPricePerNight} / night</span>
               </div>
-              <div className="flex justify-between text-slate-300">
+
+              {/* Direct Room Tariff Input */}
+              <div className="flex justify-between items-center bg-slate-800/90 p-2.5 rounded-lg border border-emerald-500/40">
+                <div>
+                  <label className="font-bold text-emerald-300 block text-xs">Stay Room Tariff (₹ / night) *</label>
+                  <span className="text-[10px] text-slate-400">Directly set base tariff for this stay</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-emerald-400 text-sm">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={form.roomRate !== '' ? form.roomRate : standardPricePerNight}
+                    onChange={(e) => setForm({ ...form, roomRate: e.target.value })}
+                    className="w-28 px-2.5 py-1.5 bg-slate-900 border border-emerald-500/70 rounded-md text-right font-mono font-bold text-emerald-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 shadow-inner"
+                  />
+                  {form.roomRate !== '' && parseFloat(form.roomRate) !== standardPricePerNight && (
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, roomRate: '' })}
+                      className="text-[10px] text-slate-400 hover:text-white underline ml-1"
+                      title="Reset to standard tariff"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-between text-slate-300 pt-1">
                 <span>Stay Duration:</span>
                 <span className="font-mono font-bold">{daysStayed} Night(s)</span>
               </div>
               <div className="flex justify-between text-slate-300">
-                <span>Room Subtotal:</span>
+                <span>Room Tariff Total:</span>
                 <span className="font-mono font-bold">₹{roomSubtotal.toFixed(2)}</span>
               </div>
-              {discountVal > 0 && (
-                <div className="flex justify-between text-rose-300">
-                  <span>Discount Applied:</span>
-                  <span className="font-mono font-bold">- ₹{discountVal.toFixed(2)}</span>
-                </div>
-              )}
               <div className="flex justify-between text-emerald-400/90 text-[11px]">
                 <span>GST Tax (5%):</span>
                 <span className="font-medium">Included in Tariff (₹{gstTaxVal.toFixed(2)})</span>
@@ -662,7 +693,7 @@ export default function NewReservationPage() {
                   ₹{totalPrice.toLocaleString('en-IN')}
                 </span>
                 <span className="text-[11px] text-slate-400 block mt-1">
-                  (GST Included • ₹{roomPricePerNight} × {daysStayed} Night{daysStayed > 1 ? 's' : ''}{discountVal > 0 ? ` - ₹${discountVal.toFixed(2)}` : ''})
+                  (GST Included • ₹{roomPricePerNight} × {daysStayed} Night{daysStayed > 1 ? 's' : ''})
                 </span>
               </div>
             </div>

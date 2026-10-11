@@ -141,7 +141,7 @@ export default function FrontOfficePage() {
     // 19. ID Number
     idNumber: '',
     // Financial & Payment
-    discountAmount: '0',
+    roomRate: '',
     depositAmount: '0',
     paymentMethod: 'CASH',
     specialRequests: '',
@@ -328,13 +328,17 @@ export default function FrontOfficePage() {
   const walkinChildren = parseInt(walkinForm.children || '0', 10);
 
   const selectedWalkinRoomType = roomTypes.find((rt) => rt.id === walkinForm.roomTypeId) || roomTypes[0];
-  const walkinPricePerNight = selectedWalkinRoomType
+  const standardWalkinPricePerNight = selectedWalkinRoomType
     ? calculateIndiraLodgeRoomRate(selectedWalkinRoomType.code, walkinAdults, walkinChildren, selectedWalkinRoomType.baseRate)
     : 0;
 
+  const walkinPricePerNight =
+    walkinForm.roomRate !== '' && !isNaN(parseFloat(walkinForm.roomRate))
+      ? Math.max(0, parseFloat(walkinForm.roomRate))
+      : standardWalkinPricePerNight;
+
   const walkinRoomSubtotal = walkinPricePerNight * walkinDaysStayed;
-  const walkinDiscountVal = parseFloat(walkinForm.discountAmount || '0');
-  const walkinTotalPrice = Math.max(0, walkinRoomSubtotal - walkinDiscountVal);
+  const walkinTotalPrice = Math.max(0, walkinRoomSubtotal);
   const walkinTaxableVal = Math.round((walkinTotalPrice / 1.05) * 100) / 100;
   const walkinGstTaxVal = Math.round((walkinTotalPrice - walkinTaxableVal) * 100) / 100;
   const walkinDepositVal = parseFloat(walkinForm.depositAmount || '0');
@@ -658,7 +662,7 @@ export default function FrontOfficePage() {
       purposeOfVisit: 'Tourism / Leisure',
       idType: 'Aadhaar Card',
       idNumber: '',
-      discountAmount: '0',
+      roomRate: '',
       depositAmount: '0',
       paymentMethod: 'CASH',
       specialRequests: '',
@@ -703,6 +707,9 @@ export default function FrontOfficePage() {
       const payload = {
         ...walkinForm,
         roomId: targetRoomId,
+        customRoomRate: walkinPricePerNight,
+        roomRate: walkinPricePerNight,
+        discountAmount: 0,
       };
 
       const res = await fetch('/api/front-desk/walkin', {
@@ -2076,28 +2083,43 @@ export default function FrontOfficePage() {
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-slate-300">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-slate-300">
                   <span>Standard Tariff ({selectedWalkinRoomType?.name}):</span>
-                  <span className="font-mono font-bold">₹{walkinPricePerNight} / night</span>
+                  <span className="font-mono text-slate-400">₹{standardWalkinPricePerNight} / night</span>
                 </div>
-                <div className="flex justify-between items-center text-rose-300">
-                  <span>Discount Given (₹):</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={walkinForm.discountAmount}
-                    onChange={(e) => setWalkinForm({ ...walkinForm, discountAmount: e.target.value })}
-                    className="w-24 px-2 py-1 bg-slate-800 border border-slate-600 rounded text-right font-mono text-white text-xs"
-                  />
-                </div>
-                {walkinDiscountVal > 0 && (
-                  <div className="flex justify-between text-emerald-300 font-semibold bg-emerald-950/50 px-2 py-1 rounded border border-emerald-700/50 text-[11px]">
-                    <span>Effective Base Price:</span>
-                    <span className="font-mono font-bold">₹{(walkinTotalPrice / walkinDaysStayed).toFixed(2)} / night</span>
+
+                {/* Direct Room Tariff Input (Changed Price is Base Price) */}
+                <div className="flex justify-between items-center bg-slate-800/90 p-2.5 rounded-lg border border-emerald-500/40">
+                  <div>
+                    <label className="font-bold text-emerald-300 block text-xs">Stay Room Tariff (₹ / night) *</label>
+                    <span className="text-[10px] text-slate-400">Directly change tariff for this stay</span>
                   </div>
-                )}
-                <div className="flex justify-between text-slate-300">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono font-bold text-emerald-400 text-sm">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      required
+                      value={walkinForm.roomRate !== '' ? walkinForm.roomRate : standardWalkinPricePerNight}
+                      onChange={(e) => setWalkinForm({ ...walkinForm, roomRate: e.target.value })}
+                      className="w-28 px-2.5 py-1.5 bg-slate-900 border border-emerald-500/70 rounded-md text-right font-mono font-bold text-emerald-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 shadow-inner"
+                    />
+                    {walkinForm.roomRate !== '' && parseFloat(walkinForm.roomRate) !== standardWalkinPricePerNight && (
+                      <button
+                        type="button"
+                        onClick={() => setWalkinForm({ ...walkinForm, roomRate: '' })}
+                        className="text-[10px] text-slate-400 hover:text-white underline ml-1"
+                        title="Reset to standard tariff"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between text-slate-300 pt-1">
                   <span>Stay Duration:</span>
                   <span className="font-mono font-bold">{walkinDaysStayed} Night(s)</span>
                 </div>

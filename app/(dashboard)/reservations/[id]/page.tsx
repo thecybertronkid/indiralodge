@@ -192,14 +192,14 @@ export default function ReservationDetailPage() {
         return;
       }
 
-      // 2. Update Booking Info (Rate, Discount, Special Requests)
+      // 2. Update Booking Info (Rate, Special Requests)
       const resBooking = await fetch(`/api/reservations/${reservationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_booking',
           roomRate: editForm.roomRate,
-          discountAmount: editForm.discountAmount,
+          discountAmount: 0,
           specialRequests: editForm.specialRequests,
         }),
       });
@@ -594,10 +594,12 @@ export default function ReservationDetailPage() {
                 <span className="font-semibold text-slate-900">₹{(res.roomRate * res.nights).toFixed(2)}</span>
               </div>
 
-              <div className="flex justify-between">
-                <span className="text-slate-600">Discount Applied:</span>
-                <span className="font-semibold text-rose-600">- ₹{res.discountAmount.toFixed(2)}</span>
-              </div>
+              {res.discountAmount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Discount Applied:</span>
+                  <span className="font-semibold text-rose-600">- ₹{res.discountAmount.toFixed(2)}</span>
+                </div>
+              )}
 
               <div className="flex justify-between">
                 <span className="text-slate-600">GST Tax (5%):</span>
@@ -921,15 +923,7 @@ export default function ReservationDetailPage() {
                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-semibold"
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Discount Amount (₹)</label>
-              <input
-                type="number"
-                value={editForm.discountAmount}
-                onChange={(e) => setEditForm({ ...editForm, discountAmount: e.target.value })}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900"
-              />
-            </div>
+
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Special Requests / Notes</label>
               <input
