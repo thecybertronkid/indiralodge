@@ -24,6 +24,11 @@ import {
   UtensilsCrossed,
   Plus,
   Trash2,
+  MapPin,
+  Briefcase,
+  IdCard,
+  Compass,
+  ShieldCheck,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -595,62 +600,232 @@ export default function ReservationDetailPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-              <div>
-                <span className="text-slate-500">Arrival Date:</span>
-                <div className="font-bold text-slate-900 mt-0.5">{new Date(res.arrivalDate).toLocaleDateString()}</div>
+            {/* 1. Stay Schedule Key Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Arrival / Check-In</span>
+                <div className="font-extrabold text-slate-900 mt-1">
+                  {new Date(res.arrivalDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-brand-600" />
+                  {res.actualCheckInAt
+                    ? `Checked in: ${new Date(res.actualCheckInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : `Time: ${res.arrivalTime || '14:00'}`}
+                </div>
               </div>
 
-              <div>
-                <span className="text-slate-500">Departure Date:</span>
-                <div className="font-bold text-slate-900 mt-0.5">{new Date(res.departureDate).toLocaleDateString()}</div>
+              <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Departure / Check-Out</span>
+                <div className="font-extrabold text-slate-900 mt-1">
+                  {new Date(res.departureDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-amber-600" />
+                  {res.actualCheckOutAt
+                    ? `Checked out: ${new Date(res.actualCheckOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : `Time: ${res.departureTime || '11:00'}`}
+                </div>
               </div>
 
-              <div>
-                <span className="text-slate-500">Duration:</span>
-                <div className="font-bold text-slate-900 mt-0.5">{res.nights} Night{res.nights > 1 ? 's' : ''}</div>
+              <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Stay Duration</span>
+                <div className="font-extrabold text-brand-700 mt-1">
+                  {res.nights} Night{res.nights > 1 ? 's' : ''}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  ₹{res.roomRate}/night
+                </div>
               </div>
 
-              <div>
-                <span className="text-slate-500">Occupants:</span>
-                <div className="font-bold text-slate-900 mt-0.5">{res.adults} Adults, {res.children} Children</div>
+              <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Occupancy</span>
+                <div className="font-extrabold text-slate-900 mt-1">
+                  {res.adults} Adult{res.adults > 1 ? 's' : ''}, {res.children} Child{res.children !== 1 ? 'ren' : ''}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  {res.roomType?.bedType || 'Bed'} Category
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-slate-500 font-bold uppercase text-[10px]">Guest Information</span>
-                <div className="font-bold text-slate-900 text-sm">{res.guest?.displayName}</div>
-                {res.guest?.company && (
-                  <div className="font-bold text-indigo-700 text-xs">🏢 {res.guest.company}</div>
-                )}
-                <div className="text-slate-600">Phone: {res.guest?.phone}</div>
-                <div className="text-slate-600">Email: {res.guest?.email || 'N/A'}</div>
-                <div className="text-slate-600 font-mono">GSTIN: {res.guest?.gstin || 'Unregistered / General Guest'}</div>
+            {/* 2. Stay Logistics Bar (Coming From, Purpose of Visit, Booking Source, Created By) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 bg-slate-100/70 rounded-xl border border-slate-200 text-xs">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-500">Booking Source</span>
+                <div className="font-bold text-slate-800 text-xs mt-0.5 truncate">
+                  {res.bookingSource?.name || 'Walk-in Guest'}
+                </div>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-bold uppercase text-[10px]">Room & Rate Category</span>
-                  {!isBilled && (
-                    <button
-                      onClick={() => setIsEditOpen(true)}
-                      className="text-[10px] text-brand-600 hover:text-brand-700 font-bold underline flex items-center gap-0.5"
-                    >
-                      <Edit3 className="w-3 h-3" />
-                      Change Tariff
-                    </button>
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-500">Coming From (Origin)</span>
+                <div className="font-bold text-slate-800 text-xs mt-0.5 flex items-center gap-1 truncate">
+                  <Compass className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                  <span>{res.comingFrom || 'Not Specified'}</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-500">Purpose of Visit</span>
+                <div className="font-bold text-slate-800 text-xs mt-0.5 flex items-center gap-1 truncate">
+                  <Briefcase className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                  <span>{res.purposeOfVisit || 'Tourism / Leisure'}</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-500">Booked By / On</span>
+                <div className="font-medium text-slate-700 text-xs mt-0.5 truncate">
+                  {new Date(res.createdAt).toLocaleDateString('en-IN')} {res.createdBy?.fullName ? `• ${res.createdBy.fullName}` : ''}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Detailed Guest Info & Room Info Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 text-xs">
+              {/* Guest Information Card */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                  <span className="text-slate-500 font-bold uppercase text-[10px] flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-brand-600" />
+                    Guest Profile & KYC Details
+                  </span>
+                  {res.guest?.vipStatus && (
+                    <span className="text-[10px] font-extrabold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded">
+                      VIP Guest
+                    </span>
                   )}
                 </div>
-                <div className="font-bold text-slate-900 text-sm">{res.roomType?.name}</div>
-                <div className="text-slate-600">Assigned Room: {res.assignedRoom?.roomNumber ? `Room ${res.assignedRoom.roomNumber}` : 'Unassigned'}</div>
-                <div className="text-slate-700 font-semibold">Room Tariff: <span className="font-bold text-brand-700">₹{res.roomRate}</span>/night</div>
+
+                <div>
+                  <div className="font-extrabold text-slate-900 text-sm">{res.guest?.displayName}</div>
+                  <div className="text-slate-500 text-[11px] font-mono">{res.guest?.guestRef || ''}</div>
+                </div>
+
+                <div className="space-y-1 text-slate-700">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 font-medium min-w-[70px]">Phone:</span>
+                    <span className="font-semibold text-slate-900">{res.guest?.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 font-medium min-w-[70px]">Email:</span>
+                    <span>{res.guest?.email || 'N/A'}</span>
+                  </div>
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-slate-400 font-medium min-w-[70px]">Address:</span>
+                    <span className="text-slate-700">
+                      {[res.guest?.address, res.guest?.city, res.guest?.state].filter(Boolean).join(', ') || 'Not Recorded'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span className="text-slate-400 font-medium min-w-[70px]">Profile:</span>
+                    <span>
+                      {res.guest?.gender || 'N/A'} • {res.guest?.age ? `${res.guest.age} yrs` : 'Age N/A'} • {res.guest?.occupation || 'Business'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 font-medium min-w-[70px]">ID Proof:</span>
+                    <span className="font-medium text-slate-800">
+                      {res.guest?.idType || 'Aadhaar Card'}{res.guest?.idNumber ? `: ${res.guest.idNumber}` : ''}
+                    </span>
+                  </div>
+                  {(res.guest?.company || res.guest?.gstin) && (
+                    <div className="pt-1.5 border-t border-slate-200 mt-1">
+                      {res.guest?.company && (
+                        <div className="font-bold text-indigo-700 text-xs">🏢 {res.guest.company}</div>
+                      )}
+                      <div className="text-slate-600 font-mono text-[11px]">
+                        GSTIN: <span className="font-semibold text-slate-800">{res.guest?.gstin || 'Unregistered / B2C'}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Room & Rate Category Card */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                    <span className="text-slate-500 font-bold uppercase text-[10px] flex items-center gap-1">
+                      <BedDouble className="w-3.5 h-3.5 text-brand-600" />
+                      Room & Tariff Allocation
+                    </span>
+                    {!isBilled && (
+                      <button
+                        onClick={() => setIsEditOpen(true)}
+                        className="text-[10px] text-brand-600 hover:text-brand-700 font-bold underline flex items-center gap-0.5"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        Change Tariff
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="font-extrabold text-slate-900 text-sm">{res.roomType?.name}</div>
+                    <div className="text-slate-500 text-[11px]">{res.roomType?.code}</div>
+                  </div>
+
+                  <div className="space-y-1 text-slate-700">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400 font-medium min-w-[90px]">Assigned Room:</span>
+                      {res.assignedRoom?.roomNumber ? (
+                        <span className="font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                          Room {res.assignedRoom.roomNumber} (Floor {res.assignedRoom.floor || '1'})
+                        </span>
+                      ) : (
+                        <span className="text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded">Unassigned</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400 font-medium min-w-[90px]">Bed Type:</span>
+                      <span className="font-medium text-slate-800">{res.roomType?.bedType || 'Single / Double'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400 font-medium min-w-[90px]">Max Occupancy:</span>
+                      <span>{res.roomType?.maxOccupancy || (res.roomType?.adultsCapacity || 2)} Guests</span>
+                    </div>
+                    {res.assignedRoom && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-400 font-medium min-w-[90px]">Room Status:</span>
+                        <span className="text-[11px]">
+                          Housekeeping: <span className="font-bold text-emerald-700">{res.assignedRoom.housekeepingStatus}</span> • Status: <span className="font-bold text-blue-700">{res.assignedRoom.availabilityStatus}</span>
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400 font-medium min-w-[90px]">Rate Plan:</span>
+                      <span>{res.ratePlan || 'Standard Tariff'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                  <div className="text-slate-500 text-[11px]">
+                    Tariff: <span className="font-bold text-slate-800">₹{res.roomRate}</span>/night
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">Stay Charge ({res.nights}n): </span>
+                    <span className="font-mono font-black text-brand-700 text-sm">
+                      ₹{(res.roomRate * res.nights).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
+            {/* 4. Special Requests & Notes */}
             {res.specialRequests && (
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                <span className="font-bold">Special Requests:</span> {res.specialRequests}
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                <span className="font-bold flex-shrink-0">Special Requests:</span>
+                <span>{res.specialRequests}</span>
+              </div>
+            )}
+            {(res.internalNotes || res.guestNotes) && (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex items-start gap-2">
+                <span className="font-bold flex-shrink-0">Front Desk Notes:</span>
+                <span>{res.internalNotes || res.guestNotes}</span>
               </div>
             )}
           </div>
