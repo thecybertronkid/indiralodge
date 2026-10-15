@@ -6,6 +6,7 @@ import { generateReferenceNumber } from '@/lib/refGenerator';
 import { calculateReservationPricing } from '@/lib/pricing';
 import { checkRoomTypeAvailability, isRoomAvailable, getAvailablePhysicalRooms } from '@/lib/availability';
 import { logAuditEvent } from '@/lib/audit';
+import { validateStayDatesAndTimes } from '@/lib/dateUtils';
 
 export async function GET(req: Request) {
   try {
@@ -186,12 +187,13 @@ export async function POST(req: Request) {
       });
     }
 
+    const dateValidation = validateStayDatesAndTimes(arrivalDate, arrivalTime, departureDate, departureTime);
+    if (!dateValidation.valid) {
+      return NextResponse.json({ error: dateValidation.error }, { status: 400 });
+    }
+
     const arr = new Date(arrivalDate);
     const dep = new Date(departureDate);
-
-    if (dep < arr) {
-      return NextResponse.json({ error: 'Departure date cannot be before arrival date.' }, { status: 400 });
-    }
 
     // 2. Room Type & Auto-Allocation of Physical Room
     const roomTypeAvail = await checkRoomTypeAvailability(propertyId, arr, dep);

@@ -41,6 +41,7 @@ import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { calculateIndiraLodgeRoomRate } from '@/lib/roomRates';
 import { formatStayDateTime, openPrintBillWindow, segregateBillLines, getStayDayInfo, getStayDates } from '@/lib/billPrinter';
+import { validateStayDatesAndTimes } from '@/lib/dateUtils';
 
 const getCurrentTimeString = () => {
   const now = new Date();
@@ -749,8 +750,14 @@ export default function FrontOfficePage() {
     e.preventDefault();
     setSubmitting(true);
 
-    if (new Date(walkinForm.departureDate) < new Date(walkinForm.arrivalDate)) {
-      showToast('Departure date cannot be before arrival date.', 'error');
+    const dateValidation = validateStayDatesAndTimes(
+      walkinForm.arrivalDate,
+      walkinForm.arrivalTime,
+      walkinForm.departureDate,
+      walkinForm.departureTime
+    );
+    if (!dateValidation.valid) {
+      showToast(dateValidation.error || 'Arrival date and time must be before departure date and time.', 'error');
       setSubmitting(false);
       return;
     }
@@ -2218,7 +2225,20 @@ export default function FrontOfficePage() {
                   type="date"
                   required
                   value={walkinForm.arrivalDate}
-                  onChange={(e) => setWalkinForm({ ...walkinForm, arrivalDate: e.target.value })}
+                  onChange={(e) => {
+                    const newArr = e.target.value;
+                    setWalkinForm((prev) => {
+                      let newDep = prev.departureDate;
+                      if (newDep < newArr) newDep = newArr;
+                      let newDepTime = prev.departureTime;
+                      if (newDep === newArr && newDepTime <= prev.arrivalTime) {
+                        const [h, m] = prev.arrivalTime.split(':').map(Number);
+                        const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                        newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                      }
+                      return { ...prev, arrivalDate: newArr, departureDate: newDep, departureTime: newDepTime };
+                    });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
@@ -2230,7 +2250,18 @@ export default function FrontOfficePage() {
                   type="time"
                   required
                   value={walkinForm.arrivalTime}
-                  onChange={(e) => setWalkinForm({ ...walkinForm, arrivalTime: e.target.value })}
+                  onChange={(e) => {
+                    const newTime = e.target.value;
+                    setWalkinForm((prev) => {
+                      let newDepTime = prev.departureTime;
+                      if (prev.departureDate === prev.arrivalDate && newDepTime <= newTime) {
+                        const [h, m] = newTime.split(':').map(Number);
+                        const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                        newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                      }
+                      return { ...prev, arrivalTime: newTime, departureTime: newDepTime };
+                    });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
@@ -2243,7 +2274,18 @@ export default function FrontOfficePage() {
                   required
                   min={walkinForm.arrivalDate}
                   value={walkinForm.departureDate}
-                  onChange={(e) => setWalkinForm({ ...walkinForm, departureDate: e.target.value })}
+                  onChange={(e) => {
+                    const newDep = e.target.value;
+                    setWalkinForm((prev) => {
+                      let newDepTime = prev.departureTime;
+                      if (newDep === prev.arrivalDate && newDepTime <= prev.arrivalTime) {
+                        const [h, m] = prev.arrivalTime.split(':').map(Number);
+                        const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                        newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                      }
+                      return { ...prev, departureDate: newDep, departureTime: newDepTime };
+                    });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
@@ -2259,10 +2301,20 @@ export default function FrontOfficePage() {
                 <input
                   type="time"
                   required
+                  min={walkinForm.departureDate === walkinForm.arrivalDate ? walkinForm.arrivalTime : undefined}
                   value={walkinForm.departureTime}
                   onChange={(e) => setWalkinForm({ ...walkinForm, departureTime: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className={`w-full px-3 py-2 bg-white border ${
+                    walkinForm.departureDate === walkinForm.arrivalDate && walkinForm.departureTime <= walkinForm.arrivalTime
+                      ? 'border-red-400 focus:ring-red-400'
+                      : 'border-slate-200 focus:ring-brand-500'
+                  } rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2`}
                 />
+                {walkinForm.departureDate === walkinForm.arrivalDate && walkinForm.departureTime <= walkinForm.arrivalTime && (
+                  <p className="text-[10px] text-red-600 font-medium mt-1">
+                    Must be after arrival time ({walkinForm.arrivalTime})
+                  </p>
+                )}
               </div>
             </div>
 

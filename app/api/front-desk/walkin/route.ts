@@ -7,6 +7,7 @@ import { calculateReservationPricing } from '@/lib/pricing';
 import { isRoomAvailable } from '@/lib/availability';
 import { logAuditEvent } from '@/lib/audit';
 import { notifyAllStaff } from '@/lib/notifications';
+import { validateStayDatesAndTimes } from '@/lib/dateUtils';
 
 export async function POST(req: Request) {
   try {
@@ -98,12 +99,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Room selection, arrival date, and departure date are required.' }, { status: 400 });
     }
 
+    const dateValidation = validateStayDatesAndTimes(arrivalDate, arrivalTime, departureDate, departureTime);
+    if (!dateValidation.valid) {
+      return NextResponse.json({ error: dateValidation.error }, { status: 400 });
+    }
+
     const arr = new Date(arrivalDate);
     const dep = new Date(departureDate);
-
-    if (dep < arr) {
-      return NextResponse.json({ error: 'Departure date cannot be before arrival date.' }, { status: 400 });
-    }
 
     // 2. Fetch Room & Check Availability
     const room = await db.room.findUnique({

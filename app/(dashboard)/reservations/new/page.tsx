@@ -23,6 +23,7 @@ import {
 import { useToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui/Badge';
 import { calculateIndiraLodgeRoomRate } from '@/lib/roomRates';
+import { validateStayDatesAndTimes } from '@/lib/dateUtils';
 
 const getCurrentTimeString = () => {
   const now = new Date();
@@ -224,8 +225,14 @@ export default function NewReservationPage() {
     setLoading(true);
     setErrorMsg('');
 
-    if (new Date(form.departureDate) < new Date(form.arrivalDate)) {
-      setErrorMsg('Departure date cannot be before arrival date.');
+    const dateValidation = validateStayDatesAndTimes(
+      form.arrivalDate,
+      form.arrivalTime,
+      form.departureDate,
+      form.departureTime
+    );
+    if (!dateValidation.valid) {
+      setErrorMsg(dateValidation.error || 'Arrival date and time must be before departure date and time.');
       setLoading(false);
       return;
     }
@@ -476,7 +483,20 @@ export default function NewReservationPage() {
                 type="date"
                 required
                 value={form.arrivalDate}
-                onChange={(e) => setForm({ ...form, arrivalDate: e.target.value })}
+                onChange={(e) => {
+                  const newArr = e.target.value;
+                  setForm((prev) => {
+                    let newDep = prev.departureDate;
+                    if (newDep < newArr) newDep = newArr;
+                    let newDepTime = prev.departureTime;
+                    if (newDep === newArr && newDepTime <= prev.arrivalTime) {
+                      const [h, m] = prev.arrivalTime.split(':').map(Number);
+                      const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                      newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                    }
+                    return { ...prev, arrivalDate: newArr, departureDate: newDep, departureTime: newDepTime };
+                  });
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
               />
             </div>
@@ -488,7 +508,18 @@ export default function NewReservationPage() {
                 type="time"
                 required
                 value={form.arrivalTime}
-                onChange={(e) => setForm({ ...form, arrivalTime: e.target.value })}
+                onChange={(e) => {
+                  const newTime = e.target.value;
+                  setForm((prev) => {
+                    let newDepTime = prev.departureTime;
+                    if (prev.departureDate === prev.arrivalDate && newDepTime <= newTime) {
+                      const [h, m] = newTime.split(':').map(Number);
+                      const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                      newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                    }
+                    return { ...prev, arrivalTime: newTime, departureTime: newDepTime };
+                  });
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono"
               />
             </div>
@@ -501,7 +532,18 @@ export default function NewReservationPage() {
                 required
                 min={form.arrivalDate}
                 value={form.departureDate}
-                onChange={(e) => setForm({ ...form, departureDate: e.target.value })}
+                onChange={(e) => {
+                  const newDep = e.target.value;
+                  setForm((prev) => {
+                    let newDepTime = prev.departureTime;
+                    if (newDep === prev.arrivalDate && newDepTime <= prev.arrivalTime) {
+                      const [h, m] = prev.arrivalTime.split(':').map(Number);
+                      const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                      newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                    }
+                    return { ...prev, departureDate: newDep, departureTime: newDepTime };
+                  });
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
               />
             </div>
@@ -517,10 +559,20 @@ export default function NewReservationPage() {
               <input
                 type="time"
                 required
+                min={form.departureDate === form.arrivalDate ? form.arrivalTime : undefined}
                 value={form.departureTime}
                 onChange={(e) => setForm({ ...form, departureTime: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono"
+                className={`w-full px-3 py-2 bg-slate-50 border ${
+                  form.departureDate === form.arrivalDate && form.departureTime <= form.arrivalTime
+                    ? 'border-red-400 focus:ring-red-400'
+                    : 'border-slate-200 focus:ring-brand-500'
+                } rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2`}
               />
+              {form.departureDate === form.arrivalDate && form.departureTime <= form.arrivalTime && (
+                <p className="text-[10px] text-red-600 font-medium mt-1">
+                  Must be after arrival time ({form.arrivalTime})
+                </p>
+              )}
             </div>
           </div>
 

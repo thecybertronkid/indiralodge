@@ -5,6 +5,7 @@ import { hasPermission } from '@/lib/permissions';
 import { isRoomAvailable } from '@/lib/availability';
 import { logAuditEvent } from '@/lib/audit';
 import { generateReferenceNumber } from '@/lib/refGenerator';
+import { validateStayDatesAndTimes } from '@/lib/dateUtils';
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -124,12 +125,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       let newDepartureDate = reservation.departureDate;
       let newNights = reservation.nights;
 
+      const candidateArrDate = arrivalDate || reservation.arrivalDate;
+      const candidateDepDate = departureDate || reservation.departureDate;
+      const candidateArrTime = arrivalTime !== undefined ? arrivalTime : reservation.arrivalTime;
+      const candidateDepTime = departureTime !== undefined ? departureTime : reservation.departureTime;
+
+      const dateValidation = validateStayDatesAndTimes(candidateArrDate, candidateArrTime, candidateDepDate, candidateDepTime);
+      if (!dateValidation.valid) {
+        return NextResponse.json({ error: dateValidation.error }, { status: 400 });
+      }
+
       if (arrivalDate && departureDate) {
         const arr = new Date(arrivalDate + 'T00:00:00');
         const dep = new Date(departureDate + 'T00:00:00');
-        if (dep < arr) {
-          return NextResponse.json({ error: 'Check-out date cannot be before check-in date.' }, { status: 400 });
-        }
         newArrivalDate = arr;
         newDepartureDate = dep;
         const diff = Math.abs(dep.getTime() - arr.getTime());

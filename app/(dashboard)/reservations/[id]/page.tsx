@@ -43,6 +43,7 @@ import {
   parseExtraOrderLine,
   getStayDates,
 } from '@/lib/billPrinter';
+import { validateStayDatesAndTimes } from '@/lib/dateUtils';
 
 const toDateInputStr = (d: any) => {
   if (!d) return '';
@@ -216,21 +217,42 @@ export default function ReservationDetailPage() {
   };
 
   const handleEditArrivalChange = (val: string) => {
-    const newNights = calculateNights(val, editForm.departureDate);
-    setEditForm((prev) => ({
-      ...prev,
-      arrivalDate: val,
-      nights: newNights,
-    }));
+    setEditForm((prev) => {
+      let newDep = prev.departureDate;
+      if (newDep && newDep < val) newDep = val;
+      let newDepTime = prev.departureTime;
+      if (newDep === val && newDepTime <= prev.arrivalTime) {
+        const [h, m] = prev.arrivalTime.split(':').map(Number);
+        const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+        newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+      }
+      const newNights = calculateNights(val, newDep);
+      return {
+        ...prev,
+        arrivalDate: val,
+        departureDate: newDep,
+        departureTime: newDepTime,
+        nights: newNights,
+      };
+    });
   };
 
   const handleEditDepartureChange = (val: string) => {
-    const newNights = calculateNights(editForm.arrivalDate, val);
-    setEditForm((prev) => ({
-      ...prev,
-      departureDate: val,
-      nights: newNights,
-    }));
+    setEditForm((prev) => {
+      let newDepTime = prev.departureTime;
+      if (val === prev.arrivalDate && newDepTime <= prev.arrivalTime) {
+        const [h, m] = prev.arrivalTime.split(':').map(Number);
+        const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+        newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+      }
+      const newNights = calculateNights(prev.arrivalDate, val);
+      return {
+        ...prev,
+        departureDate: val,
+        departureTime: newDepTime,
+        nights: newNights,
+      };
+    });
   };
 
   const handleEditRoomRateChange = (rateVal: string) => {
@@ -253,8 +275,14 @@ export default function ReservationDetailPage() {
   const handleUpdateGuestAndBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editForm.arrivalDate && editForm.departureDate) {
-      if (new Date(editForm.departureDate) < new Date(editForm.arrivalDate)) {
-        showToast('Check-out date cannot be before check-in date', 'error');
+      const dateValidation = validateStayDatesAndTimes(
+        editForm.arrivalDate,
+        editForm.arrivalTime,
+        editForm.departureDate,
+        editForm.departureTime
+      );
+      if (!dateValidation.valid) {
+        showToast(dateValidation.error || 'Check-in date and time must be before check-out date and time.', 'error');
         return;
       }
     }
@@ -1294,7 +1322,18 @@ export default function ReservationDetailPage() {
                   type="time"
                   required
                   value={editForm.arrivalTime}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, arrivalTime: e.target.value }))}
+                  onChange={(e) => {
+                    const newTime = e.target.value;
+                    setEditForm((prev) => {
+                      let newDepTime = prev.departureTime;
+                      if (prev.departureDate === prev.arrivalDate && newDepTime <= newTime) {
+                        const [h, m] = newTime.split(':').map(Number);
+                        const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                        newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                      }
+                      return { ...prev, arrivalTime: newTime, departureTime: newDepTime };
+                    });
+                  }}
                   className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
@@ -1325,10 +1364,20 @@ export default function ReservationDetailPage() {
                 <input
                   type="time"
                   required
+                  min={editForm.departureDate === editForm.arrivalDate ? editForm.arrivalTime : undefined}
                   value={editForm.departureTime}
                   onChange={(e) => setEditForm((prev) => ({ ...prev, departureTime: e.target.value }))}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className={`w-full px-3 py-1.5 bg-slate-50 border ${
+                    editForm.departureDate === editForm.arrivalDate && editForm.departureTime <= editForm.arrivalTime
+                      ? 'border-red-400 focus:ring-red-400'
+                      : 'border-slate-200 focus:ring-brand-500'
+                  } rounded text-xs text-slate-900 font-mono focus:outline-none focus:ring-2`}
                 />
+                {editForm.departureDate === editForm.arrivalDate && editForm.departureTime <= editForm.arrivalTime && (
+                  <p className="text-[10px] text-red-600 font-medium mt-1">
+                    Must be after check-in time ({editForm.arrivalTime})
+                  </p>
+                )}
               </div>
             </div>
           </div>
