@@ -114,7 +114,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     // Action: Update Booking Details Before Billing
     if (action === 'update_booking') {
-      const { discountAmount, specialRequests, roomRate, arrivalDate, departureDate, nights: reqNights } = body;
+      const { discountAmount, specialRequests, roomRate, arrivalDate, departureDate, nights: reqNights, arrivalTime, departureTime } = body;
       const prevRate = reservation.roomRate;
       let newRoomRate = roomRate !== undefined && roomRate !== '' ? parseFloat(String(roomRate)) : reservation.roomRate;
       if (isNaN(newRoomRate) || newRoomRate < 0) newRoomRate = 0;
@@ -127,8 +127,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       if (arrivalDate && departureDate) {
         const arr = new Date(arrivalDate + 'T00:00:00');
         const dep = new Date(departureDate + 'T00:00:00');
-        if (dep <= arr) {
-          return NextResponse.json({ error: 'Check-out date must be after check-in date.' }, { status: 400 });
+        if (dep < arr) {
+          return NextResponse.json({ error: 'Check-out date cannot be before check-in date.' }, { status: 400 });
         }
         newArrivalDate = arr;
         newDepartureDate = dep;
@@ -264,6 +264,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           totalAmount: calculatedTotal,
           balanceAmount,
           ...(specialRequests !== undefined ? { specialRequests: specialRequests ? specialRequests.trim() : null } : {}),
+          ...(arrivalTime !== undefined ? { arrivalTime: arrivalTime || null } : {}),
+          ...(departureTime !== undefined ? { departureTime: departureTime || null } : {}),
         },
       });
 

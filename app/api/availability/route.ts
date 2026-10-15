@@ -28,8 +28,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Invalid date format specified.' }, { status: 400 });
     }
 
-    if (departureDate <= arrivalDate) {
-      return NextResponse.json({ error: 'Departure date must be after arrival date.' }, { status: 400 });
+    if (departureDate < arrivalDate) {
+      return NextResponse.json({ error: 'Departure date cannot be before arrival date.' }, { status: 400 });
     }
 
     const roomTypesAvailability = await checkRoomTypeAvailability(propertyId, arrivalDate, departureDate);

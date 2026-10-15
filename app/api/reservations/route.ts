@@ -189,8 +189,8 @@ export async function POST(req: Request) {
     const arr = new Date(arrivalDate);
     const dep = new Date(departureDate);
 
-    if (dep <= arr) {
-      return NextResponse.json({ error: 'Departure date must be after arrival date.' }, { status: 400 });
+    if (dep < arr) {
+      return NextResponse.json({ error: 'Departure date cannot be before arrival date.' }, { status: 400 });
     }
 
     // 2. Room Type & Auto-Allocation of Physical Room

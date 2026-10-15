@@ -749,8 +749,8 @@ export default function FrontOfficePage() {
     e.preventDefault();
     setSubmitting(true);
 
-    if (new Date(walkinForm.departureDate) <= new Date(walkinForm.arrivalDate)) {
-      showToast('Departure date must be after arrival date.', 'error');
+    if (new Date(walkinForm.departureDate) < new Date(walkinForm.arrivalDate)) {
+      showToast('Departure date cannot be before arrival date.', 'error');
       setSubmitting(false);
       return;
     }
@@ -2241,6 +2241,7 @@ export default function FrontOfficePage() {
                 <input
                   type="date"
                   required
+                  min={walkinForm.arrivalDate}
                   value={walkinForm.departureDate}
                   onChange={(e) => setWalkinForm({ ...walkinForm, departureDate: e.target.value })}
                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"

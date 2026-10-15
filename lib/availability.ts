@@ -48,6 +48,10 @@ export async function checkRoomTypeAvailability(
 
     const totalRoomsCount = candidateRooms.length;
 
+    const effectiveDep = departureDate.getTime() <= arrivalDate.getTime()
+      ? new Date(arrivalDate.getTime() + 24 * 60 * 60 * 1000)
+      : departureDate;
+
     // Find reservations overlapping [arrivalDate, departureDate)
     const overlappingRes = await db.reservation.findMany({
       where: {
@@ -55,7 +59,7 @@ export async function checkRoomTypeAvailability(
         roomTypeId: { in: relatedTypeIds },
         status: { in: ['CONFIRMED', 'CHECKED_IN'] },
         AND: [
-          { arrivalDate: { lt: departureDate } },
+          { arrivalDate: { lt: effectiveDep } },
           { departureDate: { gt: arrivalDate } },
         ],
       },
@@ -71,7 +75,7 @@ export async function checkRoomTypeAvailability(
         propertyId,
         roomId: { in: roomIds },
         AND: [
-          { startDate: { lt: departureDate } },
+          { startDate: { lt: effectiveDep } },
           { endDate: { gt: arrivalDate } },
         ],
       },
@@ -113,6 +117,10 @@ export async function isRoomAvailable(
     return false;
   }
 
+  const effectiveDep = departureDate.getTime() <= arrivalDate.getTime()
+    ? new Date(arrivalDate.getTime() + 24 * 60 * 60 * 1000)
+    : departureDate;
+
   // Check conflicting reservations
   const conflictingRes = await db.reservation.findFirst({
     where: {
@@ -120,7 +128,7 @@ export async function isRoomAvailable(
       status: { in: ['CONFIRMED', 'CHECKED_IN'] },
       ...(excludeReservationId ? { id: { not: excludeReservationId } } : {}),
       AND: [
-        { arrivalDate: { lt: departureDate } },
+        { arrivalDate: { lt: effectiveDep } },
         { departureDate: { gt: arrivalDate } },
       ],
     },
@@ -133,7 +141,7 @@ export async function isRoomAvailable(
     where: {
       roomId,
       AND: [
-        { startDate: { lt: departureDate } },
+        { startDate: { lt: effectiveDep } },
         { endDate: { gt: arrivalDate } },
       ],
     },

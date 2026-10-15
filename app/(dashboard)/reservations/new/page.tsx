@@ -224,8 +224,8 @@ export default function NewReservationPage() {
     setLoading(true);
     setErrorMsg('');
 
-    if (new Date(form.departureDate) <= new Date(form.arrivalDate)) {
-      setErrorMsg('Departure date must be after arrival date.');
+    if (new Date(form.departureDate) < new Date(form.arrivalDate)) {
+      setErrorMsg('Departure date cannot be before arrival date.');
       setLoading(false);
       return;
     }
@@ -499,6 +499,7 @@ export default function NewReservationPage() {
               <input
                 type="date"
                 required
+                min={form.arrivalDate}
                 value={form.departureDate}
                 onChange={(e) => setForm({ ...form, departureDate: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"

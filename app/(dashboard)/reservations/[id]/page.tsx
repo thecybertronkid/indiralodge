@@ -89,7 +89,9 @@ export default function ReservationDetailPage() {
     city: '',
     state: '',
     arrivalDate: '',
+    arrivalTime: '14:00',
     departureDate: '',
+    departureTime: '11:00',
     nights: 1,
     roomRate: '0',
     discountAmount: '0',
@@ -141,7 +143,9 @@ export default function ReservationDetailPage() {
             city: g.city || '',
             state: g.state || '',
             arrivalDate: arrStr,
+            arrivalTime: result.reservation.arrivalTime || '14:00',
             departureDate: depStr,
+            departureTime: result.reservation.departureTime || '11:00',
             nights: nNights,
             roomRate: String(result.reservation.roomRate || 0),
             discountAmount: '0',
@@ -249,8 +253,8 @@ export default function ReservationDetailPage() {
   const handleUpdateGuestAndBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editForm.arrivalDate && editForm.departureDate) {
-      if (new Date(editForm.departureDate) <= new Date(editForm.arrivalDate)) {
-        showToast('Check-out date must be after check-in date', 'error');
+      if (new Date(editForm.departureDate) < new Date(editForm.arrivalDate)) {
+        showToast('Check-out date cannot be before check-in date', 'error');
         return;
       }
     }
@@ -275,14 +279,16 @@ export default function ReservationDetailPage() {
         return;
       }
 
-      // 2. Update Booking Info (Dates, Nights, Rate, Special Requests)
+      // 2. Update Booking Info (Dates, Timings, Nights, Rate, Special Requests)
       const resBooking = await fetch(`/api/reservations/${reservationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_booking',
           arrivalDate: editForm.arrivalDate,
+          arrivalTime: editForm.arrivalTime,
           departureDate: editForm.departureDate,
+          departureTime: editForm.departureTime,
           nights: editForm.nights,
           roomRate: editForm.roomRate,
           discountAmount: 0,
@@ -1266,7 +1272,7 @@ export default function ReservationDetailPage() {
             <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
               Stay Schedule & Duration
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                   Check-In Date *
@@ -1277,6 +1283,19 @@ export default function ReservationDetailPage() {
                   value={editForm.arrivalDate}
                   onChange={(e) => handleEditArrivalChange(e.target.value)}
                   className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Check-In Time
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={editForm.arrivalTime}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, arrivalTime: e.target.value }))}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -1295,13 +1314,21 @@ export default function ReservationDetailPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                  Stay Duration
-                </label>
-                <div className="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-bold text-slate-800 flex items-center justify-between">
-                  <span>{editForm.nights} Night{editForm.nights > 1 ? 's' : ''}</span>
-                  <span className="text-[10px] text-slate-500 font-normal">Calculated</span>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase">
+                    Check-Out Time
+                  </label>
+                  <span className="text-[10px] font-bold text-brand-700 bg-brand-50 px-1 py-0.2 rounded">
+                    {editForm.nights} Day Stayed
+                  </span>
                 </div>
+                <input
+                  type="time"
+                  required
+                  value={editForm.departureTime}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, departureTime: e.target.value }))}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
               </div>
             </div>
           </div>

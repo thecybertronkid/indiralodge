@@ -119,7 +119,8 @@ export function getStayDates(res: any) {
   const nights = Math.max(1, Number(res.nights || 1));
   let depDateParts = parseKolkataDateParts(res.departureDate);
 
-  if (!depDateParts || depDateParts.ymd <= arrDateParts.ymd) {
+  // Fallback only if departure date is completely missing or strictly before arrival date
+  if (!depDateParts || depDateParts.ymd < arrDateParts.ymd) {
     const calcOutDate = new Date(validInDate.getTime() + nights * 24 * 60 * 60 * 1000);
     depDateParts = parseKolkataDateParts(calcOutDate) || arrDateParts;
   }
@@ -143,6 +144,22 @@ export function getStayDates(res: any) {
     outHours = parsedOutT.hours;
     outMinutes = parsedOutT.minutes;
   } else if (res.actualCheckOutAt) {
+    const actOutParts = parseKolkataDateParts(res.actualCheckOutAt);
+    if (actOutParts && actOutParts.ymd === depDateParts.ymd) {
+      const actOutD = new Date(res.actualCheckOutAt);
+      outTimeStr = actOutD.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+      outHours = actOutD.getHours();
+      outMinutes = actOutD.getMinutes();
+    }
+  }
+
+  // If actual checkout happened on this day and res is checked out, reflect checkout time
+  if (res.status === 'CHECKED_OUT' && res.actualCheckOutAt) {
     const actOutParts = parseKolkataDateParts(res.actualCheckOutAt);
     if (actOutParts && actOutParts.ymd === depDateParts.ymd) {
       const actOutD = new Date(res.actualCheckOutAt);
