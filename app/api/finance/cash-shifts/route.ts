@@ -18,7 +18,6 @@ export async function GET() {
       where: { propertyId },
       include: { user: { select: { fullName: true } } },
       orderBy: { openedAt: 'desc' },
-      take: 20,
     });
 
     return NextResponse.json({ activeShift, shiftHistory });

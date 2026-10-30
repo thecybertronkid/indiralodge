@@ -12,7 +12,7 @@ export async function GET() {
 
     let bankAccounts = await db.bankAccount.findMany({
       where: { propertyId },
-      include: { reconciliations: { orderBy: { createdAt: 'desc' }, take: 5 } },
+      include: { reconciliations: { orderBy: { createdAt: 'desc' } } },
     });
 
     if (bankAccounts.length === 0) {

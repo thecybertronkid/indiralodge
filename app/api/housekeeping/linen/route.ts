@@ -14,7 +14,6 @@ export async function GET() {
       where: { propertyId },
       include: { recordedBy: { select: { fullName: true } } },
       orderBy: { createdAt: 'desc' },
-      take: 50,
     });
 
     return NextResponse.json({ linens });

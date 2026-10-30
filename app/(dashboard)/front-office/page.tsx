@@ -434,7 +434,7 @@ export default function FrontOfficePage() {
   const fetchReservations = async () => {
     setResLoading(true);
     try {
-      const url = `/api/reservations?search=${encodeURIComponent(resSearch)}&status=${encodeURIComponent(resStatusFilter)}&sourceId=${encodeURIComponent(resSourceFilter)}&roomTypeId=${encodeURIComponent(resRoomTypeFilter)}`;
+      const url = `/api/reservations?limit=all&search=${encodeURIComponent(resSearch)}&status=${encodeURIComponent(resStatusFilter)}&sourceId=${encodeURIComponent(resSourceFilter)}&roomTypeId=${encodeURIComponent(resRoomTypeFilter)}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();

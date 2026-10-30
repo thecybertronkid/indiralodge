@@ -50,7 +50,7 @@ export default function GuestsPage() {
   const fetchGuests = async () => {
     setLoading(true);
     try {
-      const url = `/api/guests?search=${encodeURIComponent(search)}`;
+      const url = `/api/guests?limit=all&search=${encodeURIComponent(search)}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();

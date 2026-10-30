@@ -206,7 +206,7 @@ export default function CashAndBankPage() {
         <div className="pmfs-card overflow-hidden">
           <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Cashier Shift History
+              Cashier Shift History ({shiftHistory.length} Shifts Recorded)
             </h3>
           </div>
 

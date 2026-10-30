@@ -10,7 +10,6 @@ export async function GET() {
     const notifications = await db.notification.findMany({
       where: { userId: session.userId },
       orderBy: { createdAt: 'desc' },
-      take: 20,
     });
 
     const unreadCount = await db.notification.count({

@@ -45,7 +45,6 @@ export async function GET(req: Request) {
       where: { organizationId: session.organizationId },
       include: { user: { select: { fullName: true, email: true } } },
       orderBy: { createdAt: 'desc' },
-      take: 500,
     });
 
     // --- CSV GENERATOR HELPERS ---

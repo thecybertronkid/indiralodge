@@ -28,7 +28,7 @@ export default function AuditLogsPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
-  const limit = 50;
+  const [limit, setLimit] = useState<string>('50');
 
   // Filters
   const [moduleFilter, setModuleFilter] = useState('');
@@ -100,7 +100,7 @@ export default function AuditLogsPage() {
 
   useEffect(() => {
     fetchAuditLogs();
-  }, [page, moduleFilter, startDate, endDate]);
+  }, [page, limit, moduleFilter, startDate, endDate]);
 
   // Debounced search effect
   useEffect(() => {
@@ -337,38 +337,69 @@ export default function AuditLogsPage() {
           </table>
         </div>
 
-        {/* Pagination Controls - 50 per page */}
+        {/* Pagination Controls & Page Size Selector */}
         {!loading && total > 0 && (
           <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
-            <div>
-              Showing <span className="font-bold text-slate-900">{(page - 1) * limit + 1}</span> to{' '}
-              <span className="font-bold text-slate-900">{Math.min(page * limit, total)}</span> of{' '}
-              <span className="font-bold text-slate-900">{total}</span> records (50 per page)
+            <div className="flex items-center gap-3">
+              <div>
+                {limit === 'all' ? (
+                  <span>
+                    Showing <span className="font-bold text-slate-900">all {total}</span> records (Day 1 to Present)
+                  </span>
+                ) : (
+                  <span>
+                    Showing <span className="font-bold text-slate-900">{(page - 1) * Number(limit) + 1}</span> to{' '}
+                    <span className="font-bold text-slate-900">{Math.min(page * Number(limit), total)}</span> of{' '}
+                    <span className="font-bold text-slate-900">{total}</span> records
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 ml-2">
+                <span className="text-slate-400">|</span>
+                <span className="font-semibold text-slate-500">Show:</span>
+                <select
+                  value={limit}
+                  onChange={(e) => {
+                    setLimit(e.target.value);
+                    setPage(1);
+                  }}
+                  className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs font-bold text-slate-800"
+                >
+                  <option value="50">50 / page</option>
+                  <option value="100">100 / page</option>
+                  <option value="250">250 / page</option>
+                  <option value="500">500 / page</option>
+                  <option value="all">All History (Day 1 - Present)</option>
+                </select>
+              </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold flex items-center gap-1"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span>Prev</span>
-              </button>
+            {limit !== 'all' && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
+                </button>
 
-              <span className="px-3 py-1.5 font-bold font-mono text-slate-900 bg-slate-100 rounded-lg">
-                Page {page} of {totalPages}
-              </span>
+                <span className="px-3 py-1.5 font-bold font-mono text-slate-900 bg-slate-100 rounded-lg">
+                  Page {page} of {totalPages}
+                </span>
 
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold flex items-center gap-1"
-              >
-                <span>Next</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold flex items-center gap-1"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

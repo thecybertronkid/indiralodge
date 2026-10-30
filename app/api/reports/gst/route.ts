@@ -11,25 +11,30 @@ export async function GET(req: Request) {
     if (!propertyId) return NextResponse.json({ error: 'No active property found' }, { status: 400 });
 
     const { searchParams } = new URL(req.url);
-    const year = parseInt(searchParams.get('year') || String(new Date().getFullYear()), 10);
+    const yearParam = searchParams.get('year');
+    const isAllHistory = yearParam === 'all' || yearParam === '0';
+    const year = parseInt(yearParam || String(new Date().getFullYear()), 10);
     const month = searchParams.get('month') ? parseInt(searchParams.get('month')!, 10) : null;
 
-    let startDate: Date;
-    let endDate: Date;
-
-    if (month !== null) {
-      startDate = new Date(year, month - 1, 1, 0, 0, 0);
-      endDate = new Date(year, month, 0, 23, 59, 59);
-    } else {
-      startDate = new Date(year, 0, 1, 0, 0, 0);
-      endDate = new Date(year, 11, 31, 23, 59, 59);
+    let dateWhere: any = {};
+    if (!isAllHistory) {
+      let startDate: Date;
+      let endDate: Date;
+      if (month !== null) {
+        startDate = new Date(year, month - 1, 1, 0, 0, 0);
+        endDate = new Date(year, month, 0, 23, 59, 59);
+      } else {
+        startDate = new Date(year, 0, 1, 0, 0, 0);
+        endDate = new Date(year, 11, 31, 23, 59, 59);
+      }
+      dateWhere = { invoiceDate: { gte: startDate, lte: endDate } };
     }
 
     const invoices = await db.taxInvoice.findMany({
       where: {
         propertyId,
         invoiceType: 'GST',
-        invoiceDate: { gte: startDate, lte: endDate },
+        ...dateWhere,
       },
       include: {
         guest: { select: { displayName: true, phone: true, gstin: true } },

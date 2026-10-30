@@ -25,9 +25,13 @@ export async function GET(req: Request) {
     const status = searchParams.get('status') || '';
     const sourceId = searchParams.get('sourceId') || '';
     const roomTypeId = searchParams.get('roomTypeId') || '';
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '30', 10);
-    const skip = (page - 1) * limit;
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
+    const isPaginated = pageParam !== null && limitParam !== null && limitParam !== 'all' && limitParam !== '0';
+
+    const page = Math.max(1, parseInt(pageParam || '1', 10));
+    const limit = isPaginated ? Math.max(1, parseInt(limitParam || '50', 10)) : undefined;
+    const skip = limit ? (page - 1) * limit : undefined;
 
     const cleanSearch = search.trim();
     const digitsOnly = cleanSearch.replace(/\D/g, '');
@@ -65,13 +69,12 @@ export async function GET(req: Request) {
         folios: { select: { id: true, folioNumber: true, balanceAmount: true } },
       },
       orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
+      ...(limit !== undefined ? { skip, take: limit } : {}),
     });
 
     const total = await db.reservation.count({ where });
 
-    return NextResponse.json({ reservations, total, page, limit });
+    return NextResponse.json({ reservations, total, page, limit: limit || total });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch reservations' }, { status: 500 });
   }

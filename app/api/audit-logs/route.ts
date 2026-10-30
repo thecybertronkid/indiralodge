@@ -19,8 +19,10 @@ export async function GET(req: Request) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') || '50', 10)));
-    const skip = (page - 1) * limit;
+    const limitParam = searchParams.get('limit');
+    const isAll = limitParam === 'all' || limitParam === '0';
+    const limit = isAll ? undefined : Math.max(1, parseInt(limitParam || '50', 10));
+    const skip = limit !== undefined ? (page - 1) * limit : undefined;
 
     // Build Date Filter
     let createdAtFilter: any = undefined;
@@ -67,18 +69,17 @@ export async function GET(req: Request) {
           property: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+        ...(limit !== undefined ? { skip, take: limit } : {}),
       }),
     ]);
 
-    const totalPages = Math.ceil(total / limit) || 1;
+    const totalPages = limit ? Math.ceil(total / limit) || 1 : 1;
 
     return NextResponse.json({
       auditLogs,
       total,
       page,
-      limit,
+      limit: limit || total,
       totalPages,
     });
   } catch (error: any) {

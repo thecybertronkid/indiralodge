@@ -1317,7 +1317,9 @@ export default function NightAuditPage() {
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-900 text-base">Historical Night Audit Archive</h3>
-              <p className="text-xs text-slate-500">Record of closed business days, audited revenue, and flash reports</p>
+              <p className="text-xs text-slate-500">
+                Complete historical record of all closed business days from day one of the platform ({data?.auditHistory?.length || 0} audits)
+              </p>
             </div>
           </div>
 

@@ -23,7 +23,7 @@ export default function FinancialReportsPage() {
     'TRIAL_BALANCE' | 'PNL' | 'BALANCE_SHEET' | 'GENERAL_LEDGER' | 'GST_REPORT' | 'NON_GST_REPORT'
   >('GST_REPORT');
 
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState<number | string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>(''); // empty = full year
 
   const [tbData, setTbData] = useState<any>(null);
@@ -114,9 +114,10 @@ export default function FinancialReportsPage() {
             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Financial Year</label>
             <select
               value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+              onChange={(e) => setSelectedYear(e.target.value)}
               className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900"
             >
+              <option value="all">All Time (Day 1 - Present)</option>
               {[2024, 2025, 2026, 2027].map((y) => (
                 <option key={y} value={y}>
                   FY {y} - {y + 1}

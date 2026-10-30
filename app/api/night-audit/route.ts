@@ -254,7 +254,7 @@ export async function GET(req: Request) {
     const adr = occupiedRooms > 0 ? (totalNightRoomBaseRevenue / occupiedRooms).toFixed(2) : '0';
     const revPar = totalRooms > 0 ? (totalNightRoomBaseRevenue / totalRooms).toFixed(2) : '0';
 
-    // 8. Recent Audit History
+    // 8. Full Audit History (From Day 1 of Platform)
     const auditHistoryRecords = await db.savedReport.findMany({
       where: {
         propertyId,
@@ -264,7 +264,6 @@ export async function GET(req: Request) {
         owner: { select: { fullName: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 30,
     });
 
     const auditHistory = auditHistoryRecords.map((item) => {

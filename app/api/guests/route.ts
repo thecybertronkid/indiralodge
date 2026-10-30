@@ -16,9 +16,13 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
-    const skip = (page - 1) * limit;
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
+    const isPaginated = pageParam !== null && limitParam !== null && limitParam !== 'all' && limitParam !== '0';
+
+    const page = Math.max(1, parseInt(pageParam || '1', 10));
+    const limit = isPaginated ? Math.max(1, parseInt(limitParam || '50', 10)) : undefined;
+    const skip = limit ? (page - 1) * limit : undefined;
 
     const cleanSearch = search.trim();
     const digitsOnly = cleanSearch.replace(/\D/g, '');
@@ -67,13 +71,12 @@ export async function GET(req: Request) {
         _count: { select: { reservations: true } },
       },
       orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
+      ...(limit !== undefined ? { skip, take: limit } : {}),
     });
 
     const total = await db.guest.count({ where });
 
-    return NextResponse.json({ guests, total, page, limit });
+    return NextResponse.json({ guests, total, page, limit: limit || total });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch guests' }, { status: 500 });
   }
