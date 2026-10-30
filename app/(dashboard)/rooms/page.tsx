@@ -33,6 +33,38 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { getStayDayInfo } from '@/lib/billPrinter';
+import { calculateIndiraLodgeRoomRate } from '@/lib/roomRates';
+import { validateStayDatesAndTimes } from '@/lib/dateUtils';
+
+const getCurrentTimeString = () => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
+const isAcRoomType = (rt: any) => {
+  const code = (rt?.code || '').toUpperCase().trim();
+  const name = (rt?.name || '').toUpperCase().trim();
+  if (
+    code.includes('-NAC') ||
+    code.includes('NON') ||
+    name.includes('NON-AC') ||
+    name.includes('NON AC') ||
+    name.includes('NON-AIR') ||
+    name.includes('NON AIR')
+  ) {
+    return false;
+  }
+  if (
+    code.includes('-AC') ||
+    code.endsWith('AC') ||
+    name.includes(' AC') ||
+    name.includes('(AC)') ||
+    name.includes('AIR CONDITION')
+  ) {
+    return true;
+  }
+  return false;
+};
 
 export default function RoomsPage() {
   const { showToast } = useToast();
@@ -50,6 +82,46 @@ export default function RoomsPage() {
   const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
   const [isBlockOpen, setIsBlockOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Walk-in Direct Check-In State
+  const [isWalkinOpen, setIsWalkinOpen] = useState(false);
+  const [walkinAutoAllocatedRoom, setWalkinAutoAllocatedRoom] = useState<any>(null);
+  const [availableRooms, setAvailableRooms] = useState<any[]>([]);
+  const [guestSearchQuery, setGuestSearchQuery] = useState('');
+  const [matchedGuests, setMatchedGuests] = useState<any[]>([]);
+  const [selectedGuestProfile, setSelectedGuestProfile] = useState<any>(null);
+  const [walkinSubmitting, setWalkinSubmitting] = useState(false);
+
+  const [walkinForm, setWalkinForm] = useState({
+    guestId: undefined as string | undefined,
+    firstName: '',
+    lastName: '',
+    phone: '+91 ',
+    email: '',
+    address: '',
+    city: '',
+    state: '',
+    arrivalDate: new Date().toISOString().split('T')[0],
+    arrivalTime: getCurrentTimeString(),
+    acPreference: 'NON_AC' as 'NON_AC' | 'AC',
+    roomTypeId: '',
+    roomId: '',
+    departureDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    departureTime: '11:00',
+    age: '',
+    gender: 'Male',
+    adults: '1',
+    children: '0',
+    comingFrom: '',
+    occupation: 'Business',
+    purposeOfVisit: 'Tourism / Leisure',
+    idType: 'Aadhaar Card',
+    idNumber: '',
+    roomRate: '',
+    depositAmount: '0',
+    paymentMethod: 'CASH',
+    specialRequests: '',
+  });
 
   // Room Service & Extra Item Charges State
   const [isRoomServiceOpen, setIsRoomServiceOpen] = useState(false);
@@ -122,6 +194,300 @@ export default function RoomsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Auto-allocate Room Category / AC Preference toggle
+  const handleAcPreferenceToggle = (pref: 'NON_AC' | 'AC') => {
+    const wantAc = pref === 'AC';
+    const candidateTypes = roomTypes.filter((rt) => (wantAc ? isAcRoomType(rt) : !isAcRoomType(rt)));
+    const pool = candidateTypes.length > 0 ? candidateTypes : roomTypes;
+
+    const nAdults = parseInt(walkinForm.adults || '1', 10);
+    const nChildren = parseInt(walkinForm.children || '0', 10);
+    let preferredBedType = 'Single Bed';
+    if (nAdults >= 3 || (nAdults === 2 && nChildren >= 3) || nAdults + nChildren > 4) {
+      preferredBedType = 'Triple Bed';
+    } else if (nAdults === 2 || (nAdults === 1 && nChildren >= 2) || nAdults + nChildren > 2) {
+      preferredBedType = 'Double Bed';
+    }
+
+    const matchedType =
+      pool.find((rt) => rt.bedType === preferredBedType) ||
+      pool.find((rt) => (rt.adultsCapacity || 2) >= nAdults) ||
+      pool[0];
+
+    setWalkinForm((prev) => ({
+      ...prev,
+      acPreference: pref,
+      roomTypeId: matchedType?.id || prev.roomTypeId,
+      roomId: '',
+    }));
+  };
+
+  // Phone number formatter (+91 XXXXX XXXXX)
+  const handleWalkinPhoneChange = (val: string) => {
+    let clean = val;
+    if (!clean.startsWith('+91')) {
+      clean = '+91 ' + clean.replace(/^\+?91\s*/, '');
+    }
+    const digits = clean.replace(/\D/g, '').slice(2);
+    let formatted = '+91 ';
+    if (digits.length > 0) {
+      formatted += digits.slice(0, 5);
+      if (digits.length > 5) {
+        formatted += ' ' + digits.slice(5, 10);
+      }
+    }
+    setWalkinForm((prev) => ({ ...prev, phone: formatted }));
+  };
+
+  // Open Direct Check-in Modal for a specific selected room
+  const openWalkinModalForRoom = async (room: any) => {
+    setSelectedGuestProfile(null);
+    setGuestSearchQuery('');
+    const todayStr = new Date().toISOString().split('T')[0];
+    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const targetRoomTypeId = room?.roomTypeId || roomTypes[0]?.id || '';
+    const roomTypeObj = roomTypes.find((rt) => rt.id === targetRoomTypeId) || room?.roomType;
+    const prefAc = isAcRoomType(roomTypeObj) ? 'AC' : 'NON_AC';
+
+    setWalkinAutoAllocatedRoom(room);
+
+    setWalkinForm({
+      guestId: undefined,
+      firstName: '',
+      lastName: '',
+      phone: '+91 ',
+      email: '',
+      address: '',
+      city: '',
+      state: '',
+      arrivalDate: todayStr,
+      arrivalTime: getCurrentTimeString(),
+      acPreference: prefAc,
+      roomTypeId: targetRoomTypeId,
+      roomId: room?.id || '',
+      departureDate: tomorrowStr,
+      departureTime: '11:00',
+      age: '',
+      gender: 'Male',
+      adults: '1',
+      children: '0',
+      comingFrom: '',
+      occupation: 'Business',
+      purposeOfVisit: 'Tourism / Leisure',
+      idType: 'Aadhaar Card',
+      idNumber: '',
+      roomRate: '',
+      depositAmount: '0',
+      paymentMethod: 'CASH',
+      specialRequests: '',
+    });
+
+    try {
+      const res = await fetch(
+        `/api/availability?arrivalDate=${encodeURIComponent(todayStr)}&departureDate=${encodeURIComponent(tomorrowStr)}${targetRoomTypeId ? `&roomTypeId=${targetRoomTypeId}` : ''}&requireClean=true`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        let availRooms = data.availablePhysicalRooms || [];
+        if (room && !availRooms.some((r: any) => r.id === room.id)) {
+          availRooms = [room, ...availRooms];
+        }
+        setAvailableRooms(availRooms);
+        setWalkinForm((prev) => ({
+          ...prev,
+          roomId: room ? room.id : (availRooms[0]?.id || ''),
+        }));
+      } else {
+        setAvailableRooms(room ? [room] : []);
+        setWalkinForm((prev) => ({ ...prev, roomId: room ? room.id : '' }));
+      }
+    } catch (e) {
+      setAvailableRooms(room ? [room] : []);
+      setWalkinForm((prev) => ({ ...prev, roomId: room ? room.id : '' }));
+    }
+
+    setIsWalkinOpen(true);
+  };
+
+  // Fetch Available Rooms & Auto-allocate Physical Room when dates or roomType change
+  useEffect(() => {
+    if (!walkinForm.roomTypeId || !walkinForm.arrivalDate || !walkinForm.departureDate || !isWalkinOpen) return;
+
+    const fetchAvailability = async () => {
+      try {
+        const res = await fetch(
+          `/api/availability?arrivalDate=${encodeURIComponent(walkinForm.arrivalDate)}&departureDate=${encodeURIComponent(walkinForm.departureDate)}&roomTypeId=${walkinForm.roomTypeId}&requireClean=true`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          let roomsList = data.availablePhysicalRooms || [];
+          const allocatedRoom = walkinAutoAllocatedRoom || selectedRoom;
+          if (allocatedRoom && allocatedRoom.roomTypeId === walkinForm.roomTypeId && !roomsList.some((r: any) => r.id === allocatedRoom.id)) {
+            roomsList = [allocatedRoom, ...roomsList];
+          }
+          setAvailableRooms(roomsList);
+          if (roomsList.length > 0) {
+            const hasCurrent = walkinForm.roomId && roomsList.some((r: any) => r.id === walkinForm.roomId);
+            const targetId = hasCurrent
+              ? walkinForm.roomId
+              : (allocatedRoom && roomsList.some((r: any) => r.id === allocatedRoom.id) ? allocatedRoom.id : roomsList[0].id);
+            setWalkinForm((prev) => ({
+              ...prev,
+              roomId: targetId,
+            }));
+            const foundObj = roomsList.find((r: any) => r.id === targetId) || roomsList[0];
+            setWalkinAutoAllocatedRoom(foundObj);
+          } else {
+            setWalkinAutoAllocatedRoom(null);
+            setWalkinForm((prev) => ({ ...prev, roomId: '' }));
+          }
+        }
+      } catch (e) {}
+    };
+
+    fetchAvailability();
+  }, [walkinForm.roomTypeId, walkinForm.arrivalDate, walkinForm.departureDate, isWalkinOpen]);
+
+  // Pricing Calculations
+  const walkinArrDate = new Date(walkinForm.arrivalDate);
+  const walkinDepDate = new Date(walkinForm.departureDate);
+  const walkinDiffTime = walkinDepDate.getTime() - walkinArrDate.getTime();
+  const walkinDaysStayed = Math.max(1, Math.ceil(walkinDiffTime / (1000 * 60 * 60 * 24)));
+
+  const walkinAdults = parseInt(walkinForm.adults || '1', 10);
+  const walkinChildren = parseInt(walkinForm.children || '0', 10);
+
+  const selectedWalkinRoomType = roomTypes.find((rt) => rt.id === walkinForm.roomTypeId) || roomTypes[0];
+  const standardWalkinPricePerNight = selectedWalkinRoomType
+    ? calculateIndiraLodgeRoomRate(selectedWalkinRoomType.code, walkinAdults, walkinChildren, selectedWalkinRoomType.baseRate)
+    : 0;
+
+  const walkinPricePerNight =
+    walkinForm.roomRate !== '' && !isNaN(parseFloat(walkinForm.roomRate))
+      ? Math.max(0, parseFloat(walkinForm.roomRate))
+      : standardWalkinPricePerNight;
+
+  const walkinRoomSubtotal = walkinPricePerNight * walkinDaysStayed;
+  const walkinTotalPrice = Math.max(0, walkinRoomSubtotal);
+  const walkinGstTaxVal = Math.round((walkinTotalPrice * 0.05) * 100) / 100;
+  const walkinTaxableVal = Math.round((walkinTotalPrice - walkinGstTaxVal) * 100) / 100;
+  const walkinDepositVal = parseFloat(walkinForm.depositAmount || '0');
+  const walkinBalance = Math.max(0, walkinTotalPrice - walkinDepositVal);
+
+  // Debounced Returning Guest Search
+  useEffect(() => {
+    const term = guestSearchQuery || (walkinForm.phone && walkinForm.phone.length > 5 ? walkinForm.phone : '');
+    if (!term || term.trim().length < 3) {
+      setMatchedGuests([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/guests?search=${encodeURIComponent(term.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMatchedGuests(data.guests || []);
+        }
+      } catch (e) {}
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [guestSearchQuery, walkinForm.phone]);
+
+  const handleSelectGuestForWalkin = (guest: any) => {
+    setSelectedGuestProfile(guest);
+    const names = (guest.displayName || '').split(' ');
+    const fName = guest.firstName || names[0] || '';
+    const lName = guest.lastName || names.slice(1).join(' ') || 'Guest';
+
+    setWalkinForm((prev) => ({
+      ...prev,
+      guestId: guest.id,
+      firstName: fName,
+      lastName: lName,
+      phone: guest.phone || '+91 ',
+      email: guest.email || '',
+      address: guest.address || '',
+      city: guest.city || '',
+      state: guest.state || '',
+      age: guest.age ? String(guest.age) : '',
+      gender: guest.gender || 'Male',
+      occupation: guest.occupation || 'Business',
+      idType: guest.idType || 'Aadhaar Card',
+      idNumber: guest.idNumber || '',
+    }));
+    setMatchedGuests([]);
+    showToast(`Loaded returning guest profile: ${guest.displayName}`, 'success');
+  };
+
+  const handleWalkinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setWalkinSubmitting(true);
+
+    const dateValidation = validateStayDatesAndTimes(
+      walkinForm.arrivalDate,
+      walkinForm.arrivalTime,
+      walkinForm.departureDate,
+      walkinForm.departureTime
+    );
+    if (!dateValidation.valid) {
+      showToast(dateValidation.error || 'Arrival date and time must be before departure date and time.', 'error');
+      setWalkinSubmitting(false);
+      return;
+    }
+
+    try {
+      const targetRoomId = walkinForm.roomId || walkinAutoAllocatedRoom?.id || (availableRooms.length > 0 ? availableRooms[0].id : '');
+      if (!targetRoomId) {
+        showToast('No room allocated for check-in.', 'error');
+        setWalkinSubmitting(false);
+        return;
+      }
+
+      const payload = {
+        ...walkinForm,
+        roomId: targetRoomId,
+        customRoomRate: walkinPricePerNight,
+        roomRate: walkinPricePerNight,
+        discountAmount: 0,
+      };
+
+      const res = await fetch('/api/front-desk/walkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Walk-in check-in failed', 'error');
+        setWalkinSubmitting(false);
+        return;
+      }
+
+      showToast(`Walk-in guest ${walkinForm.firstName} ${walkinForm.lastName} checked in successfully!`, 'success');
+      setIsWalkinOpen(false);
+
+      // Refresh room list and update selectedRoom drawer if open
+      await fetchData();
+      try {
+        const resRooms = await fetch('/api/rooms');
+        if (resRooms.ok) {
+          const roomsData = await resRooms.json();
+          const updated = (roomsData.rooms || []).find((r: any) => r.id === targetRoomId);
+          if (updated) {
+            setSelectedRoom(updated);
+          }
+        }
+      } catch (err) {}
+    } catch (e) {
+      showToast('Error completing walk-in', 'error');
+    } finally {
+      setWalkinSubmitting(false);
+    }
+  };
 
   // Update Bed Type Presets
   const handleBedTypePresetChange = (selectedBedType: string) => {
@@ -731,6 +1097,16 @@ export default function RoomsPage() {
                     </td>
                     <td className="pmfs-table-td text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {r.availabilityStatus !== 'OCCUPIED' && (!r.reservations || r.reservations.length === 0) && (
+                          <button
+                            type="button"
+                            onClick={() => openWalkinModalForRoom(r)}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold flex items-center gap-1 shadow-xs transition-colors"
+                          >
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Check-In</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => setSelectedRoom(r)}
                           className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200"
@@ -943,15 +1319,28 @@ export default function RoomsPage() {
                 );
 
               })()
-            ) : selectedRoom.availabilityStatus === 'OCCUPIED' ? (
-              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                <span>Room is marked Occupied.</span>
-              </div>
             ) : (
-              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
-                <span>Room is currently Vacant & Available</span>
-                <Badge variant="success">AVAILABLE</Badge>
+              <div className="space-y-3">
+                {selectedRoom.availabilityStatus === 'OCCUPIED' ? (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>Room is marked Occupied without active guest record.</span>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
+                    <span>Room is currently Vacant & Available</span>
+                    <Badge variant="success">AVAILABLE</Badge>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => openWalkinModalForRoom(selectedRoom)}
+                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all transform active:scale-98"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>Direct Check-In to Room {selectedRoom.roomNumber}</span>
+                </button>
               </div>
             )}
           </div>
@@ -1022,6 +1411,630 @@ export default function RoomsPage() {
 
         </div>
       )}
+
+      {/* Modal: Walk-In Direct Check-In (Immediate Stay) */}
+      <Modal
+        isOpen={isWalkinOpen}
+        onClose={() => setIsWalkinOpen(false)}
+        title={`Walk-in Direct Check-In (Immediate Stay) — Room ${walkinAutoAllocatedRoom?.roomNumber || selectedRoom?.roomNumber || ''}`}
+        maxWidth="4xl"
+      >
+        <form onSubmit={handleWalkinSubmit} className="space-y-5">
+          {/* Returning Guest Auto-Fill Search */}
+          <div className="p-3.5 bg-brand-50/80 border border-brand-200 rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-brand-900 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-brand-600" />
+                Returning Guest Auto-Fill Search
+              </span>
+              {selectedGuestProfile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedGuestProfile(null);
+                    setWalkinForm((prev) => ({
+                      ...prev,
+                      guestId: undefined,
+                      firstName: '',
+                      lastName: '',
+                      phone: '+91 ',
+                      email: '',
+                      address: '',
+                      city: '',
+                      state: '',
+                      age: '',
+                      gender: 'Male',
+                      occupation: 'Business',
+                      idType: 'Aadhaar Card',
+                      idNumber: '',
+                    }));
+                  }}
+                  className="text-[11px] text-brand-700 font-semibold hover:underline"
+                >
+                  Clear Selection
+                </button>
+              )}
+            </div>
+
+            <input
+              type="text"
+              value={guestSearchQuery}
+              onChange={(e) => setGuestSearchQuery(e.target.value)}
+              placeholder="Search existing guest directory by name, phone (+91...), or guest ref..."
+              className="w-full px-3.5 py-2 bg-white border border-brand-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-xs"
+            />
+
+            {matchedGuests.length > 0 && !selectedGuestProfile && (
+              <div className="bg-white border border-brand-200 rounded-lg divide-y divide-slate-100 max-h-40 overflow-y-auto shadow-md">
+                {matchedGuests.map((g) => (
+                  <div
+                    key={g.id}
+                    onClick={() => handleSelectGuestForWalkin(g)}
+                    className="p-2.5 hover:bg-brand-50/80 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-900 block">{g.displayName}</span>
+                      <span className="text-[11px] text-slate-500">{g.phone} {g.email ? `• ${g.email}` : ''}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="px-2.5 py-1 bg-brand-600 text-white font-bold text-[10px] rounded hover:bg-brand-700 transition-colors shadow-xs"
+                    >
+                      Auto-Fill
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {selectedGuestProfile && (
+              <div className="text-xs text-brand-900 font-medium flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-brand-200">
+                <span>Selected: <strong>{selectedGuestProfile.displayName}</strong> ({selectedGuestProfile.phone})</span>
+                <Badge variant="success">Auto-Filled</Badge>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 1: GUEST IDENTIFICATION & DEMOGRAPHICS */}
+          <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200 space-y-3">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200/80 pb-2">
+              <User className="w-4 h-4 text-brand-600" />
+              1. Guest Identification & Demographics
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
+              {/* 1. Name */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">First Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={walkinForm.firstName}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, firstName: e.target.value })}
+                  placeholder="e.g. Ramesh"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Last Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={walkinForm.lastName}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, lastName: e.target.value })}
+                  placeholder="e.g. Sharma"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 2. Phone Number */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Phone Number *</label>
+                <input
+                  type="text"
+                  required
+                  value={walkinForm.phone}
+                  onChange={(e) => handleWalkinPhoneChange(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 3. Email ID (Optional) */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Email ID (Optional)</label>
+                <input
+                  type="email"
+                  value={walkinForm.email}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, email: e.target.value })}
+                  placeholder="guest@example.com (Optional)"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 11. Age */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Age</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={walkinForm.age}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, age: e.target.value })}
+                  placeholder="e.g. 35"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 12. Gender */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Gender</label>
+                <select
+                  value={walkinForm.gender}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, gender: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* 4. Address */}
+              <div className="sm:col-span-3">
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Address</label>
+                <input
+                  type="text"
+                  value={walkinForm.address}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, address: e.target.value })}
+                  placeholder="House / Street, Area, City, State"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 16. Occupation */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Occupation</label>
+                <select
+                  value={walkinForm.occupation}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, occupation: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                >
+                  <option value="Business">Business</option>
+                  <option value="Private Service">Private Service</option>
+                  <option value="Government Service">Government Service</option>
+                  <option value="Self Employed">Self Employed</option>
+                  <option value="Student">Student</option>
+                  <option value="Professional / Doctor / Engineer">Professional</option>
+                  <option value="Retired">Retired</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* 18. ID Type */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">ID Document Type *</label>
+                <select
+                  value={walkinForm.idType}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, idType: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                >
+                  <option value="Aadhaar Card">Aadhaar Card</option>
+                  <option value="Passport">Passport</option>
+                  <option value="Driving License">Driving License</option>
+                  <option value="Voter ID">Voter ID</option>
+                  <option value="PAN Card">PAN Card</option>
+                </select>
+              </div>
+
+              {/* 19. ID Number */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">ID Document Number</label>
+                <input
+                  type="text"
+                  value={walkinForm.idNumber}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, idNumber: e.target.value })}
+                  placeholder="e.g. 1234-5678-9012"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: STAY SCHEDULE & ROOM ALLOCATION */}
+          <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200 space-y-3">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200/80 pb-2">
+              <BedDouble className="w-4 h-4 text-brand-600" />
+              2. Stay Schedule & Room Allocation
+            </h4>
+
+            {/* AC / Non-AC Comfort Preference Quick Toggle */}
+            <div className="p-3 bg-gradient-to-r from-slate-100 via-brand-50/50 to-slate-100 border border-slate-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div>
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                  Room Comfort Preference (AC / Non-AC)
+                </span>
+                <span className="text-[11px] text-slate-500 block">
+                  Automatically allocates suitable {walkinForm.acPreference === 'AC' ? 'Air Conditioned (AC)' : 'Standard Non-AC'} room for {walkinAdults} Adult{walkinAdults > 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="inline-flex rounded-lg p-1 bg-white border border-slate-200 shadow-xs self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleAcPreferenceToggle('NON_AC')}
+                  className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    walkinForm.acPreference === 'NON_AC'
+                      ? 'bg-slate-800 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>🌀 Non-AC</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAcPreferenceToggle('AC')}
+                  className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    walkinForm.acPreference === 'AC'
+                      ? 'bg-cyan-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>❄️ AC Room</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+              {/* 5. Arrival Date */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Arrival Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={walkinForm.arrivalDate}
+                  onChange={(e) => {
+                    const newArr = e.target.value;
+                    setWalkinForm((prev) => {
+                      let newDep = prev.departureDate;
+                      if (newDep < newArr) newDep = newArr;
+                      let newDepTime = prev.departureTime;
+                      if (newDep === newArr && newDepTime <= prev.arrivalTime) {
+                        const [h, m] = prev.arrivalTime.split(':').map(Number);
+                        const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                        newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                      }
+                      return { ...prev, arrivalDate: newArr, departureDate: newDep, departureTime: newDepTime };
+                    });
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 6. Arrival Time */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Arrival Time *</label>
+                <input
+                  type="time"
+                  required
+                  value={walkinForm.arrivalTime}
+                  onChange={(e) => {
+                    const newTime = e.target.value;
+                    setWalkinForm((prev) => {
+                      let newDepTime = prev.departureTime;
+                      if (prev.departureDate === prev.arrivalDate && newDepTime <= newTime) {
+                        const [h, m] = newTime.split(':').map(Number);
+                        const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                        newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                      }
+                      return { ...prev, arrivalTime: newTime, departureTime: newDepTime };
+                    });
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 9. Departure Date */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Departure Date *</label>
+                <input
+                  type="date"
+                  required
+                  min={walkinForm.arrivalDate}
+                  value={walkinForm.departureDate}
+                  onChange={(e) => {
+                    const newDep = e.target.value;
+                    setWalkinForm((prev) => {
+                      let newDepTime = prev.departureTime;
+                      if (newDep === prev.arrivalDate && newDepTime <= prev.arrivalTime) {
+                        const [h, m] = prev.arrivalTime.split(':').map(Number);
+                        const bumpedH = Math.min(23, (isNaN(h) ? 14 : h) + 4);
+                        newDepTime = `${String(bumpedH).padStart(2, '0')}:${String(isNaN(m) ? 0 : m).padStart(2, '0')}`;
+                      }
+                      return { ...prev, departureDate: newDep, departureTime: newDepTime };
+                    });
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 10. Departure Time + Days Stayed */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block font-semibold text-slate-700 uppercase text-[11px]">Departure Time</label>
+                  <span className="text-[10px] font-bold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">
+                    {walkinDaysStayed} Day{walkinDaysStayed > 1 ? 's' : ''} Stayed
+                  </span>
+                </div>
+                <input
+                  type="time"
+                  required
+                  min={walkinForm.departureDate === walkinForm.arrivalDate ? walkinForm.arrivalTime : undefined}
+                  value={walkinForm.departureTime}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, departureTime: e.target.value })}
+                  className={`w-full px-3 py-2 bg-white border ${
+                    walkinForm.departureDate === walkinForm.arrivalDate && walkinForm.departureTime <= walkinForm.arrivalTime
+                      ? 'border-red-400 focus:ring-red-400'
+                      : 'border-slate-200 focus:ring-brand-500'
+                  } rounded-lg text-slate-900 font-mono focus:outline-none focus:ring-2`}
+                />
+                {walkinForm.departureDate === walkinForm.arrivalDate && walkinForm.departureTime <= walkinForm.arrivalTime && (
+                  <p className="text-[10px] text-red-600 font-medium mt-1">
+                    Must be after arrival time ({walkinForm.arrivalTime})
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-slate-200/60 text-xs">
+              {/* 7. Room Type */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-700 uppercase text-[11px]">Room Type *</label>
+                  <span className="font-mono font-bold text-brand-700 text-xs">
+                    Rate: ₹{walkinPricePerNight} / night
+                  </span>
+                </div>
+                <select
+                  required
+                  value={walkinForm.roomTypeId}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, roomTypeId: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  {roomTypes.map((rt) => (
+                    <option key={rt.id} value={rt.id}>
+                      {rt.name} ({rt.code}) — Base ₹{rt.baseRate}/night
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 8. Room Number (Physical Room Allocated) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-700 uppercase text-[11px]">Room Number *</label>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                    {walkinAutoAllocatedRoom ? `Allocated: Room ${walkinAutoAllocatedRoom.roomNumber}` : 'Select Room'}
+                  </span>
+                </div>
+                <select
+                  required
+                  value={walkinForm.roomId}
+                  onChange={(e) => {
+                    const selId = e.target.value;
+                    const found = availableRooms.find((r) => r.id === selId) || rooms.find((r) => r.id === selId);
+                    setWalkinAutoAllocatedRoom(found || null);
+                    setWalkinForm({ ...walkinForm, roomId: selId });
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  {availableRooms.length === 0 ? (
+                    <option value="">No Clean Room Available for Stay Dates</option>
+                  ) : (
+                    availableRooms.map((pr) => (
+                      <option key={pr.id} value={pr.id}>
+                        Room {pr.roomNumber} ({pr.floor})
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {/* 13. Adults */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Number of Adults *</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={walkinForm.adults}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, adults: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 14. Children */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Number of Children</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={walkinForm.children}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, children: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 15. Coming From */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Coming From (Origin)</label>
+                <input
+                  type="text"
+                  value={walkinForm.comingFrom}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, comingFrom: e.target.value })}
+                  placeholder="e.g. Guwahati, Delhi, Kolkata"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+
+              {/* 17. Purpose of Visit */}
+              <div>
+                <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">Purpose of Visit</label>
+                <select
+                  value={walkinForm.purposeOfVisit}
+                  onChange={(e) => setWalkinForm({ ...walkinForm, purposeOfVisit: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
+                >
+                  <option value="Tourism / Leisure">Tourism / Leisure</option>
+                  <option value="Business / Corporate">Business / Corporate</option>
+                  <option value="Personal / Family">Personal / Family</option>
+                  <option value="Official / Government">Official / Government</option>
+                  <option value="Medical / Health">Medical / Health</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3: FINAL BILLING, PRICING & DIRECT CHECK-IN PAYMENT */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white space-y-4 border border-slate-700 shadow-md">
+            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center justify-between border-b border-slate-700 pb-2">
+              <span className="flex items-center gap-1.5">
+                <Receipt className="w-4 h-4 text-emerald-400" />
+                3. Final Price Calculation & Advance Deposit
+              </span>
+              <span className="text-[11px] text-emerald-400 font-mono font-bold">
+                Occupancy: {walkinAdults} Adult(s){walkinChildren > 0 ? `, ${walkinChildren} Child` : ''}
+              </span>
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Standard Tariff ({selectedWalkinRoomType?.name}):</span>
+                  <span className="font-mono text-slate-400">₹{standardWalkinPricePerNight} / night</span>
+                </div>
+
+                {/* Direct Room Tariff Input (Changed Price is Base Price) */}
+                <div className="flex justify-between items-center bg-slate-800/90 p-2.5 rounded-lg border border-emerald-500/40">
+                  <div>
+                    <label className="font-bold text-emerald-300 block text-xs">Stay Room Tariff (₹ / night) *</label>
+                    <span className="text-[10px] text-slate-400">Directly change tariff for this stay</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono font-bold text-emerald-400 text-sm">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      required
+                      value={walkinForm.roomRate !== '' ? walkinForm.roomRate : standardWalkinPricePerNight}
+                      onChange={(e) => setWalkinForm({ ...walkinForm, roomRate: e.target.value })}
+                      className="w-28 px-2.5 py-1.5 bg-slate-900 border border-emerald-500/70 rounded-md text-right font-mono font-bold text-emerald-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 shadow-inner"
+                    />
+                    {walkinForm.roomRate !== '' && parseFloat(walkinForm.roomRate) !== standardWalkinPricePerNight && (
+                      <button
+                        type="button"
+                        onClick={() => setWalkinForm({ ...walkinForm, roomRate: '' })}
+                        className="text-[10px] text-slate-400 hover:text-white underline ml-1"
+                        title="Reset to standard tariff"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between text-slate-300 pt-1">
+                  <span>Stay Duration:</span>
+                  <span className="font-mono font-bold">{walkinDaysStayed} Night(s)</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Room Tariff Total:</span>
+                  <span className="font-mono font-bold">₹{walkinTotalPrice.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-400/90 text-[11px]">
+                  <span>GST Tax (5%):</span>
+                  <span className="font-medium">Included in Tariff (₹{walkinGstTaxVal.toFixed(2)})</span>
+                </div>
+              </div>
+
+              {/* Total Price & Payment Card */}
+              <div className="p-3.5 rounded-xl bg-slate-800/90 border border-slate-700 space-y-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-bold uppercase text-slate-400">Total Payable:</span>
+                  <span className="text-2xl font-black text-emerald-400 font-mono">
+                    ₹{walkinTotalPrice.toLocaleString('en-IN')}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-700 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-300 mb-1">
+                      Deposit Paid (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={walkinForm.depositAmount}
+                      onChange={(e) => setWalkinForm({ ...walkinForm, depositAmount: e.target.value })}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-300 mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={walkinForm.paymentMethod}
+                      onChange={(e) => setWalkinForm({ ...walkinForm, paymentMethod: e.target.value })}
+                      className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded text-white text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="UPI">UPI / QR</option>
+                      <option value="CARD">Credit / Debit Card</option>
+                      <option value="NET_BANKING">Net Banking</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1">
+                  <span>Balance Due on Checkout:</span>
+                  <span className={`font-mono font-bold ${walkinBalance > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    ₹{walkinBalance.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsWalkinOpen(false)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={walkinSubmitting}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-md shadow-emerald-600/20 disabled:opacity-50 transition-all flex items-center gap-2"
+            >
+              {walkinSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Processing Direct Check-in...</span>
+                </>
+              ) : (
+                <span>Complete Walk-in Check-in (Instant Stay)</span>
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Modal: Add Physical Room */}
       <Modal isOpen={isAddRoomOpen} onClose={() => setIsAddRoomOpen(false)} title="Add Physical Room to Inventory" maxWidth="md">
