@@ -117,6 +117,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Selected physical room is not valid.' }, { status: 400 });
     }
 
+    if (room.housekeepingStatus === 'DIRTY' || room.housekeepingStatus === 'CLEANING') {
+      return NextResponse.json({
+        error: `Room ${room.roomNumber} is currently ${room.housekeepingStatus.toLowerCase()}. Direct check-in is only permitted for clean rooms.`,
+      }, { status: 400 });
+    }
+
+    if (room.availabilityStatus === 'BLOCKED' || room.maintenanceStatus !== 'OPERATIONAL') {
+      return NextResponse.json({
+        error: `Room ${room.roomNumber} is currently blocked for maintenance.`,
+      }, { status: 400 });
+    }
+
     const isAvail = await isRoomAvailable(roomId, arr, dep);
     if (!isAvail) {
       return NextResponse.json({ error: `Room ${room.roomNumber} is not available for the requested dates.` }, { status: 400 });

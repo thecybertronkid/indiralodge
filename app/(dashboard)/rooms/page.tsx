@@ -242,6 +242,25 @@ export default function RoomsPage() {
 
   // Open Direct Check-in Modal for a specific selected room
   const openWalkinModalForRoom = async (room: any) => {
+    const isDirtyOrCleaning = room?.housekeepingStatus === 'DIRTY' || room?.housekeepingStatus === 'CLEANING';
+    const isBlocked = room?.availabilityStatus === 'BLOCKED' || room?.maintenanceStatus !== 'OPERATIONAL';
+    const isOccupied = room?.availabilityStatus === 'OCCUPIED' || (room?.reservations && room.reservations.length > 0 && room.reservations[0].status === 'CHECKED_IN');
+    const isReserved = room?.availabilityStatus === 'RESERVED' || (room?.reservations && room.reservations.length > 0 && room.reservations[0].status === 'CONFIRMED');
+
+    if (isDirtyOrCleaning || isBlocked || isOccupied || isReserved) {
+      showToast(
+        isDirtyOrCleaning
+          ? `Room ${room?.roomNumber} is ${room?.housekeepingStatus?.toLowerCase()}. Only clean and vacant rooms can be checked in.`
+          : isBlocked
+          ? `Room ${room?.roomNumber} is blocked for maintenance.`
+          : isOccupied
+          ? `Room ${room?.roomNumber} is currently occupied.`
+          : `Room ${room?.roomNumber} is reserved for a confirmed booking.`,
+        'error'
+      );
+      return;
+    }
+
     setSelectedGuestProfile(null);
     setGuestSearchQuery('');
     const todayStr = new Date().toISOString().split('T')[0];
@@ -290,7 +309,8 @@ export default function RoomsPage() {
       if (res.ok) {
         const data = await res.json();
         let availRooms = data.availablePhysicalRooms || [];
-        if (room && !availRooms.some((r: any) => r.id === room.id)) {
+        const isRoomClean = room && (room.housekeepingStatus === 'CLEAN' || room.housekeepingStatus === 'INSPECTED') && room.maintenanceStatus === 'OPERATIONAL' && room.availabilityStatus !== 'BLOCKED';
+        if (isRoomClean && !availRooms.some((r: any) => r.id === room.id)) {
           availRooms = [room, ...availRooms];
         }
         setAvailableRooms(availRooms);
@@ -323,7 +343,15 @@ export default function RoomsPage() {
           const data = await res.json();
           let roomsList = data.availablePhysicalRooms || [];
           const allocatedRoom = walkinAutoAllocatedRoom || selectedRoom;
-          if (allocatedRoom && allocatedRoom.roomTypeId === walkinForm.roomTypeId && !roomsList.some((r: any) => r.id === allocatedRoom.id)) {
+          const isAllocatedCleanAndVacant =
+            allocatedRoom &&
+            (allocatedRoom.housekeepingStatus === 'CLEAN' || allocatedRoom.housekeepingStatus === 'INSPECTED') &&
+            allocatedRoom.maintenanceStatus === 'OPERATIONAL' &&
+            allocatedRoom.availabilityStatus !== 'BLOCKED' &&
+            allocatedRoom.availabilityStatus !== 'OCCUPIED' &&
+            (!allocatedRoom.reservations || allocatedRoom.reservations.length === 0);
+
+          if (isAllocatedCleanAndVacant && allocatedRoom.roomTypeId === walkinForm.roomTypeId && !roomsList.some((r: any) => r.id === allocatedRoom.id)) {
             roomsList = [allocatedRoom, ...roomsList];
           }
           setAvailableRooms(roomsList);
@@ -1097,7 +1125,7 @@ export default function RoomsPage() {
                     </td>
                     <td className="pmfs-table-td text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {r.availabilityStatus !== 'OCCUPIED' && (!r.reservations || r.reservations.length === 0) && (
+                        {r.availabilityStatus === 'AVAILABLE' && r.maintenanceStatus === 'OPERATIONAL' && (r.housekeepingStatus === 'CLEAN' || r.housekeepingStatus === 'INSPECTED') && (!r.reservations || r.reservations.length === 0) && (
                           <button
                             type="button"
                             onClick={() => openWalkinModalForRoom(r)}
@@ -1319,30 +1347,101 @@ export default function RoomsPage() {
                 );
 
               })()
-            ) : (
-              <div className="space-y-3">
-                {selectedRoom.availabilityStatus === 'OCCUPIED' ? (
-                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    <span>Room is marked Occupied without active guest record.</span>
-                  </div>
-                ) : (
-                  <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
-                    <span>Room is currently Vacant & Available</span>
-                    <Badge variant="success">AVAILABLE</Badge>
-                  </div>
-                )}
+            ) : (() => {
+              const isBlocked = selectedRoom.availabilityStatus === 'BLOCKED' || selectedRoom.maintenanceStatus !== 'OPERATIONAL';
+              const isOccupiedWithoutRes = selectedRoom.availabilityStatus === 'OCCUPIED';
+              const isReservedWithoutRes = selectedRoom.availabilityStatus === 'RESERVED';
+              const isDirty = selectedRoom.housekeepingStatus === 'DIRTY';
+              const isCleaning = selectedRoom.housekeepingStatus === 'CLEANING';
+              const isCleanAndVacant = !isBlocked && !isOccupiedWithoutRes && !isReservedWithoutRes && !isDirty && !isCleaning;
 
-                <button
-                  type="button"
-                  onClick={() => openWalkinModalForRoom(selectedRoom)}
-                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all transform active:scale-98"
-                >
-                  <UserCheck className="w-4 h-4" />
-                  <span>Direct Check-In to Room {selectedRoom.roomNumber}</span>
-                </button>
-              </div>
-            )}
+              return (
+                <div className="space-y-3">
+                  {isOccupiedWithoutRes ? (
+                    <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span className="font-semibold">Room is marked Occupied</span>
+                      </div>
+                      <Badge variant="error">OCCUPIED</Badge>
+                    </div>
+                  ) : isReservedWithoutRes ? (
+                    <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span className="font-semibold">Room is Reserved (Confirmed Booking)</span>
+                      </div>
+                      <Badge variant="info">RESERVED</Badge>
+                    </div>
+                  ) : isBlocked ? (
+                    <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-300 text-xs text-slate-800 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Wrench className="w-4 h-4 text-slate-600 shrink-0" />
+                        <div>
+                          <span className="font-bold block">Blocked for Maintenance</span>
+                          <span className="text-[11px] text-slate-500">Not available for guest check-in</span>
+                        </div>
+                      </div>
+                      <Badge variant="neutral">BLOCKED</Badge>
+                    </div>
+                  ) : isDirty ? (
+                    <div className="space-y-2">
+                      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-900 flex items-center justify-between shadow-xs">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <div>
+                            <span className="font-extrabold block">Room is Dirty</span>
+                            <span className="text-[11px] text-amber-700">Housekeeping needed before check-in</span>
+                          </div>
+                        </div>
+                        <Badge variant="warning">DIRTY</Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic px-1">
+                        ⚠️ Direct check-in is disabled. Mark room as Clean below once housekeeping is complete.
+                      </p>
+                    </div>
+                  ) : isCleaning ? (
+                    <div className="space-y-2">
+                      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-900 flex items-center justify-between shadow-xs">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="w-4 h-4 text-amber-600 shrink-0 animate-spin" />
+                          <div>
+                            <span className="font-extrabold block">Cleaning in Progress</span>
+                            <span className="text-[11px] text-amber-700">Housekeeper currently servicing room</span>
+                          </div>
+                        </div>
+                        <Badge variant="warning">CLEANING</Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500 italic px-1">
+                        ⚠️ Direct check-in is disabled while room is being cleaned.
+                      </p>
+                    </div>
+                  ) : isCleanAndVacant ? (
+                    <>
+                      <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between shadow-xs">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="font-extrabold block text-emerald-950">Vacant & Clean</span>
+                            <span className="text-[11px] text-emerald-700">Ready for guest check-in</span>
+                          </div>
+                        </div>
+                        <Badge variant="success">AVAILABLE</Badge>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => openWalkinModalForRoom(selectedRoom)}
+                        className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all transform active:scale-98"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        <span>Direct Check-In to Room {selectedRoom.roomNumber}</span>
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Quick Housekeeping Toggle */}
