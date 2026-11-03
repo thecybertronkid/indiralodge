@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { reservationId, invoiceType, customerGstin, companyName } = body; // invoiceType: 'GST' | 'NON_GST'
+    const { reservationId, invoiceType, customerGstin, companyName, discount: bodyDiscount } = body; // invoiceType: 'GST' | 'NON_GST'
 
     if (!reservationId || !invoiceType) {
       return NextResponse.json({ error: 'Reservation ID and invoice type (GST or NON_GST) are required.' }, { status: 400 });
@@ -117,19 +117,15 @@ export async function POST(req: Request) {
     ) || [];
 
     // Calculate Financial Breakdown
-    // If a discount was attached to the reservation, absorb it into the effective nightly base rate so the discounted price becomes the base price on the bill
-    const rawDiscount = reservation.discountAmount || 0;
-    const effectiveTotalRoomTariff = Math.max(0, (reservation.roomRate * reservation.nights) - rawDiscount);
-    const roomCharges = effectiveTotalRoomTariff;
+    const totalRoomTariff = reservation.roomRate * reservation.nights;
+    const baseRoomTariff = totalRoomTariff;
     const extraChargesTotal = extraCharges.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
-    const discount = 0; // Discounted rate is now the base price
+    const unitBaseRate = reservation.nights > 0 ? Math.round((baseRoomTariff / reservation.nights) * 100) / 100 : reservation.roomRate;
 
     let cgstAmount = 0;
     let sgstAmount = 0;
     let totalTax = 0;
-    const baseRoomTariff = roomCharges;
     let finalRoomTariff = baseRoomTariff;
-    const unitBaseRate = reservation.nights > 0 ? Math.round((baseRoomTariff / reservation.nights) * 100) / 100 : reservation.roomRate;
 
     if (isGst) {
       // In GST Bill, 5% GST is charged ABOVE the base tariff:
@@ -140,8 +136,12 @@ export async function POST(req: Request) {
       finalRoomTariff = Math.round((baseRoomTariff + totalTax) * 100) / 100;
     }
 
-    // Total payable is final room tariff (1050 for GST / 1000 for Non-GST) + extra charges
-    const totalAmount = Math.round((finalRoomTariff + extraChargesTotal) * 100) / 100;
+    const discount = bodyDiscount !== undefined
+      ? Math.max(0, Number(bodyDiscount) || 0)
+      : Math.max(0, Number(reservation.discountAmount) || 0);
+
+    const grossTotal = Math.round((finalRoomTariff + extraChargesTotal) * 100) / 100;
+    const totalAmount = Math.max(0, Math.round((grossTotal - discount) * 100) / 100);
     const taxableSubtotal = Math.round((baseRoomTariff + extraChargesTotal) * 100) / 100;
 
     const refPrefix = isGst ? 'INV' : 'BIL';
@@ -229,7 +229,7 @@ export async function POST(req: Request) {
     });
 
     // Update reservation -> Mark as BILLED & LOCKED
-    const newBalanceAmount = Math.max(0, totalAmount - reservation.paidAmount);
+    const newBalanceAmount = Math.max(0, Math.round((totalAmount - reservation.paidAmount) * 100) / 100);
     await db.reservation.update({
       where: { id: reservationId },
       data: {
@@ -238,7 +238,8 @@ export async function POST(req: Request) {
         billedAt: new Date(),
         billedInvoiceId: invoice.id,
         roomRate: reservation.roomRate,
-        discountAmount: 0,
+        discountAmount: discount,
+        discountReason: discount > 0 ? (reservation.discountReason || 'Discount / Round-off') : null,
         taxAmount: totalTax,
         totalAmount,
         balanceAmount: newBalanceAmount,
@@ -248,7 +249,7 @@ export async function POST(req: Request) {
     // Synchronize folio total charges and balance amount with finalized invoice
     if (folio) {
       const folioPayments = folio.totalPayments || 0;
-      const newFolioBalance = Math.max(0, totalAmount - folioPayments);
+      const newFolioBalance = Math.max(0, Math.round((totalAmount - folioPayments) * 100) / 100);
       await db.folio.update({
         where: { id: folio.id },
         data: {
@@ -256,6 +257,27 @@ export async function POST(req: Request) {
           balanceAmount: newFolioBalance,
         },
       });
+
+      if (discount > 0) {
+        const hasDiscountTrx = folio.transactions?.some((t: any) => t.category === 'DISCOUNT');
+        if (!hasDiscountTrx) {
+          const trxRef = await generateReferenceNumber(propertyId, 'TRX');
+          await db.folioTransaction.create({
+            data: {
+              folioId: folio.id,
+              transactionRef: trxRef,
+              type: 'CREDIT',
+              category: 'DISCOUNT',
+              description: `Discount / Round-Off Applied`,
+              quantity: 1,
+              unitPrice: discount,
+              amount: discount,
+              status: 'POSTED',
+              postedById: session.userId,
+            },
+          });
+        }
+      }
     }
 
     await logAuditEvent({

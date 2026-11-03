@@ -105,6 +105,7 @@ export default function FrontOfficePage() {
   const [generatedInvoice, setGeneratedInvoice] = useState<any>(null);
   const [fetchingInvoice, setFetchingInvoice] = useState(false);
   const [recordPaymentWithBill, setRecordPaymentWithBill] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState('0');
 
   const [selectedRes, setSelectedRes] = useState<any>(null);
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
@@ -589,7 +590,7 @@ export default function FrontOfficePage() {
     }
   };
 
-  const handleGenerateBill = async (reservationId: string, type: 'GST' | 'NON_GST', gstin?: string, company?: string) => {
+  const handleGenerateBill = async (reservationId: string, type: 'GST' | 'NON_GST', gstin?: string, company?: string, discountVal?: number) => {
     const isAlreadyBilled = selectedRes?.isBilled || false;
     if (!isAlreadyBilled) {
       const guestName = selectedRes?.guest?.displayName || 'this guest';
@@ -602,6 +603,7 @@ export default function FrontOfficePage() {
 
     setGeneratingBill(true);
     try {
+      const effDiscount = discountVal !== undefined ? discountVal : (Number(discountAmount) || 0);
       const res = await fetch('/api/finance/invoices/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -610,6 +612,7 @@ export default function FrontOfficePage() {
           invoiceType: type,
           customerGstin: gstin ? gstin.trim().toUpperCase() : undefined,
           companyName: company ? company.trim() : undefined,
+          discount: effDiscount,
         }),
       });
 
@@ -890,7 +893,7 @@ export default function FrontOfficePage() {
     }
   };
 
-  const calculateResBalanceForBillType = (resItem: any, type: 'GST' | 'NON_GST') => {
+  const calculateResBalanceForBillType = (resItem: any, type: 'GST' | 'NON_GST', customDiscount?: number) => {
     if (!resItem) return 0;
     if (resItem.isBilled) {
       const folio = resItem.folios?.[0];
@@ -907,16 +910,20 @@ export default function FrontOfficePage() {
     const extraCharges = txExtra > 0 ? txExtra : fallbackExtra;
 
     const paid = Number(resItem.paidAmount || folio?.totalPayments || 0);
+    const disc = customDiscount !== undefined ? customDiscount : (Number(discountAmount) || Number(resItem.discountAmount) || 0);
     const gst = type === 'GST' ? Math.round(baseTariff * 0.05 * 100) / 100 : 0;
-    const total = baseTariff + gst + extraCharges;
-    return Math.max(0, total - paid);
+    const gross = baseTariff + gst + extraCharges;
+    const total = Math.max(0, gross - disc);
+    return Math.max(0, Math.round((total - paid) * 100) / 100);
   };
 
   const openPaymentModal = async (resItem: any) => {
     setSelectedRes(resItem);
     const initialType = resItem.billType === 'NON_GST' ? 'NON_GST' : 'GST';
     setBillType(initialType);
-    const bal = calculateResBalanceForBillType(resItem, initialType);
+    const initDisc = Number(resItem.discountAmount || 0);
+    setDiscountAmount(initDisc > 0 ? String(initDisc) : '0');
+    const bal = calculateResBalanceForBillType(resItem, initialType, initDisc);
     setPayAmount(bal > 0 ? String(bal) : '0');
     setPayMethod('CASH');
     setCompanyName(resItem.guest?.company || '');
@@ -930,7 +937,9 @@ export default function FrontOfficePage() {
         const data = await res.json();
         if (data.reservation) {
           setSelectedRes(data.reservation);
-          const freshBal = calculateResBalanceForBillType(data.reservation, initialType);
+          const freshDisc = Number(data.reservation.discountAmount || 0);
+          setDiscountAmount(freshDisc > 0 ? String(freshDisc) : '0');
+          const freshBal = calculateResBalanceForBillType(data.reservation, initialType, freshDisc);
           setPayAmount(freshBal > 0 ? String(freshBal) : '0');
         }
       }
@@ -940,7 +949,7 @@ export default function FrontOfficePage() {
   const handleSelectPaymentBillType = (type: 'GST' | 'NON_GST') => {
     setBillType(type);
     if (!selectedRes) return;
-    const bal = calculateResBalanceForBillType(selectedRes, type);
+    const bal = calculateResBalanceForBillType(selectedRes, type, Number(discountAmount) || 0);
     setPayAmount(bal > 0 ? String(bal) : '0');
   };
 
@@ -950,8 +959,9 @@ export default function FrontOfficePage() {
     setSubmitting(true);
 
     try {
+      const discNum = Math.max(0, Number(discountAmount) || 0);
       if (recordPaymentWithBill && !selectedRes.isBilled) {
-        await handleGenerateBill(selectedRes.id, billType, customerGstin, companyName);
+        await handleGenerateBill(selectedRes.id, billType, customerGstin, companyName, discNum);
       }
 
       const res = await fetch('/api/payments', {
@@ -962,6 +972,8 @@ export default function FrontOfficePage() {
           amount: payAmount,
           method: payMethod,
           billType,
+          discount: discNum,
+          discountReason: discNum > 0 ? 'Discount / Round-off' : undefined,
         }),
       });
 
@@ -1908,7 +1920,7 @@ export default function FrontOfficePage() {
 
                     <button
                       type="button"
-                      onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin, companyName)}
+                      onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin, companyName, Number(selectedRes.discountAmount) || 0)}
                       disabled={generatingBill}
                       className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-50"
                     >
@@ -2753,8 +2765,10 @@ export default function FrontOfficePage() {
                 const paid = Number(selectedRes?.paidAmount || folio?.totalPayments || 0);
                 const isGst = billType === 'GST';
                 const gstVal = isGst ? Math.round(baseTariff * 0.05 * 100) / 100 : 0;
-                const totalBill = baseTariff + gstVal + extraCharges;
-                const netBal = Math.max(0, totalBill - paid);
+                const grossTotal = baseTariff + gstVal + extraCharges;
+                const disc = Math.max(0, Number(discountAmount) || 0);
+                const totalBill = Math.max(0, Math.round((grossTotal - disc) * 100) / 100);
+                const netBal = Math.max(0, Math.round((totalBill - paid) * 100) / 100);
 
                 return (
                   <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs space-y-1">
@@ -2779,7 +2793,17 @@ export default function FrontOfficePage() {
                         <span className="font-mono">+₹{extraCharges.toFixed(2)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between border-t border-slate-100 pt-1 font-bold text-slate-900">
+                    <div className="flex justify-between border-t border-slate-100 pt-1 font-medium text-slate-700">
+                      <span>Gross Bill Amount:</span>
+                      <span>₹{grossTotal.toFixed(2)}</span>
+                    </div>
+                    {disc > 0 && (
+                      <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        <span>Discount / Round-Off:</span>
+                        <span className="font-mono">-₹{disc.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-slate-900">
                       <span>Total Bill Amount:</span>
                       <span>₹{totalBill.toFixed(2)}</span>
                     </div>
@@ -2796,6 +2820,90 @@ export default function FrontOfficePage() {
                   </div>
                 );
               })()}
+
+              {/* DISCOUNT / ROUND-OFF CONTROLS */}
+              <div className="p-2.5 bg-amber-50/60 rounded-lg border border-amber-200 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+                    Discount / Round-Off (₹)
+                  </label>
+                  {Number(discountAmount) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDiscountAmount('0');
+                        const bal = calculateResBalanceForBillType(selectedRes, billType, 0);
+                        setPayAmount(bal > 0 ? String(bal) : '0');
+                      }}
+                      className="text-[10px] text-rose-600 hover:underline font-bold"
+                    >
+                      Clear (₹0)
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={discountAmount}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDiscountAmount(val);
+                        const dNum = Math.max(0, Number(val) || 0);
+                        const bal = calculateResBalanceForBillType(selectedRes, billType, dNum);
+                        setPayAmount(bal > 0 ? String(bal) : '0');
+                      }}
+                      placeholder="0.00"
+                      className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  {/* Quick Round-Off Presets */}
+                  {(() => {
+                    const grossBal = calculateResBalanceForBillType(selectedRes, billType, 0);
+                    const rem10 = Math.round((grossBal % 10) * 100) / 100;
+                    const rem50 = Math.round((grossBal % 50) * 100) / 100;
+
+                    return (
+                      <div className="flex items-center gap-1">
+                        {rem10 > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDiscountAmount(String(rem10));
+                              const bal = calculateResBalanceForBillType(selectedRes, billType, rem10);
+                              setPayAmount(bal > 0 ? String(bal) : '0');
+                            }}
+                            className="px-2 py-1 bg-white hover:bg-amber-100 text-amber-900 rounded-md text-[10px] font-bold border border-amber-300 shadow-2xs"
+                            title={`Round down to ₹${grossBal - rem10}`}
+                          >
+                            -₹{rem10} (₹{grossBal - rem10})
+                          </button>
+                        )}
+                        {rem50 > 0 && rem50 !== rem10 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDiscountAmount(String(rem50));
+                              const bal = calculateResBalanceForBillType(selectedRes, billType, rem50);
+                              setPayAmount(bal > 0 ? String(bal) : '0');
+                            }}
+                            className="px-2 py-1 bg-white hover:bg-amber-100 text-amber-900 rounded-md text-[10px] font-bold border border-amber-300 shadow-2xs"
+                            title={`Round down to ₹${grossBal - rem50}`}
+                          >
+                            -₹{rem50} (₹{grossBal - rem50})
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
 
               {billType === 'GST' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -2839,7 +2947,7 @@ export default function FrontOfficePage() {
 
                 <button
                   type="button"
-                  onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin, companyName)}
+                  onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin, companyName, Number(discountAmount) || 0)}
                   disabled={generatingBill}
                   className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50"
                 >
@@ -2852,9 +2960,31 @@ export default function FrontOfficePage() {
 
           {/* STEP 2: Payment Amount & Method */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              2. Payment Amount (₹) *
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                2. Payment Amount (₹) *
+              </label>
+              {(() => {
+                const grossBal = calculateResBalanceForBillType(selectedRes, billType, 0);
+                const currPay = Number(payAmount) || 0;
+                const currDisc = Number(discountAmount) || 0;
+                const diff = Math.round((grossBal - currPay) * 100) / 100;
+                if (diff > 0 && diff !== currDisc) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDiscountAmount(String(diff));
+                      }}
+                      className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold hover:underline"
+                    >
+                      Apply remaining ₹{diff.toFixed(2)} as discount / round-off
+                    </button>
+                  );
+                }
+                return null;
+              })()}
+            </div>
             <input
               type="number"
               step="0.01"

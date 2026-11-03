@@ -428,7 +428,8 @@ export default function TaxInvoicesPage() {
               const sgst = isGst ? (Number(selectedInvoice?.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomTariffTotal * 0.025) * 100) / 100) : 0;
               const totalGst = cgst + sgst;
               const roomSub = isGst ? roomBaseSub : roomTariffTotal;
-              const grandTotal = Number(selectedInvoice?.totalAmount || (roomTariffTotal + extraSub));
+              const discount = Number(selectedInvoice?.discount || 0);
+              const grandTotal = Number(selectedInvoice?.totalAmount || Math.max(0, (roomSub + (isGst ? totalGst : 0) + extraSub - discount)));
 
               return (
                 <div className="space-y-4">
@@ -597,6 +598,12 @@ export default function TaxInvoicesPage() {
                         <div className="flex justify-between text-slate-500 text-[11px]">
                           <span>GST Tax:</span>
                           <span className="font-mono text-slate-400">₹0.00 (Non-GST Bill)</span>
+                        </div>
+                      )}
+                      {discount > 0 && (
+                        <div className="flex justify-between text-emerald-700 font-semibold text-xs border-t pt-1">
+                          <span>Discount / Round-Off:</span>
+                          <span className="font-mono font-bold">-₹{discount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t-2 border-slate-300">

@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { reservationId, folioId, amount, method, notes, transactionRef, billType } = body;
+    const { reservationId, folioId, amount, method, notes, transactionRef, billType, discount: reqDiscount, discountReason } = body;
 
     if (!reservationId || !amount) {
       return NextResponse.json({ error: 'Reservation ID and payment amount are required.' }, { status: 400 });
@@ -40,6 +40,8 @@ export async function POST(req: Request) {
       ? await db.folio.findUnique({ where: { id: folioId }, include: { transactions: true } })
       : reservation.folios[0];
 
+    const discount = reqDiscount !== undefined ? Math.max(0, parseFloat(reqDiscount) || 0) : Number(reservation.discountAmount || 0);
+
     // If billType was chosen and reservation is not yet billed, update totals according to billType:
     // GST: Base Tariff + 5% GST (e.g. 1000 + 50 = 1050)
     // Non-GST: Base Tariff only (e.g. 1000)
@@ -52,13 +54,16 @@ export async function POST(req: Request) {
       const isGst = billType === 'GST';
       const totalTax = isGst ? Math.round(baseRoomTariff * 0.05 * 100) / 100 : 0;
       const finalRoomTariff = isGst ? Math.round((baseRoomTariff + totalTax) * 100) / 100 : baseRoomTariff;
-      currentTotal = Math.round((finalRoomTariff + extraCharges) * 100) / 100;
+      const grossTotal = Math.round((finalRoomTariff + extraCharges) * 100) / 100;
+      currentTotal = Math.max(0, Math.round((grossTotal - discount) * 100) / 100);
 
       await db.reservation.update({
         where: { id: reservationId },
         data: {
           billType,
           taxAmount: totalTax,
+          discountAmount: discount,
+          discountReason: discount > 0 ? (discountReason || 'Discount / Round-off') : reservation.discountReason,
           totalAmount: currentTotal,
         },
       });
@@ -70,6 +75,27 @@ export async function POST(req: Request) {
             totalCharges: currentTotal,
           },
         });
+
+        if (discount > 0) {
+          const hasDiscountTrx = targetFolio.transactions?.some((t: any) => t.category === 'DISCOUNT');
+          if (!hasDiscountTrx) {
+            const discTrxRef = await generateReferenceNumber(reservation.propertyId, 'TRX');
+            await db.folioTransaction.create({
+              data: {
+                folioId: targetFolio.id,
+                transactionRef: discTrxRef,
+                type: 'CREDIT',
+                category: 'DISCOUNT',
+                description: `Discount / Round-Off Applied`,
+                quantity: 1,
+                unitPrice: discount,
+                amount: discount,
+                status: 'POSTED',
+                postedById: session.userId,
+              },
+            });
+          }
+        }
       }
     }
 

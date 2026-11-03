@@ -1874,13 +1874,6 @@ export default function ReservationDetailPage() {
                           <span className="font-mono">₹{(roomSub + extraSub).toFixed(2)}</span>
                         </div>
 
-                        {discount > 0 && (
-                          <div className="flex justify-between text-rose-600">
-                            <span>Discount:</span>
-                            <span className="font-mono font-semibold">-₹{discount.toFixed(2)}</span>
-                          </div>
-                        )}
-
                         {isGst && (
                           <>
                             <div className="flex justify-between text-slate-600 text-[11px]">
@@ -1896,6 +1889,13 @@ export default function ReservationDetailPage() {
                               <span className="font-mono">₹{totalGst.toFixed(2)}</span>
                             </div>
                           </>
+                        )}
+
+                        {discount > 0 && (
+                          <div className="flex justify-between text-emerald-700 font-bold text-xs border-t border-slate-200 pt-1">
+                            <span>Discount / Round-Off:</span>
+                            <span className="font-mono font-semibold">-₹{discount.toFixed(2)}</span>
+                          </div>
                         )}
 
                         <div className="flex justify-between border-t-2 border-slate-300 pt-2 font-black text-sm text-slate-900">

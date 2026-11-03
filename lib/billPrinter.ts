@@ -328,7 +328,8 @@ export function buildTemporaryInvoice(
   reservation: any,
   invoiceType: 'GST' | 'NON_GST' = 'GST',
   customerGstin?: string,
-  companyName?: string
+  companyName?: string,
+  customDiscount?: number
 ) {
   const isGst = invoiceType === 'GST';
   const folio = reservation?.folios?.[0] || null;
@@ -400,7 +401,8 @@ export function buildTemporaryInvoice(
     });
   }
 
-  const grandTotal = finalAccommodationTotal + extraChargesTotal;
+  const discount = customDiscount !== undefined ? customDiscount : Number(reservation?.discountAmount || 0);
+  const grandTotal = Math.max(0, Math.round((finalAccommodationTotal + extraChargesTotal - discount) * 100) / 100);
 
   return {
     id: 'draft-temp-invoice',
@@ -416,7 +418,7 @@ export function buildTemporaryInvoice(
     sgstAmount: roomSgst,
     totalTax: totalGst,
     totalAmount: grandTotal,
-    discount: 0,
+    discount,
     lines,
     guest: {
       ...(reservation?.guest || {}),
@@ -983,15 +985,9 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
           <td style="width: 50%;">
             <table class="totals-table">
               <tr>
-                <td class="text-left">Gross Subtotal:</td>
+                <td class="text-left">${isGst ? 'Gross Subtotal:' : 'Total Room Charges:'}</td>
                 <td class="text-right font-mono font-bold">₹${roomSubtotal.toFixed(2)}</td>
               </tr>
-              ${discount > 0 ? `
-                <tr>
-                  <td class="text-left" style="color: #059669;">Discount:</td>
-                  <td class="text-right font-mono font-bold" style="color: #059669;">-₹${discount.toFixed(2)}</td>
-                </tr>
-              ` : ''}
               ${isGst ? `
                 <tr>
                   <td class="text-left" style="color: #475569;">CGST (2.5%):</td>
@@ -1004,6 +1000,12 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
                 <tr style="border-top: 1px solid #cbd5e1;">
                   <td class="text-left font-bold" style="color: #334155;">Total GST (5%):</td>
                   <td class="text-right font-mono font-bold">₹${totalGst.toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              ${discount > 0 ? `
+                <tr style="border-top: 1px solid #e2e8f0;">
+                  <td class="text-left" style="color: #059669; font-weight: 700;">Discount / Round-Off:</td>
+                  <td class="text-right font-mono font-bold" style="color: #059669;">-₹${discount.toFixed(2)}</td>
                 </tr>
               ` : ''}
               <tr class="grand-row">
@@ -1155,12 +1157,6 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
                 <td class="text-left text-slate-500">Gross Total (Before Taxes):</td>
                 <td class="text-right font-mono">₹${grossSubtotal.toFixed(2)}</td>
               </tr>
-              ${discount > 0 ? `
-                <tr>
-                  <td class="text-left" style="color: #059669;">Discount:</td>
-                  <td class="text-right font-mono font-bold" style="color: #059669;">-₹${discount.toFixed(2)}</td>
-                </tr>
-              ` : ''}
               ${isGst ? `
                 <tr>
                   <td class="text-left" style="color: #475569;">CGST (2.5% on Room Tariff only):</td>
@@ -1173,6 +1169,12 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
                 <tr style="border-top: 1px solid #cbd5e1;">
                   <td class="text-left font-bold" style="color: #334155;">Total GST (5%):</td>
                   <td class="text-right font-mono font-bold">₹${totalGst.toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              ${discount > 0 ? `
+                <tr style="border-top: 1px solid #e2e8f0;">
+                  <td class="text-left" style="color: #059669; font-weight: 700;">Discount / Round-Off:</td>
+                  <td class="text-right font-mono font-bold" style="color: #059669;">-₹${discount.toFixed(2)}</td>
                 </tr>
               ` : ''}
               <tr class="grand-row">
