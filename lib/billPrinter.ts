@@ -434,7 +434,21 @@ export interface PrintableBillProps {
 }
 
 export function generateBillHtml({ invoice, reservation, guest }: PrintableBillProps): string {
-  const isGst = invoice?.isGstBill || invoice?.invoiceType === 'GST';
+  const isNonGst =
+    invoice?.invoiceType === 'NON_GST' ||
+    invoice?.isGstBill === false ||
+    (typeof invoice?.invoiceRef === 'string' && invoice.invoiceRef.startsWith('BIL-')) ||
+    reservation?.billType === 'NON_GST' ||
+    invoice?.reservation?.billType === 'NON_GST';
+
+  const isGst = !isNonGst && Boolean(
+    invoice?.invoiceType === 'GST' ||
+    invoice?.isGstBill === true ||
+    (typeof invoice?.invoiceRef === 'string' && invoice.invoiceRef.startsWith('INV-')) ||
+    reservation?.billType === 'GST' ||
+    invoice?.reservation?.billType === 'GST' ||
+    (Number(invoice?.cgstAmount || 0) > 0 || Number(invoice?.sgstAmount || 0) > 0)
+  );
   const res = invoice?.reservation || reservation || {};
   const gstGuest = invoice?.guest || guest || res?.guest || {};
 
@@ -477,9 +491,9 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
     ? (Number(invoice?.sgstAmount) || roomLines.reduce((s, l) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomBaseSubtotal * 0.025) * 100) / 100)
     : 0;
   const totalGst = cgstAmount + sgstAmount;
-  const roomSubtotal = roomBaseSubtotal;
-  const finalRoomTotal = isGst ? (roomBaseSubtotal + totalGst) : roomBaseSubtotal;
-  const grossSubtotal = roomBaseSubtotal + extraOrdersSubtotal;
+  const roomSubtotal = isGst ? roomBaseSubtotal : roomTariffTotal;
+  const finalRoomTotal = isGst ? (roomBaseSubtotal + totalGst) : roomTariffTotal;
+  const grossSubtotal = roomSubtotal + extraOrdersSubtotal;
   const grandTotal = Number(invoice?.totalAmount || (finalRoomTotal + extraOrdersSubtotal - discount));
 
   const hasExtraOrders = extraOrderLines.length > 0;
@@ -515,7 +529,7 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
           <td class="font-bold">${line.description || 'Accommodation Tariff'}</td>
           <td class="text-center font-mono">${line.quantity || 1}</td>
           <td class="text-right font-mono">₹${unitPrice}</td>
-          <td class="text-right font-mono font-bold">₹${unitPrice}</td>
+          <td class="text-right font-mono font-bold">₹${lineTotal}</td>
         </tr>
       `;
     })
@@ -583,6 +597,7 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
             </tr>
           </table>
         </td>
+        <td style="width: 38%; text-align: right;">
           <div class="doc-badge ${isGst ? 'gst' : ''}">
             ${invoice?.isDraft ? (isGst ? 'PROFORMA TAX INVOICE (DRAFT)' : 'ESTIMATED BILL (DRAFT)') : (isGst ? 'TAX INVOICE' : 'HOTEL BILL & RECEIPT')}
           </div>
@@ -897,8 +912,8 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
           </td>
           <td>
             <span class="meta-label">Customer GSTIN</span>
-            <span class="meta-val font-mono">${invoice?.customerGstin || gstGuest.gstin || (isGst ? 'Unregistered / B2C' : 'N/A')}</span>
-            <span class="meta-sub">Place of Supply: Assam (18)</span>
+            <span class="meta-val font-mono">${invoice?.customerGstin || gstGuest.gstin || (isGst ? 'Unregistered / B2C' : 'N/A (Non-GST Bill)')}</span>
+            <span class="meta-sub">${isGst ? 'Place of Supply: Assam (18)' : 'Non-GST Hotel Receipt'}</span>
           </td>
           <td>
             <span class="meta-label">Room & Category</span>
@@ -1111,7 +1126,7 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
       </table>
 
       <div style="font-size: 9.5px; color: #64748b; font-style: italic; margin-top: -6px; margin-bottom: 12px;">
-        * Note: GST is applicable on room accommodation tariff only. Room orders are non-taxable under hotel policy.
+        * Note: ${isGst ? 'GST is applicable on room accommodation tariff only. Room orders are non-taxable under hotel policy.' : 'Non-GST hotel bill. No taxes collected on room orders.'}
       </div>
 
       <!-- Final Combined Summary -->
@@ -1121,7 +1136,7 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
             <div class="terms-box">
               <strong style="color: #334155;">Terms & Conditions:</strong><br />
               1. Check-out time is 11:00 AM.<br />
-              2. Room orders are non-taxable as per hotel policy.<br />
+              2. ${isGst ? 'Room orders are non-taxable as per hotel policy.' : 'Non-GST bill issued. No taxes collected.'}<br />
               3. This computer generated bill is final and acknowledged.<br />
               4. Subject to Jorhat Jurisdiction.
             </div>

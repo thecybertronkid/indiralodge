@@ -1603,23 +1603,40 @@ export default function ReservationDetailPage() {
                   </div>
                 </div>
                 <div className="text-right space-y-1">
-                  <div
-                    className={`inline-block px-3 py-1 rounded text-xs font-extrabold uppercase tracking-wider ${
-                      activeInvoice.isDraft
-                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                        : activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST'
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                        : 'bg-slate-900 text-white'
-                    }`}
-                  >
-                    {activeInvoice.isDraft
-                      ? activeInvoice.invoiceType === 'GST'
-                        ? 'PROFORMA TAX INVOICE (DRAFT)'
-                        : 'HOTEL ESTIMATE (DRAFT)'
-                      : activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST'
-                      ? 'TAX INVOICE (GST)'
-                      : 'HOTEL RECEIPT (NON-GST)'}
-                  </div>
+                  {(() => {
+                    const isNonGstInvoice =
+                      activeInvoice.invoiceType === 'NON_GST' ||
+                      activeInvoice.isGstBill === false ||
+                      (typeof activeInvoice.invoiceRef === 'string' && activeInvoice.invoiceRef.startsWith('BIL-')) ||
+                      res.billType === 'NON_GST';
+                    const isGstInvoice = !isNonGstInvoice && Boolean(
+                      activeInvoice.invoiceType === 'GST' ||
+                      activeInvoice.isGstBill === true ||
+                      (typeof activeInvoice.invoiceRef === 'string' && activeInvoice.invoiceRef.startsWith('INV-')) ||
+                      res.billType === 'GST' ||
+                      (Number(activeInvoice.cgstAmount || 0) > 0 || Number(activeInvoice.sgstAmount || 0) > 0)
+                    );
+
+                    return (
+                      <div
+                        className={`inline-block px-3 py-1 rounded text-xs font-extrabold uppercase tracking-wider ${
+                          activeInvoice.isDraft
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : isGstInvoice
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : 'bg-slate-900 text-white'
+                        }`}
+                      >
+                        {activeInvoice.isDraft
+                          ? isGstInvoice
+                            ? 'PROFORMA TAX INVOICE (DRAFT)'
+                            : 'HOTEL ESTIMATE (DRAFT)'
+                          : isGstInvoice
+                          ? 'TAX INVOICE (GST)'
+                          : 'HOTEL RECEIPT (NON-GST)'}
+                      </div>
+                    );
+                  })()}
                   <div className="font-mono font-bold text-sm text-slate-900 mt-1">{activeInvoice.invoiceRef}</div>
                   <div className="text-[11px] text-slate-500">
                     Date: {new Date(activeInvoice.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -1641,7 +1658,7 @@ export default function ReservationDetailPage() {
                 <div>
                   <h4 className="font-bold text-slate-500 uppercase text-[10px]">Customer GSTIN</h4>
                   <div className="font-mono font-bold text-slate-800 mt-0.5">
-                    {activeInvoice.customerGstin || (activeInvoice.isGstBill ? 'Unregistered / B2C' : 'N/A')}
+                    {activeInvoice.customerGstin || (activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST' ? 'Unregistered / B2C' : 'N/A (Non-GST Bill)')}
                   </div>
                   <div className="text-slate-400 text-[10px]">Place of Supply: Assam (18)</div>
                 </div>
@@ -1679,13 +1696,24 @@ export default function ReservationDetailPage() {
                 const roomBaseSub = roomLines.reduce((s: number, l: any) => s + (Number(l.taxableAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const roomTariffTotal = roomLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
                 const extraSub = extraOrderLines.reduce((s: number, l: any) => s + (Number(l.totalAmount || (l.unitPrice * l.quantity)) || 0), 0);
-                const isGst = activeInvoice.isGstBill || activeInvoice.invoiceType === 'GST';
+                const isNonGst =
+                  activeInvoice.invoiceType === 'NON_GST' ||
+                  activeInvoice.isGstBill === false ||
+                  (typeof activeInvoice.invoiceRef === 'string' && activeInvoice.invoiceRef.startsWith('BIL-')) ||
+                  res.billType === 'NON_GST';
+                const isGst = !isNonGst && Boolean(
+                  activeInvoice.invoiceType === 'GST' ||
+                  activeInvoice.isGstBill === true ||
+                  (typeof activeInvoice.invoiceRef === 'string' && activeInvoice.invoiceRef.startsWith('INV-')) ||
+                  res.billType === 'GST' ||
+                  (Number(activeInvoice.cgstAmount || 0) > 0 || Number(activeInvoice.sgstAmount || 0) > 0)
+                );
                 const cgst = isGst ? (Number(activeInvoice.cgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.cgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
                 const sgst = isGst ? (Number(activeInvoice.sgstAmount) || roomLines.reduce((s: number, l: any) => s + (Number(l.sgstAmount) || 0), 0) || Math.round((roomBaseSub * 0.025) * 100) / 100) : 0;
                 const totalGst = cgst + sgst;
                 const discount = Number(activeInvoice.discount || 0);
-                const roomSub = roomBaseSub;
-                const finalRoomSub = isGst ? (roomBaseSub + totalGst) : roomBaseSub;
+                const roomSub = isGst ? roomBaseSub : roomTariffTotal;
+                const finalRoomSub = isGst ? (roomBaseSub + totalGst) : roomTariffTotal;
                 const grossSub = roomBaseSub + extraSub;
                 const grandTotal = Number(activeInvoice.totalAmount || (finalRoomSub + extraSub - discount));
 
