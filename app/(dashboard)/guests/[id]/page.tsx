@@ -530,28 +530,70 @@ export default function GuestProfilePage() {
                   <th className="pmfs-table-th">Room Type</th>
                   <th className="pmfs-table-th">Room</th>
                   <th className="pmfs-table-th">Arrival → Departure</th>
-                  <th className="pmfs-table-th">Total Amount</th>
-                  <th className="pmfs-table-th">Status</th>
+                  <th className="pmfs-table-th text-right">Room Tariff</th>
+                  <th className="pmfs-table-th text-right">Room Orders</th>
+                  <th className="pmfs-table-th text-right">Total Amount</th>
+                  <th className="pmfs-table-th text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {reservations.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-xs text-slate-500">No reservations recorded for this guest.</td></tr>
+                  <tr><td colSpan={8} className="text-center py-8 text-xs text-slate-500">No reservations recorded for this guest.</td></tr>
                 ) : (
-                  reservations.map((r: any) => (
-                    <tr key={r.id} className="hover:bg-slate-50">
-                      <td className="pmfs-table-td font-mono font-bold text-brand-700">
-                        <Link href={`/reservations/${r.id}`} className="hover:underline">{r.reservationRef}</Link>
-                      </td>
-                      <td className="pmfs-table-td">{r.roomType?.name}</td>
-                      <td className="pmfs-table-td">Room {r.assignedRoom?.roomNumber || 'Unassigned'}</td>
-                      <td className="pmfs-table-td text-xs text-slate-600">
-                        {new Date(r.arrivalDate).toLocaleDateString()} → {new Date(r.departureDate).toLocaleDateString()}
-                      </td>
-                      <td className="pmfs-table-td font-semibold text-slate-900">₹{Number(r.totalAmount || 0).toLocaleString('en-IN')}</td>
-                      <td className="pmfs-table-td"><Badge variant={r.status === 'CHECKED_IN' ? 'success' : 'info'}>{r.status}</Badge></td>
-                    </tr>
-                  ))
+                  reservations.map((r: any) => {
+                    let calculatedOrders = r.roomOrders;
+                    let calculatedTariff = r.roomTariff;
+                    if (calculatedTariff === undefined || calculatedOrders === undefined) {
+                      let orderCharges = 0;
+                      if (r.taxInvoices?.[0]?.lines?.length > 0) {
+                        for (const line of r.taxInvoices[0].lines) {
+                          const isRoom = line.description?.toLowerCase().includes('accommodation') || line.description?.toLowerCase().includes('room charge');
+                          if (!isRoom) orderCharges += (line.totalAmount || 0);
+                        }
+                      } else if (r.folios?.[0]?.transactions?.length > 0) {
+                        for (const t of r.folios[0].transactions) {
+                          if (t.type === 'DEBIT') {
+                            const isRoom = t.category === 'ROOM_CHARGE' || t.description?.toLowerCase().includes('room charge');
+                            if (!isRoom && t.category !== 'PAYMENT' && t.category !== 'DISCOUNT') {
+                              orderCharges += (t.amount || 0);
+                            }
+                          }
+                        }
+                      }
+                      const total = Number(r.totalAmount || 0);
+                      calculatedOrders = Math.min(orderCharges, total);
+                      calculatedTariff = Math.max(0, total - calculatedOrders);
+                    }
+
+                    return (
+                      <tr key={r.id} className="hover:bg-slate-50">
+                        <td className="pmfs-table-td font-mono font-bold text-brand-700">
+                          <Link href={`/reservations/${r.id}`} className="hover:underline">{r.reservationRef}</Link>
+                        </td>
+                        <td className="pmfs-table-td">{r.roomType?.name}</td>
+                        <td className="pmfs-table-td">Room {r.assignedRoom?.roomNumber || 'Unassigned'}</td>
+                        <td className="pmfs-table-td text-xs text-slate-600">
+                          {new Date(r.arrivalDate).toLocaleDateString()} → {new Date(r.departureDate).toLocaleDateString()}
+                        </td>
+                        <td className="pmfs-table-td text-right font-semibold text-slate-800">
+                          ₹{Number(calculatedTariff || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="pmfs-table-td text-right font-semibold">
+                          {calculatedOrders > 0 ? (
+                            <span className="text-amber-600">
+                              +₹{Number(calculatedOrders).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">₹0.00</span>
+                          )}
+                        </td>
+                        <td className="pmfs-table-td text-right font-bold text-slate-900">
+                          ₹{Number(r.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="pmfs-table-td text-center"><Badge variant={r.status === 'CHECKED_IN' ? 'success' : 'info'}>{r.status}</Badge></td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

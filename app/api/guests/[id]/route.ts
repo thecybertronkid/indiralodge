@@ -23,6 +23,16 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
             roomType: { select: { name: true, code: true } },
             assignedRoom: { select: { roomNumber: true } },
             bookingSource: { select: { name: true } },
+            folios: {
+              include: {
+                transactions: true,
+              },
+            },
+            taxInvoices: {
+              include: {
+                lines: true,
+              },
+            },
           },
           orderBy: { createdAt: 'desc' },
         },
@@ -70,7 +80,48 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       noShowCount,
     };
 
-    return NextResponse.json({ guest, stats });
+    const mappedReservations = guest.reservations.map((r: any) => {
+      let orderCharges = 0;
+      const inv = r.taxInvoices?.[0];
+      if (inv && inv.lines && inv.lines.length > 0) {
+        for (const line of inv.lines) {
+          const isRoom = line.description?.toLowerCase().includes('accommodation') || line.description?.toLowerCase().includes('room charge');
+          if (!isRoom) {
+            orderCharges += (line.totalAmount || 0);
+          }
+        }
+      } else {
+        const folio = r.folios?.[0];
+        if (folio && folio.transactions && folio.transactions.length > 0) {
+          for (const t of folio.transactions) {
+            if (t.type === 'DEBIT') {
+              const isRoom = t.category === 'ROOM_CHARGE' || t.description?.toLowerCase().includes('room charge');
+              if (!isRoom && t.category !== 'PAYMENT' && t.category !== 'DISCOUNT') {
+                orderCharges += (t.amount || 0);
+              }
+            }
+          }
+        }
+      }
+
+      const total = Number(r.totalAmount || 0);
+      const roomOrders = Math.min(orderCharges, total);
+      const roomTariff = Math.max(0, total - roomOrders);
+
+      return {
+        ...r,
+        roomTariff,
+        roomOrders,
+      };
+    });
+
+    return NextResponse.json({
+      guest: {
+        ...guest,
+        reservations: mappedReservations,
+      },
+      stats,
+    });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch guest details' }, { status: 500 });
   }
