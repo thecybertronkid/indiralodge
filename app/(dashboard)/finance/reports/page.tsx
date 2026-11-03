@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   FileSpreadsheet,
   RefreshCw,
@@ -282,7 +283,11 @@ export default function FinancialReportsPage() {
                   ) : (
                     gstData?.invoices?.map((inv: any) => (
                       <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="pmfs-table-td font-mono font-bold text-brand-700">{inv.invoiceRef}</td>
+                        <td className="pmfs-table-td font-mono font-bold text-brand-700">
+                          <Link href={`/finance/invoices/${inv.id}`} className="hover:underline" title="View Full Bill">
+                            {inv.invoiceRef}
+                          </Link>
+                        </td>
                         <td className="pmfs-table-td text-slate-500">{new Date(inv.invoiceDate).toLocaleDateString()}</td>
                         <td className="pmfs-table-td font-bold text-slate-900">{inv.guest?.displayName}</td>
                         <td className="pmfs-table-td font-mono">{inv.customerGstin || 'Unregistered'}</td>
@@ -354,7 +359,11 @@ export default function FinancialReportsPage() {
                   ) : (
                     nonGstData?.bills?.map((b: any) => (
                       <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="pmfs-table-td font-mono font-bold text-indigo-700">{b.invoiceRef}</td>
+                        <td className="pmfs-table-td font-mono font-bold text-indigo-700">
+                          <Link href={`/finance/invoices/${b.id}`} className="hover:underline" title="View Full Bill">
+                            {b.invoiceRef}
+                          </Link>
+                        </td>
                         <td className="pmfs-table-td text-slate-500">{new Date(b.invoiceDate).toLocaleDateString()}</td>
                         <td className="pmfs-table-td font-bold text-slate-900">{b.guest?.displayName}</td>
                         <td className="pmfs-table-td font-semibold text-slate-900">₹{b.subtotal.toFixed(2)}</td>

@@ -158,7 +158,7 @@ export async function GET(req: Request) {
         title: `${inv.invoiceRef} (₹${inv.totalAmount.toFixed(2)})`,
         subtitle: `${inv.invoiceType} Bill • ${inv.guest?.displayName || 'Guest'}`,
         category: 'Invoices',
-        url: `/finance/invoices`,
+        url: `/finance/invoices/${inv.id}`,
       })),
       ...users.map((u) => ({
         id: u.id,

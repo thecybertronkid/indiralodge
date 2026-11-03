@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Receipt,
   Plus,
@@ -16,6 +18,7 @@ import { useToast } from '@/components/ui/Toast';
 import { formatStayDateTime, openPrintBillWindow, segregateBillLines } from '@/lib/billPrinter';
 
 export default function TaxInvoicesPage() {
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -54,7 +57,19 @@ export default function TaxInvoicesPage() {
         fetch('/api/guests'),
       ]);
 
-      if (iRes.ok) setInvoices((await iRes.json()).invoices || []);
+      if (iRes.ok) {
+        const invList = (await iRes.json()).invoices || [];
+        setInvoices(invList);
+        const targetId = searchParams.get('id');
+        const targetRef = searchParams.get('ref');
+        if (targetId || targetRef) {
+          const match = invList.find((x: any) => x.id === targetId || x.invoiceRef === targetRef || x.invoiceRef === targetId);
+          if (match) {
+            setSelectedInvoice(match);
+            setIsPrintOpen(true);
+          }
+        }
+      }
       if (gRes.ok) {
         const d = await gRes.json();
         setGuests(d.guests || []);
@@ -171,7 +186,13 @@ export default function TaxInvoicesPage() {
                 return (
                   <tr key={inv.id} className="hover:bg-slate-50">
                     <td className="pmfs-table-td font-mono font-bold text-slate-900">
-                      {inv.invoiceRef}
+                      <Link
+                        href={`/finance/invoices/${inv.id}`}
+                        className="text-brand-600 hover:text-brand-800 hover:underline"
+                        title="Click to view full bill directly"
+                      >
+                        {inv.invoiceRef}
+                      </Link>
                     </td>
                     <td className="pmfs-table-td">
                       {isNonGstRow ? (
