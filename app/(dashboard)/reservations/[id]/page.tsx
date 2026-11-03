@@ -106,6 +106,25 @@ export default function ReservationDetailPage() {
   const [companyNameInput, setCompanyNameInput] = useState('');
   const [customerGstinInput, setCustomerGstinInput] = useState('');
   const [generatingBill, setGeneratingBill] = useState(false);
+  const [customGstSuffix, setCustomGstSuffix] = useState('049');
+  const [defaultGstSuffix, setDefaultGstSuffix] = useState('049');
+  const [fyCode, setFyCode] = useState('26-27');
+
+  const fetchNextGstNumber = async () => {
+    try {
+      const res = await fetch('/api/finance/invoices/generate?nextGstNumber=true');
+      if (res.ok) {
+        const d = await res.json();
+        if (d.nextGstSuffix) {
+          setDefaultGstSuffix(d.nextGstSuffix);
+          setCustomGstSuffix(d.nextGstSuffix);
+        }
+        if (d.fyCode) {
+          setFyCode(d.fyCode);
+        }
+      }
+    } catch {}
+  };
 
   // Room Service / Extra Item Charges State
   const [isRoomServiceOpen, setIsRoomServiceOpen] = useState(false);
@@ -166,7 +185,10 @@ export default function ReservationDetailPage() {
   };
 
   useEffect(() => {
-    if (reservationId) fetchDetails();
+    if (reservationId) {
+      fetchDetails();
+      fetchNextGstNumber();
+    }
   }, [reservationId]);
 
   const handleDeleteRoomCharge = async (transactionId: string, description: string) => {
@@ -371,6 +393,7 @@ export default function ReservationDetailPage() {
           invoiceType: type,
           customerGstin: customerGstinInput,
           companyName: companyNameInput,
+          customGstSuffix: type === 'GST' ? customGstSuffix : undefined,
         }),
       });
 
@@ -1017,6 +1040,42 @@ export default function ReservationDetailPage() {
                         className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-mono focus:ring-1 focus:ring-brand-500"
                       />
                     </div>
+
+                    {/* GST Bill Serial Number with Rename/Rewrite Option */}
+                    <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-bold text-emerald-800 uppercase">
+                          GST Bill Serial Number
+                        </label>
+                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                          FY {fyCode}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="px-2 py-1 bg-white border border-emerald-300 rounded-md text-xs font-mono font-bold text-slate-800 select-none shadow-2xs">
+                          T {fyCode}-
+                        </div>
+                        <input
+                          type="text"
+                          value={customGstSuffix}
+                          onChange={(e) => setCustomGstSuffix(e.target.value.replace(/[^0-9]/g, ''))}
+                          placeholder={defaultGstSuffix}
+                          maxLength={5}
+                          className="flex-1 px-2 py-1 bg-white border border-emerald-300 rounded-md text-xs font-mono font-bold text-emerald-950 focus:ring-1 focus:ring-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setCustomGstSuffix(defaultGstSuffix)}
+                          className="px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 rounded-md"
+                          title="Reset to default sequence"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-emerald-700">
+                        Generated Bill: <strong className="font-mono text-emerald-900 font-bold">T {fyCode}-{(customGstSuffix ? customGstSuffix.padStart(3, '0') : defaultGstSuffix)}</strong>
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -1612,7 +1671,7 @@ export default function ReservationDetailPage() {
                     const isGstInvoice = !isNonGstInvoice && Boolean(
                       activeInvoice.invoiceType === 'GST' ||
                       activeInvoice.isGstBill === true ||
-                      (typeof activeInvoice.invoiceRef === 'string' && activeInvoice.invoiceRef.startsWith('INV-')) ||
+                      (typeof activeInvoice.invoiceRef === 'string' && (activeInvoice.invoiceRef.startsWith('INV-') || activeInvoice.invoiceRef.startsWith('T ') || activeInvoice.invoiceRef.startsWith('T-'))) ||
                       res.billType === 'GST' ||
                       (Number(activeInvoice.cgstAmount || 0) > 0 || Number(activeInvoice.sgstAmount || 0) > 0)
                     );
@@ -1704,7 +1763,7 @@ export default function ReservationDetailPage() {
                 const isGst = !isNonGst && Boolean(
                   activeInvoice.invoiceType === 'GST' ||
                   activeInvoice.isGstBill === true ||
-                  (typeof activeInvoice.invoiceRef === 'string' && activeInvoice.invoiceRef.startsWith('INV-')) ||
+                  (typeof activeInvoice.invoiceRef === 'string' && (activeInvoice.invoiceRef.startsWith('INV-') || activeInvoice.invoiceRef.startsWith('T ') || activeInvoice.invoiceRef.startsWith('T-'))) ||
                   res.billType === 'GST' ||
                   (Number(activeInvoice.cgstAmount || 0) > 0 || Number(activeInvoice.sgstAmount || 0) > 0)
                 );

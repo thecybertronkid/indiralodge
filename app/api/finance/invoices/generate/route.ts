@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { generateReferenceNumber } from '@/lib/refGenerator';
+import {
+  generateReferenceNumber,
+  generateGstInvoiceNumber,
+  getNextGstInvoiceSequence,
+  getCurrentFinancialYearCode,
+} from '@/lib/refGenerator';
 import { logAuditEvent } from '@/lib/audit';
 import { getStayDayInfo } from '@/lib/billPrinter';
 
@@ -13,6 +18,20 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const reservationId = searchParams.get('reservationId');
     const invoiceId = searchParams.get('invoiceId');
+    const checkNextGst = searchParams.get('nextGstNumber');
+
+    if (checkNextGst === 'true') {
+      const propertyId = session.propertyId || (await db.property.findFirst({ where: { organizationId: session.organizationId } }))?.id || '';
+      const nextSeq = await getNextGstInvoiceSequence(propertyId);
+      const nextGstSuffix = String(nextSeq).padStart(3, '0');
+      const fyCode = getCurrentFinancialYearCode();
+      const nextGstInvoiceRef = `T ${fyCode}-${nextGstSuffix}`;
+      return NextResponse.json({
+        nextGstInvoiceRef,
+        nextGstSuffix,
+        fyCode,
+      });
+    }
 
     if (!reservationId && !invoiceId) {
       return NextResponse.json({ error: 'reservationId or invoiceId is required' }, { status: 400 });
@@ -54,7 +73,15 @@ export async function POST(req: Request) {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { reservationId, invoiceType, customerGstin, companyName, discount: bodyDiscount } = body; // invoiceType: 'GST' | 'NON_GST'
+    const {
+      reservationId,
+      invoiceType,
+      customerGstin,
+      companyName,
+      discount: bodyDiscount,
+      customGstSuffix,
+      customInvoiceRef,
+    } = body; // invoiceType: 'GST' | 'NON_GST'
 
     if (!reservationId || !invoiceType) {
       return NextResponse.json({ error: 'Reservation ID and invoice type (GST or NON_GST) are required.' }, { status: 400 });
@@ -144,8 +171,23 @@ export async function POST(req: Request) {
     const totalAmount = Math.max(0, Math.round((grossTotal - discount) * 100) / 100);
     const taxableSubtotal = Math.round((baseRoomTariff + extraChargesTotal) * 100) / 100;
 
-    const refPrefix = isGst ? 'INV' : 'BIL';
-    const invoiceRef = await generateReferenceNumber(propertyId, refPrefix);
+    let invoiceRef: string;
+    if (isGst) {
+      if (customInvoiceRef && String(customInvoiceRef).trim()) {
+        invoiceRef = String(customInvoiceRef).trim();
+      } else {
+        invoiceRef = await generateGstInvoiceNumber(propertyId, customGstSuffix);
+      }
+      const existing = await db.taxInvoice.findUnique({ where: { invoiceRef } });
+      if (existing) {
+        return NextResponse.json(
+          { error: `GST Bill Number "${invoiceRef}" already exists. Please choose a different last digit or sequence.` },
+          { status: 400 }
+        );
+      }
+    } else {
+      invoiceRef = await generateReferenceNumber(propertyId, 'BIL');
+    }
 
     const folioId = folio?.id || null;
 

@@ -106,6 +106,25 @@ export default function FrontOfficePage() {
   const [fetchingInvoice, setFetchingInvoice] = useState(false);
   const [recordPaymentWithBill, setRecordPaymentWithBill] = useState(false);
   const [discountAmount, setDiscountAmount] = useState('0');
+  const [customGstSuffix, setCustomGstSuffix] = useState('049');
+  const [defaultGstSuffix, setDefaultGstSuffix] = useState('049');
+  const [fyCode, setFyCode] = useState('26-27');
+
+  const fetchNextGstNumber = async () => {
+    try {
+      const res = await fetch('/api/finance/invoices/generate?nextGstNumber=true');
+      if (res.ok) {
+        const d = await res.json();
+        if (d.nextGstSuffix) {
+          setDefaultGstSuffix(d.nextGstSuffix);
+          setCustomGstSuffix(d.nextGstSuffix);
+        }
+        if (d.fyCode) {
+          setFyCode(d.fyCode);
+        }
+      }
+    } catch {}
+  };
 
   const [selectedRes, setSelectedRes] = useState<any>(null);
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
@@ -590,7 +609,14 @@ export default function FrontOfficePage() {
     }
   };
 
-  const handleGenerateBill = async (reservationId: string, type: 'GST' | 'NON_GST', gstin?: string, company?: string, discountVal?: number) => {
+  const handleGenerateBill = async (
+    reservationId: string,
+    type: 'GST' | 'NON_GST',
+    gstin?: string,
+    company?: string,
+    discountVal?: number,
+    customSuffix?: string
+  ) => {
     const isAlreadyBilled = selectedRes?.isBilled || false;
     if (!isAlreadyBilled) {
       const guestName = selectedRes?.guest?.displayName || 'this guest';
@@ -604,6 +630,7 @@ export default function FrontOfficePage() {
     setGeneratingBill(true);
     try {
       const effDiscount = discountVal !== undefined ? discountVal : (Number(discountAmount) || 0);
+      const effSuffix = type === 'GST' ? (customSuffix || customGstSuffix) : undefined;
       const res = await fetch('/api/finance/invoices/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -613,6 +640,7 @@ export default function FrontOfficePage() {
           customerGstin: gstin ? gstin.trim().toUpperCase() : undefined,
           companyName: company ? company.trim() : undefined,
           discount: effDiscount,
+          customGstSuffix: effSuffix,
         }),
       });
 
@@ -930,6 +958,7 @@ export default function FrontOfficePage() {
     setCustomerGstin(resItem.guest?.gstin || '');
     setRecordPaymentWithBill(!resItem.isBilled);
     setIsPaymentOpen(true);
+    fetchNextGstNumber();
 
     try {
       const res = await fetch(`/api/reservations/${resItem.id}`);
@@ -948,6 +977,9 @@ export default function FrontOfficePage() {
 
   const handleSelectPaymentBillType = (type: 'GST' | 'NON_GST') => {
     setBillType(type);
+    if (type === 'GST') {
+      fetchNextGstNumber();
+    }
     if (!selectedRes) return;
     const bal = calculateResBalanceForBillType(selectedRes, type, Number(discountAmount) || 0);
     setPayAmount(bal > 0 ? String(bal) : '0');
@@ -961,7 +993,7 @@ export default function FrontOfficePage() {
     try {
       const discNum = Math.max(0, Number(discountAmount) || 0);
       if (recordPaymentWithBill && !selectedRes.isBilled) {
-        await handleGenerateBill(selectedRes.id, billType, customerGstin, companyName, discNum);
+        await handleGenerateBill(selectedRes.id, billType, customerGstin, companyName, discNum, customGstSuffix);
       }
 
       const res = await fetch('/api/payments', {
@@ -2906,30 +2938,74 @@ export default function FrontOfficePage() {
               </div>
 
               {billType === 'GST' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-                      Company Name (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="e.g. Acme Corp / Tata Sons"
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500"
-                    />
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                        Company Name (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        placeholder="e.g. Acme Corp / Tata Sons"
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                        Customer GSTIN (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={customerGstin}
+                        onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
+                        placeholder="e.g. 18AOIPB2857A1ZB"
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-mono focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-                      Customer GSTIN (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={customerGstin}
-                      onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
-                      placeholder="e.g. 18AOIPB2857A1ZB"
-                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-mono focus:ring-2 focus:ring-emerald-500"
-                    />
+
+                  {/* GST Invoice Serial Number with Option to Rename/Rewrite Last Digits */}
+                  <div className="p-2.5 bg-emerald-50/70 rounded-lg border border-emerald-200 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-emerald-950 uppercase flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                        GST Bill Serial Number
+                      </label>
+                      <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.5 rounded">
+                        FY {fyCode}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold text-slate-800 select-none shadow-2xs">
+                        T {fyCode}-
+                      </div>
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={customGstSuffix}
+                          onChange={(e) => setCustomGstSuffix(e.target.value.replace(/[^0-9]/g, ''))}
+                          placeholder={defaultGstSuffix}
+                          maxLength={5}
+                          className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-600"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCustomGstSuffix(defaultGstSuffix)}
+                        className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-bold border border-emerald-200 shadow-2xs"
+                        title="Reset to default sequence"
+                      >
+                        Reset ({defaultGstSuffix})
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-emerald-800">
+                      Generated GST Bill Number:{' '}
+                      <strong className="font-mono text-emerald-950 font-black">
+                        T {fyCode}-{(customGstSuffix ? customGstSuffix.padStart(3, '0') : defaultGstSuffix)}
+                      </strong>
+                    </p>
                   </div>
                 </div>
               )}
@@ -2947,7 +3023,7 @@ export default function FrontOfficePage() {
 
                 <button
                   type="button"
-                  onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin, companyName, Number(discountAmount) || 0)}
+                  onClick={() => handleGenerateBill(selectedRes.id, billType, customerGstin, companyName, Number(discountAmount) || 0, customGstSuffix)}
                   disabled={generatingBill}
                   className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50"
                 >

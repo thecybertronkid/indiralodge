@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { generateReferenceNumber } from '@/lib/refGenerator';
+import { generateReferenceNumber, generateGstInvoiceNumber } from '@/lib/refGenerator';
 
 export async function GET(req: Request) {
   try {
@@ -72,7 +72,16 @@ export async function POST(req: Request) {
     if (!propertyId) return NextResponse.json({ error: 'No active property found' }, { status: 400 });
 
     const body = await req.json();
-    const { folioId, reservationId, guestId, customerGstin, companyName, placeOfSupply } = body;
+    const {
+      folioId,
+      reservationId,
+      guestId,
+      customerGstin,
+      companyName,
+      placeOfSupply,
+      customGstSuffix,
+      customInvoiceRef,
+    } = body;
 
     if (!guestId) {
       return NextResponse.json({ error: 'Guest ID is required to issue a tax invoice.' }, { status: 400 });
@@ -148,7 +157,20 @@ export async function POST(req: Request) {
     const igstAmount = lineItemsData.reduce((sum, l) => sum + l.igstAmount, 0);
     const totalAmount = subtotal + cgstAmount + sgstAmount;
 
-    const invoiceRef = await generateReferenceNumber(propertyId, 'INV');
+    let invoiceRef: string;
+    if (customInvoiceRef && String(customInvoiceRef).trim()) {
+      invoiceRef = String(customInvoiceRef).trim();
+    } else {
+      invoiceRef = await generateGstInvoiceNumber(propertyId, customGstSuffix);
+    }
+
+    const existing = await db.taxInvoice.findUnique({ where: { invoiceRef } });
+    if (existing) {
+      return NextResponse.json(
+        { error: `GST Bill Number "${invoiceRef}" already exists. Please choose a different last digit or sequence.` },
+        { status: 400 }
+      );
+    }
 
     const invoice = await db.taxInvoice.create({
       data: {

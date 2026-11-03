@@ -34,7 +34,7 @@ export default function TaxInvoicesPage() {
   const isSelectedGst = !isSelectedNonGst && Boolean(
     selectedInvoice?.invoiceType === 'GST' ||
     selectedInvoice?.isGstBill === true ||
-    (typeof selectedInvoice?.invoiceRef === 'string' && selectedInvoice.invoiceRef.startsWith('INV-')) ||
+    (typeof selectedInvoice?.invoiceRef === 'string' && (selectedInvoice.invoiceRef.startsWith('INV-') || selectedInvoice.invoiceRef.startsWith('T ') || selectedInvoice.invoiceRef.startsWith('T-'))) ||
     selectedInvoice?.reservation?.billType === 'GST' ||
     (Number(selectedInvoice?.cgstAmount || 0) > 0 || Number(selectedInvoice?.sgstAmount || 0) > 0)
   );
@@ -48,6 +48,25 @@ export default function TaxInvoicesPage() {
   const [customerGstin, setCustomerGstin] = useState('');
   const [placeOfSupply, setPlaceOfSupply] = useState('State');
   const [submitting, setSubmitting] = useState(false);
+  const [customGstSuffix, setCustomGstSuffix] = useState('049');
+  const [defaultGstSuffix, setDefaultGstSuffix] = useState('049');
+  const [fyCode, setFyCode] = useState('26-27');
+
+  const fetchNextGstNumber = async () => {
+    try {
+      const res = await fetch('/api/finance/invoices/generate?nextGstNumber=true');
+      if (res.ok) {
+        const d = await res.json();
+        if (d.nextGstSuffix) {
+          setDefaultGstSuffix(d.nextGstSuffix);
+          setCustomGstSuffix(d.nextGstSuffix);
+        }
+        if (d.fyCode) {
+          setFyCode(d.fyCode);
+        }
+      }
+    } catch {}
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -88,6 +107,7 @@ export default function TaxInvoicesPage() {
 
   useEffect(() => {
     fetchData();
+    fetchNextGstNumber();
   }, []);
 
   const handleIssueInvoice = async (e: React.FormEvent) => {
@@ -103,6 +123,7 @@ export default function TaxInvoicesPage() {
           companyName,
           customerGstin,
           placeOfSupply,
+          customGstSuffix: customGstSuffix ? customGstSuffix.padStart(3, '0') : undefined,
         }),
       });
 
@@ -296,6 +317,48 @@ export default function TaxInvoicesPage() {
               onChange={(e) => setPlaceOfSupply(e.target.value)}
               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900"
             />
+          </div>
+
+          {/* GST Bill Serial Number with Option to Rename / Rewrite Last Digits */}
+          <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-emerald-950 uppercase flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                GST Invoice Serial Number
+              </label>
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.5 rounded">
+                FY {fyCode}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold text-slate-800 select-none shadow-2xs">
+                T {fyCode}-
+              </div>
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={customGstSuffix}
+                  onChange={(e) => setCustomGstSuffix(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder={defaultGstSuffix}
+                  maxLength={5}
+                  className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-600"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomGstSuffix(defaultGstSuffix)}
+                className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-bold border border-emerald-200 shadow-2xs"
+                title="Reset to default sequence"
+              >
+                Reset ({defaultGstSuffix})
+              </button>
+            </div>
+            <p className="text-[11px] text-emerald-800">
+              Generated GST Invoice Ref:{' '}
+              <strong className="font-mono text-emerald-950 font-black">
+                T {fyCode}-{(customGstSuffix ? customGstSuffix.padStart(3, '0') : defaultGstSuffix)}
+              </strong>
+            </p>
           </div>
 
           <div className="pt-3 flex justify-end gap-3 border-t border-slate-100">

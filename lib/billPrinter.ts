@@ -446,7 +446,7 @@ export function generateBillHtml({ invoice, reservation, guest }: PrintableBillP
   const isGst = !isNonGst && Boolean(
     invoice?.invoiceType === 'GST' ||
     invoice?.isGstBill === true ||
-    (typeof invoice?.invoiceRef === 'string' && invoice.invoiceRef.startsWith('INV-')) ||
+    (typeof invoice?.invoiceRef === 'string' && (invoice.invoiceRef.startsWith('INV-') || invoice.invoiceRef.startsWith('T ') || invoice.invoiceRef.startsWith('T-'))) ||
     reservation?.billType === 'GST' ||
     invoice?.reservation?.billType === 'GST' ||
     (Number(invoice?.cgstAmount || 0) > 0 || Number(invoice?.sgstAmount || 0) > 0)
