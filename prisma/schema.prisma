@@ -112,6 +112,9 @@ model User {
   fullName            String
   phone               String?
   status              String                      @default("ACTIVE")
+  strikeCount         Int                         @default(0)
+  blockedReason       String?
+  blockedAt           DateTime?
   lastLoginAt         DateTime?
   userRoles           UserRole[]
   userSessions        UserSession[]

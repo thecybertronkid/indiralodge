@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { PushNotificationManager } from '@/components/notifications/PushNotificationManager';
+import { WarningPopupModal } from '@/components/notifications/WarningPopupModal';
 import { Loader2 } from 'lucide-react';
 
 import { AyanWelcomeSplash } from '@/components/ayan/AyanWelcomeSplash';
@@ -132,6 +133,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           propertyName={propertyName}
         />
       )}
+
+      {/* Global Super Admin Warning Popup & Strike Alert */}
+      <WarningPopupModal />
 
       {/* Global Push Notification Manager */}
       <PushNotificationManager />

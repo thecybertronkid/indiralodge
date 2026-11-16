@@ -21,6 +21,7 @@ import {
   UserCheck,
   UserCog,
   FileCheck2,
+  ShieldAlert,
   Settings,
   HelpCircle,
   LogOut,
@@ -104,6 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { label: 'CRM', href: '/crm', icon: UserCheck, isReady: false, allowedRoles: ['Super Admin', 'Owner', 'General Manager', 'Front Office Manager'] },
     { label: 'Users & Staff', href: '/users', icon: UserCog, isReady: true, permission: 'users.view' },
     { label: 'Audit Logs', href: '/audit-logs', icon: FileCheck2, isReady: true, permission: 'audit_logs.view' },
+    { label: 'Revert Hub (Super Admin)', href: '/admin/revert-hub', icon: ShieldAlert, isReady: true, allowedRoles: ['Super Admin', 'Owner'] },
     { label: 'Settings', href: '/settings', icon: Settings, isReady: true, permission: 'settings.view' },
   ];
 

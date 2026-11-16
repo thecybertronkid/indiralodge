@@ -46,6 +46,15 @@ export async function POST(req: Request) {
     }
 
     if (user.status !== 'ACTIVE') {
+      if (user.status === 'BLOCKED') {
+        return NextResponse.json(
+          { 
+            error: user.blockedReason || 'Your account has been blocked due to multiple error reverts. Please report to the Super Admin to reopen your account.',
+            isBlocked: true,
+          },
+          { status: 403 }
+        );
+      }
       return NextResponse.json(
         { error: 'Your account is deactivated. Please contact your property administrator.' },
         { status: 403 }

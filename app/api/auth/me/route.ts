@@ -18,6 +18,8 @@ export async function GET() {
           fullName: true,
           phone: true,
           status: true,
+          strikeCount: true,
+          blockedReason: true,
           lastLoginAt: true,
           createdAt: true,
         },
@@ -39,6 +41,10 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (user.status === 'BLOCKED') {
+      return NextResponse.json({ error: 'Your account has been blocked.', isBlocked: true }, { status: 403 });
     }
 
     return NextResponse.json({
